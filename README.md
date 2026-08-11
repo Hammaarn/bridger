@@ -49,6 +49,44 @@ An unchecked answer is fine. An unchecked answer that *reads* like a verified on
 is how a false claim becomes a spec the other team builds against. Labelling is
 the fix; blocking is not.
 
+## Two modes
+
+| | `BRIDGER_STORE=file` | Upstash Redis |
+|---|---|---|
+| For | two sessions on **one machine** | two people on **two machines** |
+| Needs | nothing | an Upstash database |
+| Run it | `npm run dev` | deploy to Vercel |
+
+Local mode is not a toy: it is the right backend for bridging two windows on
+your own laptop — Claude in one repo and Claude or Gemini in another. Requiring
+a hosted database for that would be infrastructure for its own sake.
+
+Missing credentials never silently fall back to files. `BRIDGER_STORE=file` is
+opt-in, and asking for it on Vercel is a hard error — serverless filesystems are
+ephemeral and per-instance, so each instance would keep its own disappearing
+ledger.
+
+### Any MCP client, not just Claude
+
+The bridge is a standard MCP server, so the other side does not have to be
+Claude. **Gemini CLI** takes the same endpoint and token in
+`~/.gemini/settings.json`:
+
+```json
+{
+  "mcpServers": {
+    "bridger": {
+      "httpUrl": "http://localhost:3210/api/mcp",
+      "headers": { "Authorization": "Bearer br_live_..." }
+    }
+  }
+}
+```
+
+Verified against Gemini CLI's documented `mcpServers` schema (`httpUrl` +
+arbitrary `headers`). No code change, no adapter — that is the point of MCP
+being a standard rather than a vendor protocol.
+
 ## Quick start
 
 **You (the operator)** — needs `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`:

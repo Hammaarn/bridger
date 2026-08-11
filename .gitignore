@@ -36,6 +36,12 @@ yarn-error.log*
 # variables are documented, so it must ship.
 !.env.example
 
+# Local file-store data (BRIDGER_STORE=file). Contains token HASHES and the
+# ledger — not tokens themselves, but it is still someone's private record.
+.bridger-data/
+# A bridge materialised into THIS repo while dogfooding.
+/bridger/
+
 # vercel
 .vercel
 
