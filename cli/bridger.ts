@@ -65,11 +65,24 @@ interface LocalRoom {
   topic: string;
 }
 
+/**
+ * Read a JSON file, tolerating a UTF-8 BOM.
+ *
+ * We never write one, but `room.json` is a plain file a human may open and
+ * re-save — and on Windows that routinely adds a BOM (PowerShell's
+ * `Set-Content -Encoding utf8` does it by default), which makes `JSON.parse`
+ * fail with a message that points nowhere near the cause. Cost of tolerating
+ * it: one `replace`.
+ */
+function readJsonFile<T>(path: string): T {
+  return JSON.parse(readFileSync(path, "utf8").replace(/^﻿/, "")) as T;
+}
+
 function readLocalRoom(): LocalRoom {
   if (!existsSync(ROOM_FILE)) {
     die(`No ${ROOM_FILE} here. Run \`bridger join <token> --server <url>\` first.`);
   }
-  return JSON.parse(readFileSync(ROOM_FILE, "utf8")) as LocalRoom;
+  return readJsonFile<LocalRoom>(ROOM_FILE);
 }
 
 function writeFile(path: string, contents: string) {

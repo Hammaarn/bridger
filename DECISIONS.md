@@ -5,6 +5,58 @@ Append-only, newest first. **DECISIONS wins on direction** — where this file a
 
 ---
 
+## 2026-08-12 — S#271 — Local mode: a bridge needs no database
+
+**Source:** Erik — *"Is the upstash DB really crucial right now or can we do it
+later? I want to try two different AI utilizing it... The use case here is also
+local sessions that I have opened on my device only."*
+
+**Decision: add `BRIDGER_STORE=file`, and treat local as a first-class mode.**
+
+Requiring a hosted Redis to bridge two windows on the same laptop is
+infrastructure for its own sake. The `Store` interface was already injectable
+(it exists so the auth path could be tested at all), so a file-backed
+implementation was ~180 lines and no change to any caller.
+
+It also unblocked the thing STATUS listed as the single biggest open risk: *no
+call had ever succeeded end to end*. With a file store, the full ask → answer →
+close → pull round trip ran on a laptop with no account anywhere. **Deferring
+Upstash did not defer the verification; it enabled it.**
+
+- **Opt-in only, never a fallback.** Missing Upstash credentials still return
+  `null` and still fail closed. A hosted deploy that quietly degraded to
+  per-instance local files would look healthy while every serverless instance
+  kept its own disappearing ledger.
+- **Hard error on Vercel.** `BRIDGER_STORE=file` there throws rather than warns:
+  serverless filesystems are ephemeral and per-instance, so a file store there
+  is not a degraded bridge, it is a broken one.
+- **No TTL locally.** Expiring someone's own record off their own disk would be
+  a surprise, not a feature. Deleting the data directory is theirs to run.
+
+**Second AI confirmed to work with no code change.** Gemini CLI takes `httpUrl`
+plus arbitrary `headers` (including `Authorization: Bearer`) in `settings.json`
+— its own docs example is `http://localhost:3000/mcp`. Same endpoint, same
+token, different config file. This is the payoff of MCP being a standard rather
+than a vendor protocol, and it means "two different AI on one bridge" needs
+nothing built.
+
+### Defect found by the control, and the lesson
+
+Revoking a side from the CLI reported success and **did nothing** — the CLI is a
+separate process, and the running server served the revoked token from an
+in-memory snapshot taken at startup. The file store's own comment already said
+"not safe across processes"; it was written as a concurrency caveat and the real
+consequence was a security one.
+
+Fixed with an mtime check before every read. **The generalisable part:** the
+check that found this was the *control* — revoked must 401 **while an untouched
+token 200s in the same breath**. Checking only that the revoked token was
+refused would have passed on the broken build, because it was refused for
+reasons unrelated to the revocation. A refusal only means something next to an
+acceptance.
+
+---
+
 ## 2026-08-11 — S#271 — Bridger, v1 architecture
 
 **Source:** Erik, live in session. Named by Erik ("It's a bridge and we enable it

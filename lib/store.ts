@@ -123,13 +123,32 @@ export async function touchRoom(store: Store, roomId: string): Promise<void> {
 // ── the real client ──────────────────────────────────────────────
 
 /**
- * Build the Upstash-backed store, or `null` when it is not configured.
+ * Build the configured store, or `null` when there isn't one.
  *
- * `null` is a first-class value here, not an error: the caller fails CLOSED on
- * it (see `authorize` in room-registry). A bridge that cannot read its own
- * token registry must not serve requests.
+ * Two backends, and the selection is explicit in both directions:
+ *
+ *  - `BRIDGER_STORE=file` → a local JSON file. For bridging two sessions on
+ *    one machine, where a hosted database would be infrastructure for its own
+ *    sake. Opt-in only.
+ *  - Upstash credentials → Redis. The hosted, two-machine case.
+ *
+ * **A missing configuration returns `null` and never silently degrades to
+ * files.** `null` is a first-class value here, not an error: the caller fails
+ * CLOSED on it (see `authorize` in room-registry). A hosted deploy that quietly
+ * fell back to per-instance local files would look healthy while every
+ * serverless instance kept its own disappearing ledger — so the fallback does
+ * not exist, and a bridge that cannot read its own token registry serves
+ * nothing.
  */
 export function createStore(): Store | null {
+  if (process.env.BRIDGER_STORE === "file") {
+    // Required lazily so the hosted path never loads the fs backend, and to
+    // keep the module graph acyclic at runtime.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { createFileStore } = require("./file-store") as typeof import("./file-store");
+    return createFileStore();
+  }
+
   const url = process.env.UPSTASH_REDIS_REST_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;
   if (!url || !token) return null;
