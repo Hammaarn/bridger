@@ -5,6 +5,51 @@ Append-only, newest first. **DECISIONS wins on direction** — where this file a
 
 ---
 
+## 2026-08-12 — S#271 — Token roles: viewer vs participant
+
+**Source:** Erik — *"what does OpenWork offer which would just make sense to
+have in our project?"* Their line is *"auth, roles, and policies applied on the
+way through."* Taken because it closes a hole we opened the same afternoon, not
+because a competitor has it.
+
+**The hole.** The web view had no token of its own, so watching a bridge meant
+pasting a **participant** token into a browser tab — and anyone seeing that
+screen, or that tab's storage, could then post as that side. The UI made
+authorship cheap to steal, and the UI is precisely the reason a token ends up
+somewhere visible. Introduced by the same change that added the view.
+
+**Decisions:**
+1. `TokenRecord.role: "participant" | "viewer"`. A viewer authenticates and
+   reads — it *should* read — so the gate is per-tool, not at the auth layer.
+2. **One `writableBridgeFrom()`**, not a check copied into five handlers. The
+   copies are what drift (S#268: one prompt-rule text in three copies silently
+   degraded three different things).
+3. `bridger_contract` splits by intent: reading it is a viewer's right,
+   replacing it is not.
+4. `bridger_status` reports `role` and `canWrite`, so an agent learns its limits
+   up front rather than by being refused mid-task.
+5. **`rotate` revokes participants only.** Rotating a leaked working token must
+   not silently blind an unrelated watcher — that is a separate decision and it
+   belongs to whoever makes it deliberately. `revoke` without a filter still
+   kills everything on the side.
+6. **A missing or corrupted `role` resolves to `participant`.** Only the exact
+   string `"viewer"` restricts. Every token minted before roles existed keeps
+   working; a missing field must never downgrade a partner mid-integration.
+
+**Verified live, with the control:** viewer → `bridger_status` OK
+(`canWrite: false`) and `bridger_ask` refused; participant → same status OK
+(`canWrite: true`) and `bridger_ask` wrote `JMS-Q-001`. A refusal on its own
+proves nothing; it means something next to an acceptance in the same breath.
+
+**Not taken from OpenWork, and why:** 50+ LLM providers and BYO keys (we call no
+model — that is the differentiator, not a gap); scheduled tasks, Dispatch,
+browser automation (all execution — owning nothing about the agents is what
+keeps identity and revocation clean); extension marketplace (a capability
+platform is a different product); SSO (premature); "live artifacts"
+(auto-refreshing dashboard — already built).
+
+---
+
 ## 2026-08-12 — S#271 — Local mode: a bridge needs no database
 
 **Source:** Erik — *"Is the upstash DB really crucial right now or can we do it

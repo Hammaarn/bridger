@@ -96,7 +96,8 @@ export interface AppendInput {
 export interface RoomStatus {
   roomId: string;
   topic: string;
-  you: { side: SideId; label: string; code: string };
+  /** `role` is surfaced so an agent knows up front whether it can write, rather than discovering it by being refused mid-task. */
+  you: { side: SideId; label: string; code: string; role: string; canWrite: boolean };
   peer: { side: SideId; label: string; code: string; joined: boolean };
   /** Entries from the other side you have not read. */
   unread: number;
@@ -301,6 +302,8 @@ export async function getStatus(
       side: token.side,
       label: room.sides[token.side].label,
       code: room.sides[token.side].code,
+      role: token.role,
+      canWrite: token.role !== "viewer",
     },
     peer: {
       side: peerSide,

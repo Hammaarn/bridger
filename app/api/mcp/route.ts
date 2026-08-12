@@ -38,7 +38,9 @@ import {
 } from "@/lib/entries";
 import {
   authorize,
+  canWrite,
   markJoined,
+  VIEWER_REFUSAL,
   writeAudit,
   type RoomRecord,
   type TokenRecord,
@@ -111,6 +113,20 @@ function bridgeFrom(ctx: unknown): BridgeAuth {
     throw new Error("bridger: no authenticated room on this request");
   }
   return extra;
+}
+
+/**
+ * Same as `bridgeFrom`, for the tools that WRITE.
+ *
+ * A viewer token authenticates fine — it can read the room, and should — so
+ * this is a per-tool gate rather than an auth-layer one. Every write path goes
+ * through here, which is why there is one function and not a check copied into
+ * five handlers: the copies are what drift.
+ */
+function writableBridgeFrom(ctx: unknown): BridgeAuth {
+  const bridge = bridgeFrom(ctx);
+  if (!canWrite(bridge.token)) throw new Error(VIEWER_REFUSAL);
+  return bridge;
 }
 
 /** Every tool answers in one shape: JSON text an agent can parse without guessing. */
@@ -202,7 +218,7 @@ const handler = createMcpHandler(
         }),
       },
       async (args, ctx) => {
-        const { room, token } = bridgeFrom(ctx);
+        const { room, token } = writableBridgeFrom(ctx);
         const entry = await appendEntry(
           requireStore(),
           room,
@@ -231,7 +247,7 @@ const handler = createMcpHandler(
         }),
       },
       async (args, ctx) => {
-        const { room, token } = bridgeFrom(ctx);
+        const { room, token } = writableBridgeFrom(ctx);
         const entry = await appendEntry(
           requireStore(),
           room,
@@ -262,7 +278,7 @@ const handler = createMcpHandler(
         }),
       },
       async (args, ctx) => {
-        const { room, token } = bridgeFrom(ctx);
+        const { room, token } = writableBridgeFrom(ctx);
         const entry = await appendEntry(
           requireStore(),
           room,
@@ -287,7 +303,7 @@ const handler = createMcpHandler(
         }),
       },
       async (args, ctx) => {
-        const { room, token } = bridgeFrom(ctx);
+        const { room, token } = writableBridgeFrom(ctx);
         const entry = await appendEntry(
           requireStore(),
           room,
@@ -316,7 +332,10 @@ const handler = createMcpHandler(
         }),
       },
       async (args, ctx) => {
-        const { room, token } = bridgeFrom(ctx);
+        // Split by intent, not by tool: reading the contract is a viewer's
+        // right, replacing it is not. Checked here rather than at the top
+        // because this one tool is both a read and a write.
+        const { room, token } = args.body === undefined ? bridgeFrom(ctx) : writableBridgeFrom(ctx);
         const store = requireStore();
         if (args.body === undefined) {
           const contract = await getContract(store, room.id);

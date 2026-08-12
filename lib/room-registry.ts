@@ -52,6 +52,25 @@ import {
 
 export type SideId = "a" | "b";
 
+/**
+ * What a token may do.
+ *
+ * `participant` writes to the record and speaks as its side. `viewer` reads and
+ * nothing else.
+ *
+ * WHY THIS EXISTS, WITH THE INCIDENT ATTACHED
+ * -------------------------------------------
+ * Until this existed every token could write, and the read-only web view had no
+ * token of its own — so watching a bridge meant pasting a *participant* token
+ * into a browser tab. Anyone seeing that screen, or that tab's storage, could
+ * then post as that side. The UI made authorship cheap to steal, and the UI was
+ * the reason someone would put a token somewhere visible in the first place.
+ *
+ * A viewer is still bound to a side, because "unread" and "whose turn" are only
+ * meaningful from a point of view. It borrows the perspective; it cannot use it.
+ */
+export type TokenRole = "participant" | "viewer";
+
 export interface TokenRecord {
   /** First 12 chars of the sha256. Safe to log; the rate-limit bucket. */
   id: string;
@@ -61,6 +80,12 @@ export interface TokenRecord {
   label: string;
   /** Short uppercase code used to namespace this side's entry IDs, e.g. "JMS". */
   code: string;
+  /**
+   * Defaults to `participant` when absent so every token minted before roles
+   * existed keeps working exactly as it did. A missing field must never
+   * silently downgrade a partner mid-integration.
+   */
+  role: TokenRole;
   active: boolean;
   createdAt: string;
   /** ISO date, or null for no expiry. */
@@ -206,11 +231,23 @@ export function parseToken(raw: unknown): TokenRecord | null {
     side: r.side,
     label: typeof r.label === "string" ? r.label : "",
     code: typeof r.code === "string" ? r.code : "XXX",
+    // Only the exact string "viewer" restricts. Anything else — including a
+    // missing field on a pre-roles token, or a corrupted value — resolves to
+    // participant, which is how it behaved before roles existed.
+    role: r.role === "viewer" ? "viewer" : "participant",
     active: r.active !== false,
     createdAt: typeof r.createdAt === "string" ? r.createdAt : "",
     expiresAt: typeof r.expiresAt === "string" ? r.expiresAt : null,
   };
 }
+
+/** True when this token may write to the record. */
+export const canWrite = (t: TokenRecord): boolean => t.role !== "viewer";
+
+/** The refusal a viewer gets — says what it is and how to get past it. */
+export const VIEWER_REFUSAL =
+  "This is a VIEWER token: it can read the record but not write to it. " +
+  "Ask whoever opened the bridge for a participant token (`bridger rotate --side <a|b>`).";
 
 export function parseRoom(raw: unknown): RoomRecord | null {
   const obj = coerceJson(raw);
@@ -381,6 +418,7 @@ export async function issueToken(
   side: SideId,
   now: Date,
   expiresAt: string | null = null,
+  role: TokenRole = "participant",
 ): Promise<string> {
   const raw = mintTokenString();
   const hash = hashToken(raw);
@@ -390,6 +428,7 @@ export async function issueToken(
     side,
     label: room.sides[side].label,
     code: room.sides[side].code,
+    role,
     active: true,
     createdAt: now.toISOString(),
     expiresAt,
@@ -415,17 +454,31 @@ export async function rotateSide(
   side: SideId,
   now: Date,
 ): Promise<string> {
-  await revokeSide(store, room, side);
+  // Only participants. Rotating the working token because it leaked should not
+  // silently blind whoever was watching the room on a viewer link — that is a
+  // different decision, and it belongs to whoever makes it deliberately.
+  await revokeSide(store, room, side, "participant");
   return issueToken(store, room, side, now);
 }
 
-/** Deactivate every token belonging to a side. Idempotent. */
-export async function revokeSide(store: Store, room: RoomRecord, side: SideId): Promise<number> {
+/**
+ * Deactivate tokens belonging to a side. Idempotent.
+ *
+ * `role` narrows it; omitting it revokes everything on that side, which is the
+ * right default for "this partner is gone".
+ */
+export async function revokeSide(
+  store: Store,
+  room: RoomRecord,
+  side: SideId,
+  role?: TokenRole,
+): Promise<number> {
   const hashes = await store.smembers(ROOM_TOKENS_KEY(room.id));
   let revoked = 0;
   for (const hash of hashes) {
     const record = parseToken(await store.get(TOKEN_KEY(hash)));
     if (!record || record.side !== side || !record.active) continue;
+    if (role && record.role !== role) continue;
     await store.set(TOKEN_KEY(hash), JSON.stringify({ ...record, active: false }));
     revoked += 1;
   }
