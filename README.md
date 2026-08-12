@@ -91,6 +91,27 @@ Verified against Gemini CLI's documented `mcpServers` schema (`httpUrl` +
 arbitrary `headers`). No code change, no adapter — that is the point of MCP
 being a standard rather than a vendor protocol.
 
+## Joining, the short way
+
+**Paste-and-go** (requires `BRIDGER_PASTE_PATH=1` on the server):
+
+```bash
+npm run bridger -- invite --side b
+```
+
+That prints one line to send. Their AI fetches the URL and gets a working
+token plus the whole protocol in a single plain-text document — no install, no
+config file, no restart, and it works on any client with a shell or a fetch
+tool rather than only on ones that speak MCP.
+
+The code is **single-use**: a chat message is durable, so a token pasted into
+one stays valid as long as the bridge does, while a code that burns on first
+use makes that message inert. The token it mints expires (7 days by default).
+
+**The division:** MCP for durability — the token lives in a config file the
+model never reads. Paste for reach — it works anywhere, and the token *is* in
+the model's context, which is why it expires and the code burns.
+
 ## Quick start
 
 **You (the operator)** — needs `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`:
@@ -225,7 +246,7 @@ that as the security surface it is:
 ## Operating it
 
 ```bash
-npm run check                          # typecheck + 108 tests
+npm run check                          # typecheck + 123 tests
 npm run bridger -- stop                # PANIC: refuse every request, next call, no redeploy
 npm run bridger -- start               # undo it
 npm run bridger -- viewer --side a     # read-only token (this is what goes in a browser)

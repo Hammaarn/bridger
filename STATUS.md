@@ -10,14 +10,16 @@
 | # | Read | Why |
 |---|---|---|
 | 1 | **this file, "State right now"** below | the bridge is STOPPED and prod is STALE — start there or you will be confused |
-| 2 | `ARCHITECTURE.md` | 15 non-obvious facts + 7 invariants. Traps that already cost a session |
+| 2 | `ARCHITECTURE.md` | 20 non-obvious facts + 11 invariants. Traps that already cost a session |
 | 3 | `DECISIONS.md` (newest first) | why it is shaped this way; what was rejected and why |
 | 4 | `TODO.md` | what to do next, by lane |
 | 5 | `skill/SKILL.md` | what the agents are told; change this before adding rules to prompts |
 
 Code entry points, in dependency order: `lib/store.ts` (keys + every limit
 constant) → `lib/room-registry.ts` (auth) → `lib/entries.ts` (ledger) →
-`app/api/mcp/route.ts` (tools + budget gate).
+**`lib/operations.ts` (the behaviour — viewer gate, idle brake, containment)** →
+`app/api/mcp/route.ts` and `app/api/rpc/route.ts`, which are thin adapters over
+it. If you are looking for a rule, it is in `operations.ts`, not in a route.
 
 ---
 
@@ -47,16 +49,16 @@ cap, no terminal refusals — the exact configuration that burned the quota.
 
 | Piece | State | How it was checked |
 |---|---|---|
-| `lib/store.ts` + `room-registry.ts` | done | **71 tests** — fail-closed, cache grace, revoke-beats-cache, rate limit, daily cap, **per-room cap**, roles, terminal refusals |
+| `lib/store.ts` + `room-registry.ts` | done | **123 tests** — fail-closed, cache grace, revoke-beats-cache, rate limit, daily cap, **per-room cap**, roles, terminal refusals |
 | `lib/audit-call.ts` | done (S#272) | batch/single, tools/call vs verb, unparsed body, and that it does NOT consume the request |
 | `lib/entries.ts` | done | namespacing, token-derived identity, derived open-questions, seq-survives-trim, wait semantics |
 | `lib/file-store.ts` | done | restart persistence, corrupt-file recovery, **cross-process revocation** |
 | `app/api/mcp/route.ts` | 8 tools + budget gate | live JSON-RPC round trip; terminal STOP payload verified |
 | `app/api/export`, `/api/health` | done | health verified reporting `killSwitchSource: "redis"` |
 | `app/page.tsx` + `globals.css` | done | **screenshotted** (`.local/shots/ledger2.png`) after shipping unstyled once |
-| `cli/bridger.ts` | 10 commands | usage path run; `open`/`rotate`/`revoke`/`viewer`/`stop` exercised for real |
+| `cli/bridger.ts` | 12 commands | usage path run; `open`/`rotate`/`revoke`/`viewer`/`stop` exercised for real |
 
-`npm run check` → 71 pass, 0 fail. `tsc --noEmit` clean. `next build` clean.
+`npm run check` → 123 pass, 0 fail. `tsc --noEmit` clean. `next build` clean.
 
 **S#272 — the safety lane, and what it is worth.** Per-room cap, success-audit,
 and the **idle brake** generalised off `bridger_wait` onto every read tool (
@@ -66,6 +68,15 @@ them fail, switched back on — so they are known to catch the bug rather than p
 beside it. **None of it has touched a live bridge**: the bridge is stopped and
 production is stale, so this is unit-green, not run-green. It ships in the deploy
 production is already waiting for.
+
+**S#272 overnight — the level-up sweep.** Ten domains, in
+`plans/LEVEL-UP-FINDINGS-s272.md`; every choice that is Erik's is in
+`plans/DECISIONS-FOR-ERIK-s272.md`. Built: containment of far-side text,
+credential refusal on the write path, the paste-and-go transport (flagged off),
+`bridger audit`. **Two real bugs found that were not on the plan** — a permanent
+cross-process revocation miss hiding behind a flaky test, and `del` reporting
+the wrong count, which silently made single-use join codes reusable on the file
+backend. Both fixed and ablated.
 
 **The one question the tests cannot answer:** whether a real looping client
 *stops* when a tool throws, or treats a tool error as retryable and spins on it.

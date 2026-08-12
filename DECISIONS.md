@@ -5,6 +5,61 @@ Append-only, newest first. **DECISIONS wins on direction** — where this file a
 
 ---
 
+## 2026-08-13 — S#272 (overnight) — THE LEVEL-UP SWEEP
+
+**Source:** `plans/LEVEL-UP-BRIEF-s272.md`, ten domains. Full findings in
+`plans/LEVEL-UP-FINDINGS-s272.md`; everything that is Erik's call is in
+`plans/DECISIONS-FOR-ERIK-s272.md`.
+
+**None of it is run-green.** Deploy is gated, so every claim is from reading the
+code or running the suite locally. 123 tests, up from 55 that morning.
+
+### Decisions taken
+
+1. **Contain far-side text at every seam; be explicit that half the defence is a
+   rail.** `escapeMarkers` is deterministic and bounds the breakout; the banner
+   is an instruction to a model and does not. Written down that way in
+   `lib/untrusted.ts` so nobody mistakes the banner for the mechanism.
+2. **Refuse credentials, never redact** — redacting rewrites an author's words in
+   a record whose value is being faithful, and ships the original to Redis first.
+3. **No entropy heuristic in the secret scanner.** `checkedAgainst` carries
+   commit SHAs; a high-entropy rule would refuse provenance, which is the
+   product. Known shapes only, nine false-positive cases pinned.
+4. **Extract `lib/operations.ts`.** A second transport with its own copy of the
+   rules is a fork that drifts silently. Both routes are adapters now; every
+   guard lives in the operations, so an adapter cannot create a hole.
+5. **Paste-and-go is a URL, not a token.** Fetch capability is a precondition of
+   an HTTP transport, so the "what if they can't fetch" objection dissolves and
+   the safer option is also the only possible one.
+6. **MCP for durability, paste for reach.** A redeemed token IS in the far
+   side's context — inherent, not an oversight — so its code burns and its token
+   expires. A partner needing durability uses MCP, unchanged.
+7. **`bridger audit` as a CLI subcommand, not a dashboard.** The operator already
+   has the credentials and is already in a terminal.
+
+### Two bugs found that were not on the plan
+
+- **A flaky test was a real security bug.** `FileStore.refresh()` compared mtimes
+  for equality; a same-tick write from another process is therefore invisible,
+  **permanently**, because nothing moves the mtime again. Cross-process
+  revocation could report success and do nothing — the exact failure the mtime
+  check was added to prevent.
+- **`del` returned `keys.length`, not the count removed**, in both local store
+  implementations. `redeemInvite` uses that count as its burn lock, so a
+  single-use join code issued two tokens on the file backend while behaving
+  correctly on Redis. The `Store` interface never stated the contract.
+
+Both fixed, both ablated, both now pinned by tests.
+
+### Not built, deliberately
+
+`/api/whoami`, `bridger purge`, the three protocol-lifecycle changes, and the
+transport-level loop fallback. The first three change the product's shape rather
+than filling it in; the fourth would be built on a guess about how clients treat
+thrown tool errors. All queued with recommendations.
+
+---
+
 ## 2026-08-12 — S#272 — THE BUDGET HAS A CEILING THE TOKEN CAP COULD NOT EXPRESS
 
 **Source:** `TODO.md` safety lane, written at the close of S#271 — *"per-room

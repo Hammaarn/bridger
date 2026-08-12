@@ -33,6 +33,7 @@ import {
   type SideId,
 } from "../lib/room-registry";
 import {
+  AUDIT_LOG,
   DEFAULT_DAILY_CAP,
   KILL_SWITCH,
   RATE_LIMIT_PER_MINUTE,
@@ -41,6 +42,7 @@ import {
 } from "../lib/store";
 import type { Entry } from "../lib/entries";
 import { mintInvite } from "../lib/invites";
+import type { AuditEntry } from "../lib/room-registry";
 
 const FOLDER = "bridger";
 const ROOM_FILE = join(FOLDER, "room.json");
@@ -266,6 +268,80 @@ async function cmdInvite() {
 
   The token it mints expires in ${days} days. Requires BRIDGER_PASTE_PATH=1
   on the server. Code expires ${expiresAt}.
+`);
+}
+
+/**
+ * Read the audit log back.
+ *
+ * It has been written since the beginning and read by nothing: `AUDIT_LOG`
+ * appears in exactly two places, both writes. So "who called what, how often"
+ * — the first question an incident asks — was answerable only by someone with
+ * a Redis client and the key layout in their head. During an incident, at 2am,
+ * that is the same as unanswerable.
+ *
+ * A CLI subcommand, not a dashboard: the operator already holds the credentials
+ * and is already in a terminal. The smallest thing that answers the question.
+ */
+async function cmdAudit() {
+  const store = operatorStore();
+  const limit = Number(arg("--limit", "50"));
+  const only = arg("--status", "");
+  const token = arg("--token", "");
+
+  const raw = await store.lrange(AUDIT_LOG, 0, Math.max(1, limit) * 4);
+  const rows = raw
+    .map((r) => {
+      try {
+        return typeof r === "string" ? JSON.parse(r) : r;
+      } catch {
+        return null;
+      }
+    })
+    .filter(Boolean) as AuditEntry[];
+
+  const matching = rows
+    .filter((r) => (only ? r.status === only : true))
+    .filter((r) => (token ? r.tokenId === token : true))
+    .slice(0, Math.max(1, limit));
+
+  if (!matching.length) {
+    console.log(`
+  No audit rows match. (The log is capped and rooms expire.)
+`);
+    return;
+  }
+
+  // The tallies first: during an incident the shape of the traffic is the
+  // question, and the individual rows are the follow-up.
+  const byTool = new Map<string, number>();
+  const byStatus = new Map<string, number>();
+  for (const r of matching) {
+    byTool.set(r.tool, (byTool.get(r.tool) ?? 0) + 1);
+    byStatus.set(r.status, (byStatus.get(r.status) ?? 0) + 1);
+  }
+
+  console.log(`
+  ${matching.length} rows (newest first)
+`);
+  console.log(
+    `  by status: ${[...byStatus].map(([k, v]) => `${k}=${v}`).join("  ")}\n` +
+      `  by call:   ${[...byTool]
+        .sort((a, b) => b[1] - a[1])
+        .map(([k, v]) => `${k}=${v}`)
+        .join("  ")}\n`,
+  );
+
+  for (const r of matching) {
+    const who = r.tokenId ? `${r.tokenId.slice(0, 8)}/${r.side ?? "?"}` : "anon";
+    const mark = r.status === "ok" ? " " : r.status === "deny" ? "!" : "x";
+    const ms = r.durationMs !== undefined ? `${r.durationMs}ms` : "";
+    console.log(
+      `  ${mark} ${r.ts}  ${who.padEnd(11)} ${r.tool.padEnd(18)} ${r.status.padEnd(5)} ${ms}${r.reason ? "  " + r.reason : ""}`,
+    );
+  }
+  console.log(`
+  Filters: --status ok|deny|error  --token <id>  --limit N
 `);
 }
 
@@ -499,6 +575,8 @@ const USAGE = `
                                          ONE-TIME join code -- the paste-and-go path
     revoke --side a|b [--room <id>]      kill a side's access
     close  [--room <id>]                 end the bridge
+    audit  [--status ok|deny|error] [--token <id>] [--limit N]
+                                         who called what, how often
     stop                                 PANIC: refuse every request, now
     start                                undo stop
 
@@ -515,6 +593,7 @@ async function main() {
     case "rotate": return cmdRotate();
     case "viewer": return cmdViewer();
     case "invite": return cmdInvite();
+    case "audit": return cmdAudit();
     case "stop": return cmdStop();
     case "start": return cmdStart();
     case "revoke": return cmdRevoke();

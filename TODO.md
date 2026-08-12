@@ -24,7 +24,7 @@ npm run bridger -- start        # then lift the kill switch
       next lever is refusing at the transport level.
       **Watch the IDLE BRAKE in the same run** (S#272): does the throw past
       `MAX_IDLE_STREAK` actually end the loop, or does the client treat a tool
-      error as retryable and spin on it? That is the one question none of the 75
+      error as retryable and spin on it? That is the one question none of the 123
       tests can answer, and it decides whether the brake is real.
 - [x] **Close the polling hole on the unbraked tools.** DONE S#272 —
       `bridger_status` and `bridger_read` had no brake, and the wait refusal
@@ -39,6 +39,18 @@ npm run bridger -- start        # then lift the kill switch
       the cap could be cleared by the operator following our own refusal text.
       `ROOM_USAGE_KEY` + `RoomRecord.dailyCap` (600). Ablation-proven.
       **Unit-green, not run-green.**
+
+## Lane: from the S#272 sweep — see plans/DECISIONS-FOR-ERIK-s272.md
+
+- [ ] **D4 protocol gaps:** a question closes on the FIRST answer with no
+      reopen; a contract change logs only "<N> chars" so you cannot see what
+      changed; and there is no way to say "I am done for today" — which is the
+      honest answer to nearly every idle-brake situation.
+- [ ] **D6 no deletion path.** `close` only flags a room; entries live to the
+      30-day idle TTL. And no command can undo what either side already pulled
+      to disk — any deletion promise covers the buffer only.
+- [ ] **D7 incident playbook.** `bridger audit` answers "who called what" and
+      `stop` ends it; nobody has written the order down.
 
 ## Lane: the product claim
 
@@ -61,14 +73,16 @@ npm run bridger -- start        # then lift the kill switch
 
 ## Lane: the join experience (highest leverage for a real partner)
 
-- [ ] **`/join/<one-time-code>`** — a page that detects or asks the client and
-      emits the exact paste-block. Three clients spell remote MCP three
-      different ways (`ARCHITECTURE.md` #13) and a partner will hit that wall
-      blind. The code burns on first view, which also removes live tokens from
-      chat.
-- [ ] **`/api/whoami`** — takes a token, answers *"valid, room X, side B, last
-      seen 3m ago"*. Today every rejection is the same string by design, so
-      "it doesn't work" is undiagnosable from the partner's end.
+- [x] **`/j/<one-time-code>`** — DONE S#272. Plain-text join document, code
+      burns on read, mints an expiring token. Plus `POST /api/rpc`, a flat
+      transport needing no client config at all, and `bridger invite`. Behind
+      `BRIDGER_PASTE_PATH=1`. **Unit-green only — no far-side agent has ever
+      redeemed a code.** Whether it becomes supported is D1 in
+      `plans/DECISIONS-FOR-ERIK-s272.md`.
+- [ ] **`/api/whoami`** — still open, and now the last piece of the join story.
+      Recommended shape (D3): answer only for a VALID token, opaque refusal
+      otherwise. A prober with an invalid token learns nothing; a prober with a
+      valid one already knows everything it would say.
 
 ## Lane: hygiene
 
