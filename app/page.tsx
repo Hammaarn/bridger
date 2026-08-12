@@ -156,8 +156,6 @@ export default function BridgeView() {
             bar ends up in history, logs, and screenshots.
           </p>
         </div>
-        <style jsx>{styles}</style>
-        <style jsx global>{globalStyles}</style>
       </main>
     );
   }
@@ -247,7 +245,14 @@ export default function BridgeView() {
                   {e.answers && <code className="ref">→ {e.answers}</code>}
                   <span className="time mono dim">{timeOf(e.ts)}</span>
                 </div>
-                <p className="title">{e.title}</p>
+                {/*
+                  `bridger_answer` stores its title as the first 200 chars of
+                  the answer, so for answers the title is a PREFIX of the body,
+                  not a summary of it. Rendering both printed every answer
+                  twice. Questions are the other case — their body is genuinely
+                  separate context — so the test is prefix-ness, not type.
+                */}
+                {!e.body.startsWith(e.title) && <p className="title">{e.title}</p>}
                 {e.body && e.body !== e.title && <p className="body">{e.body}</p>}
                 {e.why && (
                   <p className="why">
@@ -291,114 +296,6 @@ export default function BridgeView() {
         </button>
         <span className="dim">read-only · every write goes through the MCP tools</span>
       </footer>
-
-      <style jsx>{styles}</style>
-      <style jsx global>{globalStyles}</style>
     </main>
   );
 }
-
-const globalStyles = `
-  :root {
-    --bg: #faf9f7; --panel: #ffffff; --ink: #1a1a19; --dim: #6b6b66;
-    --line: #e4e2dd; --a: #2f6f4f; --b: #7a4a1f; --bad: #a3341f; --hot: #8a6d1f;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #14140f; --panel: #1c1c17; --ink: #eceae4; --dim: #8f8d85;
-      --line: #2c2c25; --a: #7fc59c; --b: #d8a06a; --bad: #e8735a; --hot: #d8bd6a;
-    }
-  }
-  * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--ink);
-    font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
-  code, pre, .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
-`;
-
-const styles = `
-  .wrap { max-width: 860px; margin: 0 auto; padding: 28px 20px 80px; }
-  h1 { font-size: 20px; margin: 0 0 4px; letter-spacing: -0.01em; }
-  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.09em;
-       color: var(--dim); margin: 28px 0 10px; font-weight: 600; }
-  .meta { margin: 0; color: var(--dim); font-size: 13px; }
-  .dim { color: var(--dim); }
-  .dot { margin: 0 7px; color: var(--line); }
-  .sideA { color: var(--a); } .sideB { color: var(--b); }
-  .warn { color: var(--hot); }
-
-  .top { display: flex; justify-content: space-between; align-items: flex-start;
-         gap: 16px; border-bottom: 1px solid var(--line); padding-bottom: 16px; }
-  .pulse { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--dim); }
-  .led { width: 7px; height: 7px; border-radius: 50%; background: var(--dim); }
-  .pulse.on .led { background: var(--a); animation: blink 2s ease-in-out infinite; }
-  .pulse.off .led { background: var(--bad); }
-  @keyframes blink { 0%,100% { opacity: 1 } 50% { opacity: .25 } }
-
-  .error { margin: 16px 0; padding: 12px 14px; border-radius: 6px;
-           background: color-mix(in srgb, var(--bad) 12%, transparent);
-           border: 1px solid color-mix(in srgb, var(--bad) 35%, transparent); font-size: 14px; }
-
-  .stats { display: flex; gap: 28px; margin: 20px 0 4px; }
-  .stats div { display: flex; flex-direction: column; }
-  .stats strong { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
-  .stats span { font-size: 12px; color: var(--dim); }
-  .stats .hot strong { color: var(--hot); }
-  .stats .flag strong { color: var(--bad); }
-
-  .openq { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
-           padding: 9px 12px; border-left: 2px solid currentColor;
-           background: var(--panel); border-radius: 0 5px 5px 0; margin-bottom: 6px; }
-  .openq code { font-size: 12px; }
-  .openq .who { font-size: 12px; color: var(--dim); }
-  .openq .qt { color: var(--ink); font-size: 14px; }
-
-  .feed { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
-  .empty { color: var(--dim); font-size: 14px; padding: 24px 0; }
-  .entry { background: var(--panel); border: 1px solid var(--line);
-           border-left: 3px solid currentColor; border-radius: 0 7px 7px 0; padding: 12px 14px; }
-  .entry.flash { animation: land 2s ease-out; }
-  @keyframes land { from { background: color-mix(in srgb, currentColor 16%, var(--panel)); } }
-  .head { display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap; margin-bottom: 5px; }
-  .id { font-size: 12px; font-weight: 600; }
-  .author { font-size: 13px; color: var(--ink); font-weight: 500; }
-  .verb { font-size: 12px; color: var(--dim); }
-  .ref { font-size: 11px; color: var(--dim); }
-  .time { font-size: 11px; margin-left: auto; }
-  .title { margin: 0; color: var(--ink); }
-  .body { margin: 6px 0 0; color: var(--dim); font-size: 14px; white-space: pre-wrap; }
-  .why { margin: 8px 0 0; font-size: 13px; color: var(--dim); }
-  .why span { text-transform: uppercase; font-size: 10px; letter-spacing: .08em;
-              margin-right: 6px; opacity: .7; }
-  .prov { margin: 9px 0 0; font-size: 12px; font-family: ui-monospace, Menlo, Consolas, monospace; }
-  .prov.ok { color: var(--a); }
-  .prov.bad { color: var(--bad); }
-  .prov code { font-size: 12px; }
-
-  .contract pre { background: var(--panel); border: 1px solid var(--line); border-radius: 7px;
-                  padding: 14px; overflow-x: auto; font-size: 13px; margin: 8px 0 0; }
-
-  footer { display: flex; justify-content: space-between; align-items: center; gap: 12px;
-           margin-top: 40px; padding-top: 14px; border-top: 1px solid var(--line);
-           font-size: 12px; flex-wrap: wrap; }
-  .link { background: none; border: 0; color: var(--dim); cursor: pointer;
-          text-decoration: underline; font: inherit; padding: 0; }
-
-  .gate { min-height: 100vh; display: grid; place-items: center; padding: 20px; }
-  .gate-card { width: 100%; max-width: 380px; background: var(--panel);
-               border: 1px solid var(--line); border-radius: 10px; padding: 26px; }
-  .sub { margin: 0 0 20px; color: var(--dim); font-size: 14px; }
-  label { display: block; font-size: 12px; color: var(--dim); margin-bottom: 6px; }
-  input { width: 100%; padding: 9px 11px; border: 1px solid var(--line); border-radius: 6px;
-          background: var(--bg); color: var(--ink); font-family: ui-monospace, Menlo, monospace;
-          font-size: 13px; }
-  input:focus { outline: 2px solid var(--a); outline-offset: 1px; }
-  button[type="submit"] { width: 100%; margin-top: 12px; padding: 9px; border: 0; border-radius: 6px;
-                          background: var(--ink); color: var(--bg); font: inherit;
-                          font-weight: 500; cursor: pointer; }
-  .fine { margin: 16px 0 0; font-size: 11.5px; color: var(--dim); line-height: 1.5; }
-
-  @media (max-width: 560px) {
-    .stats { gap: 18px; }
-    .time { margin-left: 0; }
-  }
-`;
