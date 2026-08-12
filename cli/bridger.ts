@@ -40,6 +40,7 @@ import {
   createStore,
 } from "../lib/store";
 import type { Entry } from "../lib/entries";
+import { mintInvite } from "../lib/invites";
 
 const FOLDER = "bridger";
 const ROOM_FILE = join(FOLDER, "room.json");
@@ -228,6 +229,46 @@ async function cmdRotate() {
  * exists because the web view originally had no token of its own, so watching a
  * bridge meant pasting a participant token somewhere visible.
  */
+/**
+ * Mint a one-time join code — the paste-and-go onboarding.
+ *
+ * Prints ONE line to send. The code, not a token: a chat message is durable and
+ * a token pasted into one stays valid as long as the bridge does, whereas a
+ * code that burns on first use makes the message inert the moment it is used.
+ */
+async function cmdInvite() {
+  const store = operatorStore();
+  const local = readLocalRoomSafe();
+  const roomId = arg("--room", local?.roomId ?? "");
+  const side = arg("--side", "b") as SideId;
+  const room = parseRoom(await store.get(ROOM_KEY(roomId)));
+  if (!room) die(`No such room: ${roomId}`);
+
+  const minutes = Number(arg("--ttl-minutes", "30"));
+  const days = Number(arg("--token-days", "7"));
+  const server = (local?.server ?? "https://bridger.vercel.app").replace(/\/$/, "");
+
+  const { code, expiresAt } = await mintInvite(store, room!, side, new Date(), {
+    ttlSeconds: Math.max(1, minutes) * 60,
+    tokenTtlSeconds: Math.max(1, days) * 24 * 60 * 60,
+  });
+
+  console.log(`
+  Join code for ${room!.sides[side].label} on "${room!.topic}".
+  Valid for ${minutes} minutes, and it works EXACTLY ONCE.
+
+  Send them this line:
+
+      Join our integration bridge: ${server}/j/${code}
+
+  Their AI fetches that URL and gets a working token plus the whole protocol
+  in one document. No install, no config file, no restart.
+
+  The token it mints expires in ${days} days. Requires BRIDGER_PASTE_PATH=1
+  on the server. Code expires ${expiresAt}.
+`);
+}
+
 async function cmdViewer() {
   const store = operatorStore();
   const local = readLocalRoomSafe();
@@ -454,6 +495,8 @@ const USAGE = `
     open   --topic "<what this is>" --me "<You>" --them "<Partner>" [--server <url>]
     rotate --side a|b [--room <id>]      mint a fresh token, revoke the old one
     viewer --side a|b [--room <id>]      mint a READ-ONLY token (for a browser tab)
+    invite [--side a|b] [--ttl-minutes N] [--token-days N]
+                                         ONE-TIME join code -- the paste-and-go path
     revoke --side a|b [--room <id>]      kill a side's access
     close  [--room <id>]                 end the bridge
     stop                                 PANIC: refuse every request, now
@@ -471,6 +514,7 @@ async function main() {
     case "open": return cmdOpen();
     case "rotate": return cmdRotate();
     case "viewer": return cmdViewer();
+    case "invite": return cmdInvite();
     case "stop": return cmdStop();
     case "start": return cmdStart();
     case "revoke": return cmdRevoke();

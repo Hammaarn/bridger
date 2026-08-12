@@ -223,3 +223,45 @@ describe("FileStore — the same-tick mtime collision", () => {
     }
   });
 });
+
+describe("the Store contract — del reports what was REMOVED", () => {
+  /**
+   * Both local implementations returned `keys.length` — the number ASKED FOR.
+   * Redis returns the number actually removed, and `redeemInvite` uses that
+   * count as a lock, so the divergence quietly turned a single-use join code
+   * into a reusable one on the file backend while working correctly hosted.
+   *
+   * A cross-implementation contract with no test is a contract that holds only
+   * on whichever backend someone happened to run.
+   */
+  it("returns 0 for a key that was not there", async () => {
+    const { dir, store } = tempStore();
+    try {
+      assert.equal(await store.del("never-existed"), 0);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("returns 1 once and 0 thereafter — this is the invite burn lock", async () => {
+    const { dir, store } = tempStore();
+    try {
+      await store.set("k", "v");
+      assert.equal(await store.del("k"), 1);
+      assert.equal(await store.del("k"), 0, "a second delete must not claim a win");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("counts only the keys that existed in a multi-key delete", async () => {
+    const { dir, store } = tempStore();
+    try {
+      await store.set("a", 1);
+      await store.set("b", 2);
+      assert.equal(await store.del("a", "b", "c"), 2);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

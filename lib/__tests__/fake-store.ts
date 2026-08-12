@@ -43,13 +43,13 @@ export class FakeStore implements Store {
   }
 
   async del(...keys: string[]) {
+    // Must match the `Store` contract and Redis: the count REMOVED.
+    let removed = 0;
     for (const k of keys) {
       this.guard(k);
-      this.kv.delete(k);
-      this.lists.delete(k);
-      this.sets.delete(k);
+      if (this.kv.delete(k) || this.lists.delete(k) || this.sets.delete(k)) removed++;
     }
-    return keys.length;
+    return removed;
   }
 
   async incr(key: string) {

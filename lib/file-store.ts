@@ -196,13 +196,16 @@ export class FileStore implements Store {
   }
 
   async del(...keys: string[]) {
+    // Count what was REMOVED, not what was requested. See the `Store` contract:
+    // `redeemInvite` treats this number as a lock, so returning `keys.length`
+    // would let two callers both "win" a single-use join code.
+    this.refresh();
+    let removed = 0;
     for (const k of keys) {
-      this.kv.delete(k);
-      this.lists.delete(k);
-      this.sets.delete(k);
+      if (this.kv.delete(k) || this.lists.delete(k) || this.sets.delete(k)) removed++;
     }
     await this.flush();
-    return keys.length;
+    return removed;
   }
 
   async incr(key: string) {
