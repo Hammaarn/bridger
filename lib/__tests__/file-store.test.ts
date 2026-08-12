@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { mkdtempSync, rmSync, existsSync } from "node:fs";
+import { mkdtempSync, rmSync, existsSync, statSync, utimesSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -149,6 +149,75 @@ describe("FileStore", () => {
       await store.ltrim("L", -2, -1);
       assert.deepEqual(await store.lrange("L", 0, -1), ["c", "d"]);
       assert.equal(await store.llen("L"), 2);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("FileStore — the same-tick mtime collision", () => {
+  /**
+   * DETERMINISTIC reproduction of the bug the cross-process revocation test
+   * only caught about four runs in six.
+   *
+   * `refresh()` used to reload only when `mtime !== seenMtimeMs`. Filesystem
+   * timestamps are coarse, so another process's write can land on the same
+   * value we already recorded — and then the reload never happens. It is not a
+   * narrow race: nothing moves the mtime afterwards, so the stale read is
+   * PERMANENT until some unrelated write happens to bump it.
+   *
+   * Forcing the mtime back to the observed value reproduces that exactly,
+   * without depending on how fast the machine is.
+   */
+  it("sees another process's write even when the mtime is IDENTICAL", async () => {
+    const { dir, path, store: writer } = tempStore();
+    try {
+      await writer.set("k", "v1");
+
+      // Pin the file to a timestamp we control EXACTLY. Reading `mtimeMs` back
+      // and re-applying it does not work: NTFS keeps 100ns ticks and `utimesSync`
+      // takes whole milliseconds, so the round trip lands a hair off and the
+      // equality check we are trying to defeat would fail for the wrong reason.
+      // (The first version of this test did exactly that and passed under
+      // ablation — it proved nothing.)
+      const pinned = new Date(Math.floor(Date.now()));
+      utimesSync(path, pinned, pinned);
+
+      // A second process warms its snapshot from the pinned file.
+      const reader = new FileStore(path);
+      assert.equal(await reader.get("k"), "v1");
+      assert.equal(statSync(path).mtimeMs, pinned.getTime(), "the pin must be exact or this proves nothing");
+
+      // The writer changes the value to one of the SAME LENGTH, so the size
+      // signal cannot rescue us, and the mtime is pinned straight back.
+      await writer.set("k", "v2");
+      utimesSync(path, pinned, pinned);
+      assert.equal(statSync(path).mtimeMs, pinned.getTime());
+
+      assert.equal(
+        await reader.get("k"),
+        "v2",
+        "an equal mtime must not be taken as proof the file is unchanged — this is " +
+          "the shape that let a revoked token keep working",
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("does not roll back its own unflushed write", async () => {
+    const { dir, path, store } = tempStore();
+    try {
+      await store.set("k", "v1");
+      // Not awaited: the mutation is in memory, the flush is still in flight.
+      const inFlight = store.set("k", "v2");
+      assert.equal(
+        await store.get("k"),
+        "v2",
+        "reloading inside the trust window must never clobber a pending write",
+      );
+      await inFlight;
+      assert.equal(await store.get("k"), "v2");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
