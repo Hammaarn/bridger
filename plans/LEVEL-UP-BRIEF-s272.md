@@ -15,6 +15,18 @@
 
 ---
 
+## ERIK'S TWO CALLS, made before the stretch began (2026-08-13)
+
+1. **Run it as one long stretch**, not a `/loop`. Later loop cycles drift
+   further from anything he has reviewed, and the extra tokens buy work nobody
+   has sanity-checked.
+2. **The paste-and-go HTTP transport: prototype behind a flag + spec the
+   security model.** Build enough that he can SEE the flow in the morning
+   rather than read about it. It does NOT become a supported transport tonight
+   — that call stays his. Flag it, document it, queue the decision.
+
+---
+
 ## THE PROMPT
 
 You are the designer and engineer of Bridger, not a contractor taking tickets on
