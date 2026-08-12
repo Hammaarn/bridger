@@ -52,6 +52,7 @@ import {
 } from "@/lib/room-registry";
 import { createStore, MAX_EMPTY_WAIT_STREAK, MAX_IDLE_STREAK, type Store } from "@/lib/store";
 import { describeCall } from "@/lib/audit-call";
+import { contain, CONTAINMENT_NOTE } from "@/lib/untrusted";
 
 // node:crypto and the Upstash client both need the Node runtime.
 export const runtime = "nodejs";
@@ -197,7 +198,19 @@ function requireStore(): Store {
   return store;
 }
 
-/** Compact wire shape — the agent gets the fields it acts on, not our internals. */
+/**
+ * Compact wire shape — the agent gets the fields it acts on, not our internals.
+ *
+ * Every free-text field is CONTAINED (`lib/untrusted.ts`): this is the seam
+ * where another company's model's words enter ours, and they must never arrive
+ * bare. `id`, `seq`, `type` and `at` are ours or structural and stay clean;
+ * `from` is the author label, which is far-side-controlled at room creation and
+ * so gets escaped inside the marker rather than trusted as a name.
+ *
+ * `checkedAgainst` is contained too, and that one is worth saying out loud: it
+ * is the field most likely to be read as a literal path and acted on, which
+ * makes it the most attractive place to put `../../.env` or a shell fragment.
+ */
 function wire(e: Entry) {
   return {
     id: e.id,
@@ -205,11 +218,13 @@ function wire(e: Entry) {
     type: e.type,
     from: e.author,
     at: e.ts,
-    title: e.title,
-    body: e.body,
+    title: contain(e.title, e.author),
+    body: contain(e.body, e.author),
     ...(e.answers ? { answers: e.answers } : {}),
-    ...(e.why ? { why: e.why } : {}),
-    checked: e.checkedAgainst ? `checked-against: ${e.checkedAgainst}` : "unchecked",
+    ...(e.why ? { why: contain(e.why, e.author) } : {}),
+    checked: e.checkedAgainst
+      ? `checked-against: ${contain(e.checkedAgainst, e.author)}`
+      : "unchecked",
   };
 }
 
@@ -242,6 +257,14 @@ const handler = createMcpHandler(
         });
         return reply({
           ...status,
+          // `openQuestions[].title` is the SECOND path far-side text takes into
+          // our context, and it is the easier one to miss because status reads
+          // like metadata. It is not: the title is the partner's prose.
+          openQuestions: status.openQuestions.map((q) => ({
+            ...q,
+            title: contain(q.title, q.askedBy),
+          })),
+          _note: CONTAINMENT_NOTE,
           ...(idle > 0
             ? {
                 quietChecksInARow: idle,
@@ -287,7 +310,12 @@ const handler = createMcpHandler(
           limit: MAX_IDLE_STREAK,
           instead: "Report to your operator what you are waiting on, and stop.",
         });
-        return reply({ count: entries.length, entries: entries.map(wire), ...(cursor ? { cursor } : {}) });
+        return reply({
+          count: entries.length,
+          entries: entries.map(wire),
+          ...(cursor ? { cursor } : {}),
+          ...(entries.length ? { _note: CONTAINMENT_NOTE } : {}),
+        });
       },
     );
 
@@ -424,7 +452,17 @@ const handler = createMcpHandler(
         const store = requireStore();
         if (args.body === undefined) {
           const contract = await getContract(store, room.id);
-          return reply(contract ?? { body: "", updatedBy: null, updatedAt: null, note: "No contract agreed yet." });
+          if (!contract) {
+            return reply({ body: "", updatedBy: null, updatedAt: null, note: "No contract agreed yet." });
+          }
+          // The single largest untrusted payload this API accepts (100,000
+          // chars) and the one most likely to be read as a specification and
+          // implemented against. Contained like everything else.
+          return reply({
+            ...contract,
+            body: contain(contract.body, contract.updatedBy ?? "the other side"),
+            _note: CONTAINMENT_NOTE,
+          });
         }
         const entry = await setContract(store, room, token, args.body, args.note ?? "", new Date());
         return reply({ updated: true, logged: wire(entry) });
@@ -461,6 +499,7 @@ const handler = createMcpHandler(
             waitedMs: result.waitedMs,
             count: result.entries.length,
             entries: result.entries.map(wire),
+            _note: CONTAINMENT_NOTE,
           });
         }
 
