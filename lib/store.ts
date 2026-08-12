@@ -19,7 +19,8 @@
  *   bridger:rl:<tokenId>:<minute>       per-token rate-limit bucket
  *   bridger:used:<tokenId>:<day>        per-token daily counter
  *   bridger:roomused:<roomId>:<day>     per-ROOM daily counter (survives rotation)
- *   bridger:waits:<tokenId>             consecutive empty waits
+ *   bridger:idle:<tokenId>              consecutive calls that learned nothing
+ *   bridger:invite:<CODE>               one-time join code (paste-and-go)
  *   bridger:audit                       capped audit list (denials AND successes)
  *
  * RETENTION, STATED PRECISELY
@@ -38,7 +39,15 @@
 export interface Store {
   get(key: string): Promise<unknown>;
   set(key: string, value: unknown): Promise<unknown>;
-  del(...keys: string[]): Promise<unknown>;
+  /**
+   * Delete keys. **Returns the number ACTUALLY REMOVED, not the number asked
+   * for** — Redis semantics, and load-bearing: `redeemInvite` uses the count as
+   * a lock so exactly one of two concurrent redemptions can win. An
+   * implementation that returns `keys.length` turns a single-use join code into
+   * a reusable one, silently. Both local implementations did precisely that
+   * until S#272.
+   */
+  del(...keys: string[]): Promise<number>;
   incr(key: string): Promise<number>;
   expire(key: string, seconds: number): Promise<unknown>;
   /** Append. The resulting index is the entry's sequence number. */
@@ -64,6 +73,20 @@ export const ENTRIES_KEY = (roomId: string) => `${NS}:room:${roomId}:entries`;
 export const CURSOR_KEY = (roomId: string, side: string) => `${NS}:room:${roomId}:cursor:${side}`;
 export const CONTRACT_KEY = (roomId: string) => `${NS}:room:${roomId}:contract`;
 export const ROOM_TOKENS_KEY = (roomId: string) => `${NS}:room:${roomId}:tokens`;
+/**
+ * A one-time join code. Burns on first successful redemption.
+ *
+ * This is what gets pasted into a chat, NOT a token: a chat message is durable
+ * — it sits in Discord, in an email, in a transcript, in someone's screenshot —
+ * and a token pasted there stays valid for as long as the bridge does. A code
+ * that dies the moment it is used means a leaked message is worthless by the
+ * time anyone else reads it.
+ *
+ * It does NOT protect the redeemed token from the context it lands in. That is
+ * inherent to paste-and-go and is written down rather than implied away; see
+ * `lib/invites.ts`.
+ */
+export const INVITE_KEY = (code: string) => `${NS}:invite:${code.toUpperCase()}`;
 export const RATE_KEY = (tokenId: string, minute: string) => `${NS}:rl:${tokenId}:${minute}`;
 /** Calls made by one token on one UTC day. The hard stop. */
 export const USAGE_KEY = (tokenId: string, day: string) => `${NS}:used:${tokenId}:${day}`;

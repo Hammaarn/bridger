@@ -30,12 +30,11 @@ import {
   authorize,
   markJoined,
   writeAudit,
-  DENY_MESSAGE,
   DENY_STATUS,
-  TERMINAL_DENIALS,
   type RoomRecord,
   type TokenRecord,
 } from "@/lib/room-registry";
+import { auditRequest, gate, refusalBody } from "@/lib/http-gate";
 import { createStore, type Store } from "@/lib/store";
 import {
   OperationRefused,
@@ -52,7 +51,6 @@ import {
   type OpContext,
 } from "@/lib/operations";
 import { describeCall } from "@/lib/audit-call";
-import { contain, CONTAINMENT_NOTE } from "@/lib/untrusted";
 
 // node:crypto and the Upstash client both need the Node runtime.
 export const runtime = "nodejs";
@@ -316,37 +314,29 @@ const authed = withMcpAuth(handler, verifyToken, { required: true });
  * MCP clients need the real `WWW-Authenticate` response to negotiate.
  */
 async function gated(req: Request): Promise<Response> {
-  const store = createStore();
-  const now = new Date();
-  const [scheme, raw] = req.headers.get("authorization")?.split(" ") ?? [];
-  const presented = scheme?.toLowerCase() === "bearer" ? raw : null;
+  const g = await gate(req);
 
-  const outcome = await authorize(store, { presentedToken: presented ?? null, now });
-  if (!outcome.ok) {
-    const { reason } = outcome;
-    if (reason === "no-token" || reason === "unknown-token") return authed(req);
+  if (!g.ok) {
+    // `unknown-token` and `no-token` deliberately fall through to the standard
+    // challenge instead: a caller who has not authenticated gets no detail, and
+    // MCP clients need the real `WWW-Authenticate` response to negotiate. The
+    // flat transport has no such handshake, which is why this branch lives here
+    // and not in the shared gate.
+    if (g.reason === "no-token" || g.reason === "unknown-token") return authed(req);
 
-    await writeAudit(store, {
-      ts: now.toISOString(),
-      tokenId: null,
-      roomId: null,
-      side: null,
-      tool: "budget-gate",
-      status: "deny",
-      reason,
-    });
+    await auditRequest(g.store, { now: g.now, tool: "budget-gate", status: "deny", reason: g.reason });
 
+    // Same refusal, wrapped as JSON-RPC so an MCP client surfaces it as an
+    // error rather than a transport failure. `terminal` is the field that
+    // matters: a looping agent reads a bare 4xx as "try again".
+    const body = refusalBody(g.reason);
     return Response.json(
       {
         jsonrpc: "2.0",
         id: null,
-        error: {
-          code: -32000,
-          message: DENY_MESSAGE[reason],
-          data: { reason, terminal: TERMINAL_DENIALS.has(reason) },
-        },
+        error: { code: -32000, message: body.error, data: { reason: body.code, terminal: body.terminal } },
       },
-      { status: DENY_STATUS[reason] },
+      { status: DENY_STATUS[g.reason] },
     );
   }
 
@@ -355,33 +345,27 @@ async function gated(req: Request): Promise<Response> {
    *
    * Until this existed `writeAudit` fired only on the reject branch and on
    * export, so a successful tool call left no trace and "who called what, how
-   * often" was unanswerable — which is the first question an incident asks. The
-   * quota incident was diagnosed from the far side's own reports, because our
-   * log had nothing in it: every call that mattered had succeeded.
+   * often" was unanswerable — the first question an incident asks. The quota
+   * incident was diagnosed from the far side's own reports, because our log had
+   * nothing in it: every call that mattered had succeeded.
    *
    * `AuditEntry.status` already had `"ok"` in its type. The shape was right;
    * nothing wrote it.
    *
-   * These rows carry real identity. The deny rows above write `tokenId: null`
-   * because a refused caller has no resolved token — here `outcome` is narrowed
-   * to a resolved token and room, so the row can say who.
-   *
-   * Awaited, not fire-and-forget: two Redis commands (~20ms) in front of the
-   * response is the price of a log that is actually complete after an incident,
-   * and a floated promise on a serverless runtime is not guaranteed to run at
-   * all. For an SSE GET, `durationMs` is time-to-headers, NOT how long the
-   * stream stayed open — the long-lived one is `bridger_wait`, a POST, where it
-   * is the real figure.
+   * Awaited, not fire-and-forget: ~20ms in front of the response buys a log
+   * that is complete after an incident, and a floated promise on a serverless
+   * runtime is not guaranteed to run at all. For an SSE GET, `durationMs` is
+   * time-to-headers, NOT how long the stream stayed open — the honest figure is
+   * on `bridger_wait`, which is a POST.
    */
   const startedAt = Date.now();
   const tool = await describeCall(req);
   const res = await authed(req);
 
-  await writeAudit(store, {
-    ts: now.toISOString(),
-    tokenId: outcome.token.id,
-    roomId: outcome.room.id,
-    side: outcome.token.side,
+  await auditRequest(g.store, {
+    now: g.now,
+    token: g.token,
+    room: g.room,
     tool,
     status: res.ok ? "ok" : "error",
     ...(res.ok ? {} : { reason: `http-${res.status}` }),
