@@ -76,6 +76,37 @@ Fixed: every read checks the file's mtime and reloads if another process wrote.
 Regression test added (`sees another PROCESS's revocation`), and the live control
 above now passes. **Found by running the control, not by reading the code.**
 
+## Known gap: the audit log records DENIALS, not successes
+
+`writeAudit` is called from `verifyToken` only on the reject branch, and from
+`/api/export` on both. **A successful MCP tool call writes no audit row.** So
+"capped audit log", listed above as a safety property, means *refusals are
+traceable* — it does not mean every action is.
+
+Partly defensible: the ledger itself is the record of everything that changed
+something, with author and timestamp on each entry. What is genuinely invisible
+is non-mutating traffic — who called `bridger_status` or `bridger_read`, and how
+often. That matters for a hosted, billed deployment and not much for a local one.
+
+Found by checking the audit log after wiring both clients and seeing `0` rows —
+which was *also* explained by having wiped the data directory when the room was
+created. Both facts were true; only one of them was the interesting one.
+
+## Both clients connected — 2026-08-12
+
+| Client | Config | State |
+|---|---|---|
+| Claude Code | `~/.claude.json`, **local scope** (not the committed `.mcp.json`) | `√ Connected` per `claude mcp list` |
+| Antigravity | `~/.gemini/config/mcp_config.json` (`serverUrl` + `headers`) | credentials read back out of that file list all 8 tools |
+
+The empty original `mcp_config.json` was backed up to `.bak-bridger` first — it
+was 0 bytes, and that is exactly why: if this build reads a different path, the
+untouched original is what proves nothing that mattered was changed.
+
+**This Claude session cannot use the tools until it restarts** — MCP servers
+connect at session start, so `√ Connected` from the CLI does not put
+`bridger_*` in a running session's tool list.
+
 ## Still NOT verified
 
 1. **Nothing has run against Upstash.** The Redis path is exercised only by unit
