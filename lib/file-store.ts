@@ -42,11 +42,17 @@
  * than one that fails loudly.** Found by running the control (revoked token
  * must 401 where a live one 200s), not by reading the code.
  *
- * So every read now checks the file's mtime and reloads if another process has
- * written since. One `statSync` per read is nothing on a local disk, and it
- * makes cross-process revocation actually take effect. This does not make the
- * file store safe for concurrent *writers* — two processes writing still race,
- * and that is still why the hosted path uses Redis.
+ * So every read checks the file before trusting its own snapshot. The FIRST
+ * version of that check was `mtime !== seenMtimeMs`, and it was pointed
+ * slightly wrong: filesystem timestamps are coarse, so another process's write
+ * can land on the value we already hold, and then the reload never happens —
+ * permanently, because nothing moves the mtime again. The optimisation added to
+ * make revocation work reintroduced the exact failure it was fixing. See
+ * `refresh()` for the three-signal replacement.
+ *
+ * This does not make the file store safe for concurrent *writers* — two
+ * processes writing still race, and that is still why the hosted path uses
+ * Redis.
  */
 
 import { mkdirSync, readFileSync, writeFileSync, existsSync, renameSync, statSync } from "node:fs";
@@ -60,6 +66,17 @@ interface Snapshot {
   sets: Record<string, string[]>;
 }
 
+/**
+ * How long after a write the file's mtime is treated as UNTRUSTWORTHY.
+ *
+ * Filesystem timestamp resolution is coarse — coarse enough that two operations
+ * milliseconds apart routinely share one value. Inside this window we reload
+ * unconditionally instead of believing an equality check. Outside it, any new
+ * write necessarily moves the mtime to a different value, so the cheap
+ * comparison is sound again.
+ */
+const MTIME_TRUST_DELAY_MS = 2000;
+
 export class FileStore implements Store {
   private kv = new Map<string, unknown>();
   private lists = new Map<string, unknown[]>();
@@ -67,21 +84,46 @@ export class FileStore implements Store {
   private flushing: Promise<void> = Promise.resolve();
   /** mtime (ms) of the last snapshot this process read or wrote. */
   private seenMtimeMs = 0;
+  /** Size of that snapshot. A second signal, because mtime alone lies. */
+  private seenSize = -1;
+  /** Mutations not yet on disk. While >0 our memory is ahead of the file. */
+  private pendingWrites = 0;
 
   constructor(private readonly path: string) {
     this.load();
   }
 
   /**
-   * Reload if another process has written since we last looked.
+   * Reload if another process may have written since we last looked.
    *
    * Called before every read. This is what makes `bridger revoke` — run from a
    * separate CLI process — actually take effect on a running server.
+   *
+   * THE BUG THIS REPLACED, because the first fix was pointed slightly wrong.
+   * The original test was `mtime !== this.seenMtimeMs`, and mtime equality is
+   * not a reliable "unchanged" signal: if another process's write lands in the
+   * same filesystem timestamp tick as our last read, the two values match and
+   * the reload is skipped. Worse than a narrow race — **the miss is permanent**,
+   * because nothing moves the mtime again afterwards, so the revoked token
+   * keeps working indefinitely. That is precisely the failure this mechanism
+   * exists to prevent ("a revocation that reports success and does nothing"),
+   * reintroduced by the optimisation added to prevent it.
+   *
+   * Found because `file-store.test.ts`'s cross-process revocation case failed
+   * roughly four runs in six. A flaky test on a security property is not noise.
+   *
+   * Three signals now, cheapest first: mtime differs, size differs, or the file
+   * is young enough that its timestamp cannot be trusted at all.
    */
   private refresh() {
+    // Our own unflushed mutations outrank the file. Without this, reloading
+    // inside the trust window could roll back a write that has not landed yet.
+    if (this.pendingWrites > 0) return;
     try {
-      const mtime = statSync(this.path).mtimeMs;
-      if (mtime !== this.seenMtimeMs) this.load();
+      const st = statSync(this.path);
+      const changed = st.mtimeMs !== this.seenMtimeMs || st.size !== this.seenSize;
+      const timestampUntrustworthy = Date.now() - st.mtimeMs < MTIME_TRUST_DELAY_MS;
+      if (changed || timestampUntrustworthy) this.load();
     } catch {
       // No file yet, or it vanished. Keep serving what we have; the next write
       // recreates it.
@@ -95,7 +137,9 @@ export class FileStore implements Store {
       this.kv = new Map(Object.entries(snap.kv ?? {}));
       this.lists = new Map(Object.entries(snap.lists ?? {}));
       this.sets = new Map(Object.entries(snap.sets ?? {}).map(([k, v]) => [k, new Set(v)]));
-      this.seenMtimeMs = statSync(this.path).mtimeMs;
+      const st = statSync(this.path);
+      this.seenMtimeMs = st.mtimeMs;
+      this.seenSize = st.size;
     } catch {
       // A corrupt file must not take the bridge down silently on the next
       // write — start empty, and let the atomic flush below replace it.
@@ -111,6 +155,10 @@ export class FileStore implements Store {
    * atomically, never write in place.
    */
   private flush(): Promise<void> {
+    // Marked synchronously, before the chained body runs: `refresh()` must know
+    // our memory is ahead of the file from the moment the mutation happened,
+    // not from whenever the flush gets its turn.
+    this.pendingWrites++;
     this.flushing = this.flushing.then(async () => {
       const snap: Snapshot = {
         kv: Object.fromEntries(this.kv),
@@ -124,10 +172,14 @@ export class FileStore implements Store {
       // Record our own write so the next read does not treat it as someone
       // else's and reload state we already hold.
       try {
-        this.seenMtimeMs = statSync(this.path).mtimeMs;
+        const st = statSync(this.path);
+        this.seenMtimeMs = st.mtimeMs;
+        this.seenSize = st.size;
       } catch {
         /* the next refresh will simply reload */
       }
+    }).finally(() => {
+      this.pendingWrites--;
     });
     return this.flushing;
   }
