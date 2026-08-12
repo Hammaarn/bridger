@@ -1,135 +1,112 @@
 # STATUS — Bridger
 
-`DECISIONS.md` wins on direction. This file is what is *true right now*.
+**True as of 2026-08-12, end of S#271.** `DECISIONS.md` wins on direction;
+`ARCHITECTURE.md` wins on how it works; this file is what is *true right now*.
 
-**As of 2026-08-11 (S#271). Nothing deployed. Nothing pushed. No git repo yet.**
+---
 
-## Built and verified
+## READ ORDER for the next session
+
+| # | Read | Why |
+|---|---|---|
+| 1 | **this file, "State right now"** below | the bridge is STOPPED and prod is STALE — start there or you will be confused |
+| 2 | `ARCHITECTURE.md` | 15 non-obvious facts + 7 invariants. Traps that already cost a session |
+| 3 | `DECISIONS.md` (newest first) | why it is shaped this way; what was rejected and why |
+| 4 | `TODO.md` | what to do next, by lane |
+| 5 | `skill/SKILL.md` | what the agents are told; change this before adding rules to prompts |
+
+Code entry points, in dependency order: `lib/store.ts` (keys + every limit
+constant) → `lib/room-registry.ts` (auth) → `lib/entries.ts` (ledger) →
+`app/api/mcp/route.ts` (tools + budget gate).
+
+---
+
+## [!!] State right now — two things will confuse you if you miss them
+
+**1. THE BRIDGE IS STOPPED.** The Redis kill switch is set; every token gets
+`401`. Verified at close on both sides. Deliberate — an agent loop burned an
+entire Gemini quota (see the incident in `DECISIONS.md`).
+
+**2. PRODUCTION IS STALE.** `https://bridger-nu.vercel.app` runs a build from
+before the viewer role, the budget fixes and the UI restyle. `vercel deploy
+--prod` is **hard-blocked by Erik's `behavior-guard.py`**, so only he can ship it.
+
+**Order matters when bringing it back — deploy BEFORE start:**
+```bash
+cd C:/Users/Erik/Documents/Projects/bridger
+vercel deploy --prod            # Erik only; the hook blocks this for Claude
+npm run bridger -- start        # lift the kill switch
+curl https://bridger-nu.vercel.app/api/health
+```
+Lifting the switch first would restore the *old* build: 120 calls/min, no daily
+cap, no terminal refusals — the exact configuration that burned the quota.
+
+---
+
+## What is built and verified
 
 | Piece | State | How it was checked |
 |---|---|---|
-| `lib/store.ts` | done | typechecked; exercised by every test via `FakeStore` |
-| `lib/room-registry.ts` | done | **22 tests** — incl. fail-closed, cache grace, revoke-beats-cache, rate limit, rotation |
-| `lib/entries.ts` | done | **17 tests** — incl. namespacing, token-derived identity, derived open-questions, seq-survives-trim, wait semantics |
-| `app/api/mcp/route.ts` | done, 8 tools | `next build` clean; auth path probed live |
-| `app/api/health/route.ts` | done | probed live: `503 / registry: not-configured` |
-| `app/api/export/route.ts` | done | typechecked; **not yet exercised against a real registry** |
-| `cli/bridger.ts` | done, 8 commands | typechecked; **only the usage path has been run** |
-| `skill/SKILL.md` | done | — |
+| `lib/store.ts` + `room-registry.ts` | done | **55 tests** — fail-closed, cache grace, revoke-beats-cache, rate limit, daily cap, roles, terminal refusals |
+| `lib/entries.ts` | done | namespacing, token-derived identity, derived open-questions, seq-survives-trim, wait semantics |
+| `lib/file-store.ts` | done | restart persistence, corrupt-file recovery, **cross-process revocation** |
+| `app/api/mcp/route.ts` | 8 tools + budget gate | live JSON-RPC round trip; terminal STOP payload verified |
+| `app/api/export`, `/api/health` | done | health verified reporting `killSwitchSource: "redis"` |
+| `app/page.tsx` + `globals.css` | done | **screenshotted** (`.local/shots/ledger2.png`) after shipping unstyled once |
+| `cli/bridger.ts` | 10 commands | usage path run; `open`/`rotate`/`revoke`/`viewer`/`stop` exercised for real |
 
-**39/39 tests green. `tsc --noEmit` clean. `next build` clean.**
+`npm run check` → 55 pass, 0 fail. `tsc --noEmit` clean. `next build` clean.
 
-## Verified by running it, not by reasoning
+### Proven by running it, not by reasoning
+- **Full round trip on a real bridge:** side A asked, side B answered with
+  provenance, the question closed, `pull` materialised the folder.
+- **Revocation control, twice:** locally and against Upstash. `A 200 / B 401`
+  where both were `200` before. A refusal only means something next to an
+  acceptance in the same breath.
+- **Backend discrimination:** the Upstash token `200`s while the old file-store
+  token `401`s — proof the server is really on Redis, not the file.
+- **Cross-vendor:** Claude Code and Antigravity connected to the same bridge and
+  each proved a different identity from its own token.
+- **Viewer gate:** viewer `bridger_status` OK / `bridger_ask` refused, while a
+  participant wrote in the same breath.
 
-- `POST /api/mcp` with **no** Authorization → `401`
-- `POST /api/mcp` with a **bogus** bearer → `401`
-- `GET /api/health` with no Upstash configured → `503`, `registry: "not-configured"`
+## The agent test — the result worth keeping
 
-That last one is the control. `withMcpAuth` returns the same fixed string
-(*"No authorization provided"*) for every rejection, so the two 401s alone could
-not distinguish "token rejected" from "server misconfigured" — a 401 that was
-always going to be 401 proves nothing. Health separates them, and confirmed the
-local 401s were the absent registry rather than broken header plumbing.
+Antigravity (Gemini) found `bridger_ask` **unprompted** — the tool was never
+named in its prompt — and asked a real question across the bridge.
 
-Read `node_modules/mcp-handler/dist/index.js:143-180` to confirm: the header
-*is* parsed and passed to `verifyToken`; the generic message is emitted whenever
-that returns `undefined`.
+When it answered, it filled `checkedAgainst` **discriminatingly**: real file
+paths when it had sources, and empty on *"not implemented yet"* when it had
+none. It did not invent a path to fill the field.
 
-## END TO END, RUN FOR REAL — no database, no deploy
+**Auditing the citation found one solid and one loose:**
+`plans/05-ux-architecture.md:925-994` genuinely documents the client/builder
+roles; `CLAUDE.md:21-29` is the *Legal Constraints* block, with only line 29
+touching roles. Not fabricated — over-broad. **The point is that it was
+checkable at all**, which is the entire product claim.
 
-Upstash turned out not to be needed to prove any of this. `BRIDGER_STORE=file`
-(added after Erik asked whether the DB was crucial) runs the whole bridge off a
-local JSON file, which is also the right backend for two sessions on one laptop.
-Against a live server on `:3210`, with two different tokens:
+---
 
-| Step | Result |
-|---|---|
-| `initialize` | 200 — `serverInfo: bridger 0.1.0`, instructions delivered, **stateless** (no session header) |
-| `tools/list` | all 8 tools listed |
-| A `bridger_ask` | `JMS-Q-001`, seq 1 |
-| B `bridger_status` | `unread: 1`, `openQuestions[0].yours: true` — correct side, correct turn |
-| B `bridger_answer` + `checkedAgainst` | `TRI-A-001`, `checked-against: lib/external/key-registry.ts:289` |
-| A `bridger_status` | `openQuestions: 0` — derived closure works |
-| `GET /api/export` → `bridger pull` | 3 entries materialised; folder verified UTF-8 correct |
-| `bridger log` | ✓ marks the answer carrying provenance |
+## NOT verified / open
 
-**The revocation control, which is the one that found a bug:**
+1. **Nothing since `88a47c7` has run in production.** The viewer role, all five
+   budget fixes and the restyled UI exist only locally.
+2. **`bridger join`** shells out to `claude mcp add`; that spawn has never run.
+3. **`vercel env add … preview`** returns `action_required` even running the
+   exact command its own error suggests. Harmless here — the project is not
+   git-linked so preview deployments never occur — but unresolved.
+4. **The audit log records denials, not successes.** A successful tool call
+   writes no row.
+5. **Upstash free-tier ceiling** vs expected volume: unchecked.
+6. **`bridger.ai` / npm `bridger`** availability: unchecked.
+7. **`maxDuration` for `bridger_wait`** on this Vercel plan: unconfirmed. The
+   tool self-caps at 45s so it degrades rather than breaks.
 
-| | before revoke | after `bridger revoke --side b` (from a separate CLI process) |
-|---|---|---|
-| side A token | 200 | **200** |
-| side B token | 200 | **401** |
+## Known holes in the surrounding rails (not Bridger's code)
 
-A 401 next to a 200 in the same breath is the only version of that check worth
-running. See the defect below for what the first attempt showed.
-
-## The defect this session found
-
-**Revocation silently did nothing in file mode.** The operator CLI is a separate
-process: `bridger revoke` wrote `active: false` and reported success, while the
-running server kept serving the revoked token from an in-memory snapshot loaded
-at startup. `file-store.ts` had a comment saying it was "not safe across
-processes" — true, and it badly under-sold the consequence. A revocation that
-reports success and does nothing is worse than one that fails loudly.
-
-Fixed: every read checks the file's mtime and reloads if another process wrote.
-Regression test added (`sees another PROCESS's revocation`), and the live control
-above now passes. **Found by running the control, not by reading the code.**
-
-## Known gap: the audit log records DENIALS, not successes
-
-`writeAudit` is called from `verifyToken` only on the reject branch, and from
-`/api/export` on both. **A successful MCP tool call writes no audit row.** So
-"capped audit log", listed above as a safety property, means *refusals are
-traceable* — it does not mean every action is.
-
-Partly defensible: the ledger itself is the record of everything that changed
-something, with author and timestamp on each entry. What is genuinely invisible
-is non-mutating traffic — who called `bridger_status` or `bridger_read`, and how
-often. That matters for a hosted, billed deployment and not much for a local one.
-
-Found by checking the audit log after wiring both clients and seeing `0` rows —
-which was *also* explained by having wiped the data directory when the room was
-created. Both facts were true; only one of them was the interesting one.
-
-## Both clients connected — 2026-08-12
-
-| Client | Config | State |
-|---|---|---|
-| Claude Code | `~/.claude.json`, **local scope** (not the committed `.mcp.json`) | `√ Connected` per `claude mcp list` |
-| Antigravity | `~/.gemini/config/mcp_config.json` (`serverUrl` + `headers`) | credentials read back out of that file list all 8 tools |
-
-The empty original `mcp_config.json` was backed up to `.bak-bridger` first — it
-was 0 bytes, and that is exactly why: if this build reads a different path, the
-untouched original is what proves nothing that mattered was changed.
-
-**This Claude session cannot use the tools until it restarts** — MCP servers
-connect at session start, so `√ Connected` from the CLI does not put
-`bridger_*` in a running session's tool list.
-
-## Still NOT verified
-
-1. **Nothing has run against Upstash.** The Redis path is exercised only by unit
-   tests through the injected-store seam. Needed before any hosted deploy.
-2. **No deploy exists.** Vercel `maxDuration` for `bridger_wait` unconfirmed.
-3. **`bridger join`** shells out to `claude mcp add`; that spawn has not been run
-   — the join line itself is verified only as text, not as an executed command.
-4. **No real agent has driven the tools.** Every call above was raw JSON-RPC over
-   curl. Claude Code and Gemini CLI connecting as clients is the next step, and
-   it is the one that tests whether the tool *descriptions* actually steer an
-   agent — which no amount of protocol testing can show.
-5. **Upstash free-tier ceiling / `bridger.ai` / npm name** — unchecked.
-
-## Next, in order
-
-1. **Connect a real agent.** `claude mcp add --transport http bridger
-   http://localhost:3210/api/mcp --header "Authorization: Bearer <token>"` in one
-   session, and the Gemini CLI / Antigravity equivalent in another. Gemini CLI
-   takes `httpUrl` + `headers` in `settings.json` — same endpoint, same token,
-   no code change.
-2. Watch whether the agents reach for `bridger_ask` unprompted, and whether they
-   fill `checkedAgainst` honestly. That is the real test of the SKILL.md.
-3. Only then: Upstash + Vercel, for the two-machine Trigvanta case.
-4. Dogfood: the next real Trigvanta question goes through Bridger instead of
-   through Erik. **That is the acceptance test** — if he is still hand-carrying
-   markdown files, it failed.
+- **`behavior-guard.py` blocks the flag, not the outcome.** `vercel deploy
+  --prod` is hard-blocked; plain `vercel deploy` is **not**, and it published to
+  production on a CLI-linked project. Match on `vercel deploy` generally.
+- **Bridger cannot cap the caller's model spend.** Those tokens burn in the
+  other agent's loop. All we can do is stop feeding it and refuse in terms it
+  treats as final. `triplemind/ARCHITECTURE.md` Problem 2 said this in February.

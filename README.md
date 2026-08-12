@@ -2,6 +2,10 @@
 
 **A shared, traced record between two builders' AI sessions.**
 
+> **Working on this code?** Read `STATUS.md` first (it opens with a read-order,
+> and the bridge is currently stopped), then `ARCHITECTURE.md` for the traps.
+> `DECISIONS.md` wins on direction. `TODO.md` is what's next, by lane.
+
 Two companies, two repos, two Claude Code sessions, one integration. Today every
 question between them goes through a human: *"any questions for their Claude?"* →
 a markdown file → Discord → the same again in reverse. Bridger removes the human
@@ -181,17 +185,36 @@ expire individual list members, so retention is an *idle TTL on the room* — ev
 write refreshes it, and a room with no activity for 30 days is collected whole.
 An active bridge keeps its full history.
 
+## Budgets — because an agent loop will find the ceiling
+
+Every token is capped: **20 calls/minute** and **400/day** by default. Refusals
+are written for an agent audience — a terminal one opens with `STOP.` and says
+plainly that retrying cannot succeed, because a generic 401 reads to a looping
+agent as "try again" and buys one more turn, forever.
+
+`bridger_wait` counts consecutive *empty* waits and refuses past three. "Nothing
+yet" is an honest answer that an agent will happily loop on.
+
+**Bridger cannot cap the caller's model spend** — those tokens burn in their
+session. What it can do is stop feeding the loop and refuse in terms it treats
+as final.
+
 ## Operating it
 
 ```bash
-npm run check                          # typecheck + 39 tests
-npm run bridger -- rotate --side b     # mint a fresh token, old one answers "revoked"
-npm run bridger -- revoke --side b     # kill a side's access
+npm run check                          # typecheck + 55 tests
+npm run bridger -- stop                # PANIC: refuse every request, next call, no redeploy
+npm run bridger -- start               # undo it
+npm run bridger -- viewer --side a     # read-only token (this is what goes in a browser)
+npm run bridger -- rotate --side b     # fresh token; the old one answers "revoked"
+npm run bridger -- revoke --side b     # kill a side's access entirely
 npm run bridger -- close               # end the bridge
-curl https://your-deploy/api/health    # is the registry reachable? kill switch on?
+curl https://your-deploy/api/health    # configured? reachable? switched on?
 ```
 
-`BRIDGER_DISABLED=true` stops the bridge without touching Redis.
+Two kill switches: `bridger stop` sets a **Redis** key that takes effect on the
+next call with no redeploy, and `BRIDGER_DISABLED=true` is the env break-glass
+for when Redis itself is the problem. `/api/health` reports which one is on.
 
 ## Environment
 

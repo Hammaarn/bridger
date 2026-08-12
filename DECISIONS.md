@@ -5,6 +5,79 @@ Append-only, newest first. **DECISIONS wins on direction** — where this file a
 
 ---
 
+## 2026-08-12 — S#271 — THE INCIDENT: a bridge is a feeding tube for a loop
+
+**Source:** Erik — *"The bridge is burning consumption on Gemini, there is no
+'stop' and wait feature so it burned through my whole consumption."*
+
+**What happened.** Antigravity entered an agent loop: call the bridge → get
+content → reason → call again. Every reply was cheap for us and expensive for
+him, because the tokens burn in the *caller's* session. Our own numbers looked
+fine throughout.
+
+**The four things that made it possible, and one of them is a regression:**
+
+1. **Rate limit was 120/minute** — 7,200 an hour. Not a limit, decoration.
+2. **No daily cap.** `key-registry.ts`, the file this registry was *ported*
+   from, has enforced `dailyCap` in production since S#266. The port dropped it
+   while the DECISIONS entry claimed the properties were taken wholesale
+   "because those were each learned from a real incident". They were. The one
+   that bounds consumption is the one that went missing.
+3. **Every refusal was a generic 401.** `withMcpAuth` can only answer yes or no,
+   and to a looping agent one fixed string reads as *"try again"* — the worst
+   possible reply, because it buys exactly one more turn, forever.
+4. **`bridger_wait` answers "nothing yet" honestly**, and an agent reads that as
+   a reason to wait again. A poll loop wearing a tool call.
+
+**And the thing Erik actually named: there was no stop.** The kill switch
+existed in code and could only be thrown with a hand-written Redis call. **A
+safety mechanism that requires improvisation during an incident is not a safety
+mechanism.**
+
+### Decisions
+
+1. **`bridger stop` / `bridger start` are first-class commands.** The Redis
+   switch, not the env one: checked before anything else on every request with
+   no cache in front of it, so it lands on the next call and needs no redeploy.
+2. **`dailyCap` restored**, default 400/day per token. A missing value resolves
+   to the default, never to infinity — an un-capped token *is* the bug.
+3. **Rate limit 120 → 20/minute.** A human-paced integration makes single-digit
+   calls a minute; 20 allows a burst of catch-up reads and stops a loop in
+   about three seconds.
+4. **A budget gate in FRONT of auth**, returning a JSON-RPC error whose message
+   opens with `STOP.` and states that retrying cannot succeed, plus
+   `data.terminal`. `no-token` / `unknown-token` still fall through to the
+   standard challenge — no reconnaissance for the unauthenticated, and MCP
+   clients need the real `WWW-Authenticate` to negotiate.
+   `authorize()` gained `charge: false` so the gate and `verifyToken` cannot
+   both spend one request's allowance.
+5. **`bridger_wait` counts consecutive empty waits**; past three it refuses with
+   `STOP WAITING` and tells the agent to report rather than poll.
+6. **`/api/health` reports both kill switches.** It checked only the env one, so
+   during the incident — stopped via Redis — it answered `healthy: true,
+   killSwitch: "off"`. A diagnostic is consulted precisely when something looks
+   wrong; one that reports "nothing is wrong" then is worse than absent.
+
+### The honest limit, stated so it is not rediscovered
+
+**Bridger cannot cap another model's spend.** Those tokens burn in the caller's
+loop, in their session, under their quota. All we can do is stop feeding it and
+refuse in words an agent treats as final. If that agent loops on something else,
+none of this helps.
+
+### The miss worth recording
+
+`triplemind/ARCHITECTURE.md` Problem 2 — *"`--yolo` Mode Is Dangerous… no
+`--max-turns` equivalent limits how long it runs"* — describes this exact loop,
+written in February 2026. **It was read this same session**, cited as evidence
+that Bridger was structurally safer than TripleMind because it owns no agent
+lifecycle. That reasoning was correct and incomplete: not owning the loop does
+not mean not *feeding* it. The generalisation: **when you inherit a prior
+project's failure list, check each entry against what you are building, not
+against what you are replacing.**
+
+---
+
 ## 2026-08-12 — S#271 — Token roles: viewer vs participant
 
 **Source:** Erik — *"what does OpenWork offer which would just make sense to
