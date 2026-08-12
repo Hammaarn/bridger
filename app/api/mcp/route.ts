@@ -38,14 +38,19 @@ import {
 } from "@/lib/entries";
 import {
   authorize,
+  bumpWaitStreak,
   canWrite,
+  DENY_MESSAGE,
+  DENY_STATUS,
+  resetWaitStreak,
+  TERMINAL_DENIALS,
   markJoined,
   VIEWER_REFUSAL,
   writeAudit,
   type RoomRecord,
   type TokenRecord,
 } from "@/lib/room-registry";
-import { createStore, type Store } from "@/lib/store";
+import { createStore, MAX_EMPTY_WAIT_STREAK, type Store } from "@/lib/store";
 
 // node:crypto and the Upstash client both need the Node runtime.
 export const runtime = "nodejs";
@@ -77,7 +82,9 @@ interface BridgeAuth {
 async function verifyToken(_req: Request, bearerToken?: string): Promise<AuthInfo | undefined> {
   const store = createStore();
   const now = new Date();
-  const outcome = await authorize(store, { presentedToken: bearerToken ?? null, now });
+  // `charge: false` — the outer budget gate already spent this request's
+  // allowance. Charging here too would double every counter and halve every cap.
+  const outcome = await authorize(store, { presentedToken: bearerToken ?? null, now, charge: false });
 
   if (!outcome.ok) {
     await writeAudit(store, {
@@ -367,11 +374,40 @@ const handler = createMcpHandler(
           timeoutMs: (args.timeoutSeconds ?? WAIT_DEFAULT_SECONDS) * 1000,
           pollMs: 1000,
         });
+
+        // Something arrived: the wait did its job, and the streak is over.
+        if (result.entries.length > 0) {
+          await resetWaitStreak(store, token.id);
+          return reply({
+            timedOut: false,
+            waitedMs: result.waitedMs,
+            count: result.entries.length,
+            entries: result.entries.map(wire),
+          });
+        }
+
+        // Nothing arrived. "Nothing yet" is an honest answer and an agent can
+        // read it as a reason to wait again — which is a poll loop wearing a
+        // tool call. Past the streak limit we stop answering politely.
+        const streak = await bumpWaitStreak(store, token.id);
+        if (streak > MAX_EMPTY_WAIT_STREAK) {
+          throw new Error(
+            `STOP WAITING. You have called bridger_wait ${streak} times with nothing arriving. ` +
+              `The other side is not responding right now — that is normal, they are a human-paced ` +
+              `team, not a service. Do NOT call bridger_wait again. Report to your operator what you ` +
+              `are waiting on and stop; the answer will be here at your next bridger_status.`,
+          );
+        }
         return reply({
-          timedOut: result.timedOut,
+          timedOut: true,
           waitedMs: result.waitedMs,
-          count: result.entries.length,
-          entries: result.entries.map(wire),
+          count: 0,
+          entries: [],
+          emptyWaitsInARow: streak,
+          guidance:
+            streak >= MAX_EMPTY_WAIT_STREAK
+              ? "Nothing is arriving. Do not wait again — stop and report."
+              : "Nothing yet. If the next wait is also empty, stop rather than polling.",
         });
       },
     );
@@ -388,4 +424,60 @@ const handler = createMcpHandler(
 
 const authed = withMcpAuth(handler, verifyToken, { required: true });
 
-export { authed as GET, authed as POST, authed as DELETE };
+/**
+ * THE BUDGET GATE — in front of auth, and the reason it exists.
+ *
+ * `withMcpAuth` can only answer yes or no: its `verifyToken` returns an
+ * `AuthInfo` or `undefined`, and every `undefined` becomes the same generic
+ * 401. To an agent in a loop that reads as "something went wrong, try again" —
+ * the worst possible reply, because it invites exactly one more turn, forever.
+ *
+ * A runaway loop on the other side of this bridge burned an entire model quota.
+ * The tokens burn in the CALLER's session, not ours, so we cannot cap their
+ * spend directly. What we can do is stop feeding the loop and say so in words
+ * an agent will act on: refusals here lead with STOP and state plainly that
+ * retrying cannot succeed.
+ *
+ * `unknown-token` and `no-token` deliberately fall through to the standard
+ * challenge instead — a caller who has not authenticated gets no detail, and
+ * MCP clients need the real `WWW-Authenticate` response to negotiate.
+ */
+async function gated(req: Request): Promise<Response> {
+  const store = createStore();
+  const now = new Date();
+  const [scheme, raw] = req.headers.get("authorization")?.split(" ") ?? [];
+  const presented = scheme?.toLowerCase() === "bearer" ? raw : null;
+
+  const outcome = await authorize(store, { presentedToken: presented ?? null, now });
+  if (!outcome.ok) {
+    const { reason } = outcome;
+    if (reason === "no-token" || reason === "unknown-token") return authed(req);
+
+    await writeAudit(store, {
+      ts: now.toISOString(),
+      tokenId: null,
+      roomId: null,
+      side: null,
+      tool: "budget-gate",
+      status: "deny",
+      reason,
+    });
+
+    return Response.json(
+      {
+        jsonrpc: "2.0",
+        id: null,
+        error: {
+          code: -32000,
+          message: DENY_MESSAGE[reason],
+          data: { reason, terminal: TERMINAL_DENIALS.has(reason) },
+        },
+      },
+      { status: DENY_STATUS[reason] },
+    );
+  }
+
+  return authed(req);
+}
+
+export { gated as GET, gated as POST, gated as DELETE };

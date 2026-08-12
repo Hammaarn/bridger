@@ -32,7 +32,13 @@ import {
   rotateSide,
   type SideId,
 } from "../lib/room-registry";
-import { ROOM_KEY, createStore } from "../lib/store";
+import {
+  DEFAULT_DAILY_CAP,
+  KILL_SWITCH,
+  RATE_LIMIT_PER_MINUTE,
+  ROOM_KEY,
+  createStore,
+} from "../lib/store";
 import type { Entry } from "../lib/entries";
 
 const FOLDER = "bridger";
@@ -243,6 +249,41 @@ async function cmdViewer() {
 `);
 }
 
+/**
+ * The panic button, and the reason it is a first-class command.
+ *
+ * When an agent loop on the other side of a bridge started burning a model
+ * quota, there was no stop — the switch existed in code and could only be
+ * thrown with a hand-written Redis call. A safety mechanism that requires
+ * improvisation during an incident is not a safety mechanism.
+ *
+ * This is the REDIS switch, not the env one: it is checked before anything else
+ * on every request with no cache in front of it, so it takes effect on the next
+ * call and needs no redeploy. `BRIDGER_DISABLED=true` remains as the break-glass
+ * for the case where Redis itself is the problem.
+ */
+async function cmdStop() {
+  const store = operatorStore();
+  await store.set(KILL_SWITCH, "1");
+  console.log(`
+  BRIDGE STOPPED. Every request is now refused, on every deployment sharing this
+  registry, starting with the next call. Callers receive a terminal refusal that
+  opens with STOP and tells them not to retry.
+
+  Nothing is lost — the ledger is intact and both tokens still exist.
+  Turn it back on with:  bridger start
+`);
+}
+
+async function cmdStart() {
+  const store = operatorStore();
+  await store.del(KILL_SWITCH);
+  console.log(`
+  Bridge live again. Budgets in force: ${RATE_LIMIT_PER_MINUTE}/minute and
+  ${DEFAULT_DAILY_CAP}/day per token. Check with:  bridger status
+`);
+}
+
 async function cmdRevoke() {
   const store = operatorStore();
   const roomId = arg("--room", readLocalRoomSafe()?.roomId ?? "");
@@ -415,6 +456,8 @@ const USAGE = `
     viewer --side a|b [--room <id>]      mint a READ-ONLY token (for a browser tab)
     revoke --side a|b [--room <id>]      kill a side's access
     close  [--room <id>]                 end the bridge
+    stop                                 PANIC: refuse every request, now
+    start                                undo stop
 
   PARTNER (needs only BRIDGER_TOKEN)
     join <token> [--server <url>]        register the MCP server + write room.json
@@ -428,6 +471,8 @@ async function main() {
     case "open": return cmdOpen();
     case "rotate": return cmdRotate();
     case "viewer": return cmdViewer();
+    case "stop": return cmdStop();
+    case "start": return cmdStart();
     case "revoke": return cmdRevoke();
     case "close": return cmdClose();
     case "join": return cmdJoin();
