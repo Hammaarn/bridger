@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "regions": ["fra1"],
+  "functions": {
+    "app/api/mcp/route.ts": {
+      "maxDuration": 60
+    }
+  }
+}
