@@ -37,6 +37,39 @@ import type { Entry } from "../lib/entries";
 const FOLDER = "bridger";
 const ROOM_FILE = join(FOLDER, "room.json");
 
+/**
+ * Load `.env.local` — Next does this for the server, nothing does it for us.
+ *
+ * Without this, `bridger open` fails with "Upstash is not set" on a machine
+ * where the server works perfectly, because the credentials live in a file only
+ * the framework reads. That is a confusing failure: the operator can see the
+ * bridge running and cannot mint a token for it.
+ *
+ * Deliberately minimal and non-overriding — a variable already exported in the
+ * shell wins, so `BRIDGER_STORE=file npm run bridger -- open` still selects the
+ * local backend regardless of what the file says.
+ */
+function loadDotEnvLocal() {
+  for (const file of [".env.local", ".env"]) {
+    if (!existsSync(file)) continue;
+    for (const raw of readFileSync(file, "utf8").replace(/^﻿/, "").split(/\r?\n/)) {
+      const line = raw.trim();
+      if (!line || line.startsWith("#")) continue;
+      const eq = line.indexOf("=");
+      if (eq === -1) continue;
+      const key = line.slice(0, eq).trim();
+      if (process.env[key] !== undefined) continue;
+      process.env[key] = line
+        .slice(eq + 1)
+        .trim()
+        // `[\s\S]` rather than the `s` flag: the tsconfig target Next ships
+        // predates dotAll, and tsc rejects the flag even though tsx runs it.
+        .replace(/^(['"])([\s\S]*)\1$/, "$2");
+    }
+  }
+}
+loadDotEnvLocal();
+
 // ── helpers ──────────────────────────────────────────────────────
 
 const die = (msg: string): never => {
