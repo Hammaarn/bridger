@@ -4,13 +4,16 @@ import { after, beforeEach, describe, it } from "node:test";
 import {
   CACHE_TTL_MS,
   authorize,
+  canWrite,
   clearRegistryCache,
   closeRoom,
   createRoom,
   deriveCode,
   disambiguateCode,
   hashToken,
+  issueToken,
   parseRoom,
+  parseToken,
   revokeSide,
   rotateSide,
   TOKEN_PREFIX,
@@ -234,6 +237,62 @@ describe("rotation", () => {
     await rotateSide(store, room, "b", plus(T0, 1000));
     const owner = await authorize(store, { presentedToken: ownerToken, now: plus(T0, 2000) });
     assert.equal(owner.ok, true);
+  });
+});
+
+describe("viewer role", () => {
+  it("a viewer authenticates and reads, but cannot write", async () => {
+    const { store, room } = await freshRoom();
+    const viewerToken = await issueToken(store, room, "a", T0, null, "viewer");
+
+    const out = await authorize(store, { presentedToken: viewerToken, now: T0 });
+    assert.equal(out.ok, true, "a viewer must still authenticate — it is allowed to read");
+    assert.equal(out.ok && out.token.role, "viewer");
+    assert.equal(out.ok && canWrite(out.token), false);
+  });
+
+  it("a participant can write", async () => {
+    const { store, ownerToken } = await freshRoom();
+    const out = await authorize(store, { presentedToken: ownerToken, now: T0 });
+    assert.equal(out.ok && out.token.role, "participant");
+    assert.equal(out.ok && canWrite(out.token), true);
+  });
+
+  it("a token minted before roles existed still writes — no silent downgrade", () => {
+    const legacy = parseToken(
+      JSON.stringify({ id: "abc123456789", roomId: "r1", side: "a", label: "X", code: "XXX" }),
+    );
+    assert.equal(legacy?.role, "participant");
+    assert.equal(canWrite(legacy!), true);
+  });
+
+  it("a corrupted role value fails SAFE for the partner, not closed", () => {
+    const weird = parseToken(
+      JSON.stringify({ id: "abc123456789", roomId: "r1", side: "a", role: "nonsense" }),
+    );
+    assert.equal(weird?.role, "participant", "only the exact string 'viewer' restricts");
+  });
+
+  it("rotating a side does NOT blind its viewer", async () => {
+    const { store, room } = await freshRoom();
+    const viewerToken = await issueToken(store, room, "b", T0, null, "viewer");
+    await rotateSide(store, room, "b", plus(T0, 1000));
+
+    const viewer = await authorize(store, { presentedToken: viewerToken, now: plus(T0, 2000) });
+    assert.equal(
+      viewer.ok,
+      true,
+      "rotating a leaked participant token must not silently kill an unrelated watcher",
+    );
+  });
+
+  it("revoking a side with no role filter kills the viewer too", async () => {
+    const { store, room } = await freshRoom();
+    const viewerToken = await issueToken(store, room, "b", T0, null, "viewer");
+    await revokeSide(store, room, "b");
+
+    const viewer = await authorize(store, { presentedToken: viewerToken, now: plus(T0, 1) });
+    assert.deepEqual(viewer, { ok: false, reason: "revoked" }, "'this partner is gone' means all of it");
   });
 });
 

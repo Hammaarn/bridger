@@ -124,6 +124,25 @@ Tokens are shown **once**. Only `sha256(token)` is stored, so a dump of the
 registry cannot call the bridge — and we genuinely cannot recover a lost token.
 Use `bridger rotate --side a|b` instead.
 
+## Two kinds of token
+
+| Role | Can | Mint with |
+|---|---|---|
+| `participant` | read and write; speaks as its side | `bridger open` / `bridger rotate` |
+| `viewer` | read only — every write tool refuses it | `bridger viewer --side a\|b` |
+
+**Use a viewer token for the web view.** Watching a bridge should not require
+handing out the ability to speak as one of its sides — and a browser tab is
+exactly where a token ends up visible, on a shared screen or in a screenshot.
+
+`rotate` only replaces *participant* tokens, so rotating a leaked one does not
+silently blind whoever was watching. `revoke` with no role kills everything on
+that side, which is what "this partner is gone" should mean.
+
+Tokens minted before roles existed keep full write access: a missing role
+resolves to `participant`, because a missing field must never downgrade a
+partner mid-integration.
+
 ## The tools your agent gets
 
 | Tool | Use |

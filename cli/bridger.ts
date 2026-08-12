@@ -26,6 +26,7 @@ import { spawnSync } from "node:child_process";
 import {
   closeRoom,
   createRoom,
+  issueToken,
   parseRoom,
   revokeSide,
   rotateSide,
@@ -213,6 +214,35 @@ async function cmdRotate() {
 `);
 }
 
+/**
+ * Mint a read-only token.
+ *
+ * This is what belongs in a browser tab, on a shared screen, or in the hands of
+ * someone who needs to see the record without being able to speak into it. It
+ * exists because the web view originally had no token of its own, so watching a
+ * bridge meant pasting a participant token somewhere visible.
+ */
+async function cmdViewer() {
+  const store = operatorStore();
+  const local = readLocalRoomSafe();
+  const roomId = arg("--room", local?.roomId ?? "");
+  const side = arg("--side", local?.side ?? "a") as SideId;
+  const room = parseRoom(await store.get(ROOM_KEY(roomId)));
+  if (!room) die(`No such room: ${roomId}`);
+
+  const token = await issueToken(store, room!, side, new Date(), null, "viewer");
+  const server = local?.server ?? "https://bridger.vercel.app";
+  console.log(`
+  Read-only token for ${room!.sides[side].label}'s view of "${room!.topic}".
+  It can read the record and nothing else — every write tool refuses it.
+
+  Watch in a browser:   ${server.replace(/\/$/, "")}
+  Paste this token:     ${token}
+
+  Shown once. Revoke with:  bridger revoke --side ${side}
+`);
+}
+
 async function cmdRevoke() {
   const store = operatorStore();
   const roomId = arg("--room", readLocalRoomSafe()?.roomId ?? "");
@@ -382,6 +412,7 @@ const USAGE = `
   OPERATOR (needs UPSTASH_REDIS_REST_URL / _TOKEN)
     open   --topic "<what this is>" --me "<You>" --them "<Partner>" [--server <url>]
     rotate --side a|b [--room <id>]      mint a fresh token, revoke the old one
+    viewer --side a|b [--room <id>]      mint a READ-ONLY token (for a browser tab)
     revoke --side a|b [--room <id>]      kill a side's access
     close  [--room <id>]                 end the bridge
 
@@ -396,6 +427,7 @@ async function main() {
   switch (process.argv[2]) {
     case "open": return cmdOpen();
     case "rotate": return cmdRotate();
+    case "viewer": return cmdViewer();
     case "revoke": return cmdRevoke();
     case "close": return cmdClose();
     case "join": return cmdJoin();
