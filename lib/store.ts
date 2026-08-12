@@ -62,6 +62,10 @@ export const CURSOR_KEY = (roomId: string, side: string) => `${NS}:room:${roomId
 export const CONTRACT_KEY = (roomId: string) => `${NS}:room:${roomId}:contract`;
 export const ROOM_TOKENS_KEY = (roomId: string) => `${NS}:room:${roomId}:tokens`;
 export const RATE_KEY = (tokenId: string, minute: string) => `${NS}:rl:${tokenId}:${minute}`;
+/** Calls made by one token on one UTC day. The hard stop. */
+export const USAGE_KEY = (tokenId: string, day: string) => `${NS}:used:${tokenId}:${day}`;
+/** Consecutive empty `bridger_wait` calls — the shape a polling loop makes. */
+export const WAIT_STREAK_KEY = (tokenId: string) => `${NS}:waits:${tokenId}`;
 /**
  * Monotonic per-room sequence. Deliberately NOT the list index: the entries
  * list is trimmed at `MAX_ENTRIES`, which shifts indices, and a cursor that
@@ -82,11 +86,41 @@ export const MAX_ENTRIES = 5000;
 export const ROOM_TTL_SECONDS = 30 * 24 * 60 * 60;
 /** Audit entries retained — enough to answer "what happened last week", bounded. */
 export const AUDIT_LOG_MAX = 1000;
-/** Calls per token per minute. Generous for a human-paced integration, cheap as a runaway-loop stop. */
-export const RATE_LIMIT_PER_MINUTE = 120;
+/**
+ * Calls per token per minute.
+ *
+ * Was 120 — which is 7,200 an hour and is not a limit, it is decoration. An
+ * agent loop found that out: it polled the bridge, reasoned on each reply, and
+ * burned an entire Gemini quota while every one of our own numbers looked fine.
+ * A human-paced integration makes single-digit calls a minute; 20 leaves room
+ * for a burst of catch-up reads and still stops a loop inside three seconds.
+ */
+export const RATE_LIMIT_PER_MINUTE = 20;
+
+/**
+ * Default hard stop per token per UTC day.
+ *
+ * Restored from `roastmydev/lib/external/key-registry.ts`, which has enforced a
+ * `dailyCap` since S#266 — the port dropped it, and the minute-limit alone
+ * cannot bound a loop that is patient.
+ */
+export const DEFAULT_DAILY_CAP = 400;
+
+/**
+ * Consecutive empty waits before the bridge tells the caller to stop.
+ *
+ * `bridger_wait` returning "nothing yet" is a legitimate answer, and an agent
+ * that treats it as a reason to wait again has built a poll loop. Three in a
+ * row with no new entry means the other side is not there right now.
+ */
+export const MAX_EMPTY_WAIT_STREAK = 3;
 
 export function minuteBucket(now: Date): string {
   return now.toISOString().slice(0, 16); // YYYY-MM-DDTHH:mm
+}
+
+export function utcDay(now: Date): string {
+  return now.toISOString().slice(0, 10);
 }
 
 /**

@@ -39,6 +39,10 @@ import {
   KILL_SWITCH,
   RATE_KEY,
   RATE_LIMIT_PER_MINUTE,
+  DEFAULT_DAILY_CAP,
+  USAGE_KEY,
+  WAIT_STREAK_KEY,
+  utcDay,
   ROOM_KEY,
   ROOM_TOKENS_KEY,
   ROOM_TTL_SECONDS,
@@ -86,6 +90,18 @@ export interface TokenRecord {
    * silently downgrade a partner mid-integration.
    */
   role: TokenRole;
+  /**
+   * Hard stop per UTC day.
+   *
+   * RESTORED, and the omission is worth recording: `key-registry.ts` — the file
+   * this was ported from — has enforced a `dailyCap` in production since S#266,
+   * and the port dropped it while the DECISIONS entry claimed the properties
+   * were taken wholesale "because those were each learned from a real
+   * incident". They were. Then an agent loop on the other side of the bridge
+   * burned an entire model quota, and the only thing standing between it and
+   * infinity was a 120/minute rate limit.
+   */
+  dailyCap: number;
   active: boolean;
   createdAt: string;
   /** ISO date, or null for no expiry. */
@@ -116,7 +132,35 @@ export type DenyReason =
   | "room-missing"
   | "room-closed"
   | "rate-limited"
+  | "daily-cap"
   | "registry-unavailable";
+
+/**
+ * What the caller is told, in terms an AGENT will act on.
+ *
+ * The distinction that matters is retryable vs terminal. A generic 401 reads to
+ * an agent as "something went wrong, try again" — which is the worst possible
+ * reply to a runaway loop, because it invites exactly one more turn, and then
+ * one more. These messages say STOP in the first word and state plainly that
+ * retrying cannot succeed.
+ */
+export const DENY_MESSAGE: Record<DenyReason, string> = {
+  "bridge-disabled":
+    "STOP. The bridge has been disabled by its operator. Do not call any bridger tool again in this session — retrying cannot succeed. Tell your operator the bridge is switched off.",
+  "rate-limited":
+    "STOP. You are calling the bridge too fast and have been rate limited. Do not retry in a loop. The other side is a human-paced integration; if you have nothing new to say, stop calling and report what you have.",
+  "daily-cap":
+    "STOP. This token has spent its call budget for today. Do not call any bridger tool again — every further attempt will be refused and will waste your own context. Tell your operator the bridge budget is exhausted.",
+  revoked:
+    "STOP. This token has been revoked. Do not retry; ask your operator for a new one.",
+  expired: "STOP. This token has expired. Do not retry; ask your operator for a new one.",
+  "room-closed": "STOP. This bridge has been closed. Do not retry.",
+  "room-missing": "STOP. This room no longer exists. Do not retry.",
+  "unknown-token": "STOP. This token is not recognised. Do not retry.",
+  "no-token": "No bridge token was presented.",
+  "registry-unavailable":
+    "The bridge cannot reach its registry and is refusing requests. This may be temporary; do not retry more than once.",
+};
 
 export type AuthOutcome =
   | { ok: true; token: TokenRecord; room: RoomRecord }
@@ -132,8 +176,20 @@ export const DENY_STATUS: Record<DenyReason, number> = {
   "room-missing": 404,
   "room-closed": 410,
   "rate-limited": 429,
+  "daily-cap": 429,
   "registry-unavailable": 503,
 };
+
+/** Refusals a caller must never retry. Used to shape the response, not just log it. */
+export const TERMINAL_DENIALS: ReadonlySet<DenyReason> = new Set<DenyReason>([
+  "bridge-disabled",
+  "daily-cap",
+  "revoked",
+  "expired",
+  "room-closed",
+  "room-missing",
+  "unknown-token",
+]);
 
 /** How long a fetched record is trusted without re-reading. Revocation lands within this. */
 export const CACHE_TTL_MS = 30_000;
@@ -235,6 +291,9 @@ export function parseToken(raw: unknown): TokenRecord | null {
     // missing field on a pre-roles token, or a corrupted value — resolves to
     // participant, which is how it behaved before roles existed.
     role: r.role === "viewer" ? "viewer" : "participant",
+    // A token minted before caps existed gets the default rather than
+    // Infinity — the whole point is that an un-capped token is the bug.
+    dailyCap: Number.isFinite(r.dailyCap) ? Number(r.dailyCap) : DEFAULT_DAILY_CAP,
     active: r.active !== false,
     createdAt: typeof r.createdAt === "string" ? r.createdAt : "",
     expiresAt: typeof r.expiresAt === "string" ? r.expiresAt : null,
@@ -276,6 +335,17 @@ export function parseRoom(raw: unknown): RoomRecord | null {
 export interface AuthContext {
   presentedToken: string | null;
   now: Date;
+  /**
+   * Whether this call spends budget.
+   *
+   * A request passes through authorisation TWICE — once in the outer budget
+   * gate, which needs to shape a terminal refusal, and once inside
+   * `withMcpAuth`, whose `verifyToken` can only answer yes or no. Charging in
+   * both places would double every counter and halve every cap, so exactly one
+   * of them charges. Defaults true so a caller that forgets fails safe (too
+   * strict) rather than unmetered.
+   */
+  charge?: boolean;
 }
 
 /**
@@ -320,16 +390,54 @@ export async function authorize(store: Store | null, ctx: AuthContext): Promise<
   if (room === null) return { ok: false, reason: "room-missing" };
   if (room.closed) return { ok: false, reason: "room-closed" };
 
-  try {
-    const bucket = RATE_KEY(token.id, minuteBucket(ctx.now));
-    const used = await store.incr(bucket);
-    if (used === 1) await store.expire(bucket, 120);
-    if (used > RATE_LIMIT_PER_MINUTE) return { ok: false, reason: "rate-limited" };
-  } catch {
-    return { ok: false, reason: "registry-unavailable" };
+  // Counters are charged LAST, once every other gate has passed: a request
+  // refused for a closed room must not spend the caller's budget.
+  if (ctx.charge !== false) {
+    try {
+      const bucket = RATE_KEY(token.id, minuteBucket(ctx.now));
+      const perMinute = await store.incr(bucket);
+      if (perMinute === 1) await store.expire(bucket, 120);
+      if (perMinute > RATE_LIMIT_PER_MINUTE) return { ok: false, reason: "rate-limited" };
+
+      const dayKey = USAGE_KEY(token.id, utcDay(ctx.now));
+      const perDay = await store.incr(dayKey);
+      // 48h so a counter always outlives its own UTC day whenever it started;
+      // the key name already scopes it to one day.
+      if (perDay === 1) await store.expire(dayKey, 172_800);
+      if (perDay > token.dailyCap) return { ok: false, reason: "daily-cap" };
+    } catch {
+      return { ok: false, reason: "registry-unavailable" };
+    }
   }
 
   return { ok: true, token, room };
+}
+
+/**
+ * Consecutive empty `bridger_wait` calls for a token.
+ *
+ * `bump` returns the new streak; any other tool call resets it. A streak past
+ * `MAX_EMPTY_WAIT_STREAK` means the caller is polling an empty bridge, which is
+ * the exact shape of the loop that burned a quota — the wait tool answers
+ * honestly ("nothing yet") and an agent reads that as a reason to wait again.
+ */
+export async function bumpWaitStreak(store: Store, tokenId: string): Promise<number> {
+  try {
+    const key = WAIT_STREAK_KEY(tokenId);
+    const n = await store.incr(key);
+    if (n === 1) await store.expire(key, 3600);
+    return n;
+  } catch {
+    return 0; // never let bookkeeping refuse a call that was otherwise fine
+  }
+}
+
+export async function resetWaitStreak(store: Store, tokenId: string): Promise<void> {
+  try {
+    await store.set(WAIT_STREAK_KEY(tokenId), 0);
+  } catch {
+    /* best-effort */
+  }
 }
 
 /**
@@ -429,6 +537,8 @@ export async function issueToken(
     label: room.sides[side].label,
     code: room.sides[side].code,
     role,
+
+    dailyCap: DEFAULT_DAILY_CAP,
     active: true,
     createdAt: now.toISOString(),
     expiresAt,

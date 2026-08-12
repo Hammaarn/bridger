@@ -4,7 +4,11 @@ import { after, beforeEach, describe, it } from "node:test";
 import {
   CACHE_TTL_MS,
   authorize,
+  bumpWaitStreak,
   canWrite,
+  DENY_MESSAGE,
+  resetWaitStreak,
+  TERMINAL_DENIALS,
   clearRegistryCache,
   closeRoom,
   createRoom,
@@ -18,7 +22,7 @@ import {
   rotateSide,
   TOKEN_PREFIX,
 } from "../room-registry";
-import { KILL_SWITCH, RATE_LIMIT_PER_MINUTE, ROOM_KEY } from "../store";
+import { DEFAULT_DAILY_CAP, KILL_SWITCH, RATE_LIMIT_PER_MINUTE, ROOM_KEY } from "../store";
 import { FakeStore, T0, plus } from "./fake-store";
 
 const ORIGINAL_DISABLED = process.env.BRIDGER_DISABLED;
@@ -181,6 +185,62 @@ describe("authorize — failure behaviour", () => {
     await revokeSide(store, room, "b"); // clears the cache as part of the mutation
     const out = await authorize(store, { presentedToken: peerToken, now: plus(T0, 1) });
     assert.deepEqual(out, { ok: false, reason: "revoked" });
+  });
+});
+
+describe("budget — the loop that burned a quota", () => {
+  it("stops at the daily cap, and the refusal is TERMINAL", async () => {
+    const { store, ownerToken } = await freshRoom();
+    // Spread across minutes so the per-minute limit is not what stops us.
+    let last: Awaited<ReturnType<typeof authorize>> | null = null;
+    for (let i = 0; i <= DEFAULT_DAILY_CAP; i++) {
+      last = await authorize(store, {
+        presentedToken: ownerToken,
+        now: plus(T0, Math.floor(i / 10) * 60_000),
+      });
+      if (!last.ok) break;
+    }
+    assert.deepEqual(last, { ok: false, reason: "daily-cap" });
+    assert.equal(TERMINAL_DENIALS.has("daily-cap"), true);
+    assert.match(DENY_MESSAGE["daily-cap"], /^STOP\./, "an agent must read this as terminal");
+    assert.match(DENY_MESSAGE["daily-cap"], /Do not call any bridger tool again/);
+  });
+
+  it("`charge: false` reads the token without spending budget", async () => {
+    const { store, ownerToken } = await freshRoom();
+    for (let i = 0; i < 200; i++) {
+      const out = await authorize(store, { presentedToken: ownerToken, now: T0, charge: false });
+      assert.equal(out.ok, true);
+    }
+    // The whole per-minute allowance must still be intact.
+    for (let i = 0; i < RATE_LIMIT_PER_MINUTE; i++) {
+      assert.equal((await authorize(store, { presentedToken: ownerToken, now: T0 })).ok, true);
+    }
+    assert.deepEqual(await authorize(store, { presentedToken: ownerToken, now: T0 }), {
+      ok: false,
+      reason: "rate-limited",
+    });
+  });
+
+  it("every refusal that is terminal says STOP first", () => {
+    for (const reason of TERMINAL_DENIALS) {
+      assert.match(DENY_MESSAGE[reason], /^STOP/, `${reason} must not read as retryable`);
+    }
+  });
+
+  it("counts the empty-wait streak and resets it when something lands", async () => {
+    const { store } = await freshRoom();
+    assert.equal(await bumpWaitStreak(store, "tok1"), 1);
+    assert.equal(await bumpWaitStreak(store, "tok1"), 2);
+    assert.equal(await bumpWaitStreak(store, "tok1"), 3);
+    await resetWaitStreak(store, "tok1");
+    assert.equal(await bumpWaitStreak(store, "tok1"), 1, "an arrival ends the streak");
+  });
+
+  it("a bookkeeping failure never refuses a call that was otherwise fine", async () => {
+    const { store } = await freshRoom();
+    store.failAll();
+    assert.equal(await bumpWaitStreak(store, "tok1"), 0, "streak counting is best-effort");
   });
 });
 
