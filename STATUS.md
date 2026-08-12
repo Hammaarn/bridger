@@ -47,7 +47,8 @@ cap, no terminal refusals — the exact configuration that burned the quota.
 
 | Piece | State | How it was checked |
 |---|---|---|
-| `lib/store.ts` + `room-registry.ts` | done | **55 tests** — fail-closed, cache grace, revoke-beats-cache, rate limit, daily cap, roles, terminal refusals |
+| `lib/store.ts` + `room-registry.ts` | done | **71 tests** — fail-closed, cache grace, revoke-beats-cache, rate limit, daily cap, **per-room cap**, roles, terminal refusals |
+| `lib/audit-call.ts` | done (S#272) | batch/single, tools/call vs verb, unparsed body, and that it does NOT consume the request |
 | `lib/entries.ts` | done | namespacing, token-derived identity, derived open-questions, seq-survives-trim, wait semantics |
 | `lib/file-store.ts` | done | restart persistence, corrupt-file recovery, **cross-process revocation** |
 | `app/api/mcp/route.ts` | 8 tools + budget gate | live JSON-RPC round trip; terminal STOP payload verified |
@@ -55,7 +56,14 @@ cap, no terminal refusals — the exact configuration that burned the quota.
 | `app/page.tsx` + `globals.css` | done | **screenshotted** (`.local/shots/ledger2.png`) after shipping unstyled once |
 | `cli/bridger.ts` | 10 commands | usage path run; `open`/`rotate`/`revoke`/`viewer`/`stop` exercised for real |
 
-`npm run check` → 55 pass, 0 fail. `tsc --noEmit` clean. `next build` clean.
+`npm run check` → 71 pass, 0 fail. `tsc --noEmit` clean. `next build` clean.
+
+**S#272 — the safety lane, and what it is worth.** The per-room cap and the
+success-audit are in. The three behavioural room-cap tests were **ablated**
+(cap switched off → they fail; back on → they pass), so they are known to catch
+the bug rather than pass beside it. **None of it has touched a live bridge** —
+the bridge is stopped and production is stale, so this is unit-green, not
+run-green. It ships in the deploy production is already waiting for.
 
 ### Proven by running it, not by reasoning
 - **Full round trip on a real bridge:** side A asked, side B answered with
@@ -90,13 +98,16 @@ checkable at all**, which is the entire product claim.
 ## NOT verified / open
 
 1. **Nothing since `88a47c7` has run in production.** The viewer role, all five
-   budget fixes and the restyled UI exist only locally.
+   budget fixes, the restyled UI — and now the per-room cap and the
+   success-audit — exist only locally.
 2. **`bridger join`** shells out to `claude mcp add`; that spawn has never run.
 3. **`vercel env add … preview`** returns `action_required` even running the
    exact command its own error suggests. Harmless here — the project is not
    git-linked so preview deployments never occur — but unresolved.
-4. **The audit log records denials, not successes.** A successful tool call
-   writes no row.
+4. ~~The audit log records denials, not successes.~~ **FIXED S#272** — but the
+   fix has never been observed on a real request. What is untested is the
+   `req.clone()` peek under Vercel's runtime, and whether the extra ~20ms in
+   front of the response is visible on the SSE path.
 5. **Upstash free-tier ceiling** vs expected volume: unchecked.
 6. **`bridger.ai` / npm `bridger`** availability: unchecked.
 7. **`maxDuration` for `bridger_wait`** on this Vercel plan: unconfirmed. The

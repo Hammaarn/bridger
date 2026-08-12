@@ -5,6 +5,65 @@ Append-only, newest first. **DECISIONS wins on direction** — where this file a
 
 ---
 
+## 2026-08-12 — S#272 — THE BUDGET HAS A CEILING THE TOKEN CAP COULD NOT EXPRESS
+
+**Source:** `TODO.md` safety lane, written at the close of S#271 — *"per-room
+budget, not just per-token"* and *"audit successful calls, not just denials"*.
+Both are pre-deploy work, so they ride along in the deploy production is already
+waiting for rather than costing a second one.
+
+**What the per-token cap could not see.** Chasing the "two tokens can each spend
+a full cap" case turned up a sharper one: **rotation resets the counter.**
+`rotateSide` → `issueToken` mints a new `id`, and `USAGE_KEY` is keyed on that
+id, so a rotated side starts the day at zero. The 400/day cap restored after the
+S#271 incident could be cleared by the person hitting it — and not by an
+attacker, but by following our own refusal text, which says *"tell your operator
+the bridge budget is exhausted"*. The honest next move is to rotate.
+
+### Decisions
+
+1. **A per-ROOM daily cap, keyed on the room id, charged after the per-token
+   one.** The room survives rotation; the token does not. `RoomRecord.dailyCap`,
+   default `DEFAULT_ROOM_DAILY_CAP = 600`.
+2. **600, not 800 — the cap must be able to BIND.** A room cap equal to
+   `2 x DEFAULT_DAILY_CAP` can never be the constraint that fires, which makes
+   it decoration. That is precisely what the 120/min rate limit was, and this
+   project has already paid for that lesson once. A test asserts the inequality
+   so a later "let's be generous" edit fails loudly.
+3. **Narrowest limit wins the reason.** A caller over its own cap gets
+   `daily-cap`; only a caller stopped by the aggregate gets `room-daily-cap`.
+   The two refusals send an operator to different places, so collapsing them
+   would cost the diagnosis.
+4. **`room-daily-cap` tells the operator NOT to rotate**, in words, in the deny
+   message. The counter closes the path; the message has to close it too, or we
+   are relying on someone reading the code.
+5. **Successful calls are audited, at `gated()` — one seam, not eight tool
+   wrappers.** Same argument `writableBridgeFrom` already makes: a check copied
+   into every handler is a check that drifts, and the tool it would miss is
+   whichever one gets added next. The tool name is read from a **clone** of the
+   body so the handler still receives an unread request.
+6. **`AUDIT_LOG_MAX` 1000 → 5000.** The old value was sized for denials, which
+   are rare. Successes are the traffic; at full burn 1000 rows would have held
+   ~14 hours and the docstring's promise of *"what happened last week"* would
+   have gone false exactly when the log became useful.
+7. **The audit write is awaited, not floated.** ~20ms in front of the response
+   buys a log that is complete after an incident, and a floated promise on a
+   serverless runtime is not guaranteed to run at all.
+
+**Rejected:** per-tool budgets (nothing has shown one tool is the expensive
+one — that is a guess wearing a config field); a global cross-room cap (one
+noisy room would then silently starve an unrelated partner, which is a worse
+failure than the one being fixed).
+
+**Verified:** 71 tests (55 → 71), tsc clean, `next build` clean. The three
+behavioural room-cap tests were **ablated** — switched the cap off, watched them
+fail, switched it back — so they are known to catch the bug rather than merely
+pass beside it. **NOT verified: none of this has run against a live bridge**,
+because the bridge is stopped and production is stale. It is unit-green, not
+run-green.
+
+---
+
 ## 2026-08-12 — S#271 — THE INCIDENT: a bridge is a feeding tube for a loop
 
 **Source:** Erik — *"The bridge is burning consumption on Gemini, there is no

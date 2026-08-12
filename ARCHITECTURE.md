@@ -148,6 +148,30 @@ shebang while `tsc` tolerates it. `Get-Content` without `-Encoding utf8` renders
 UTF-8 as cp1252 and makes correct files look like mojibake. Use the Read/Write/
 Edit tools, or `[System.IO.File]::WriteAllText` with a BOM-less encoder.
 
+**16. Rotation resets the per-token daily counter — the room counter is what survives it.**
+`rotateSide` calls `issueToken`, which derives `id` from a fresh hash, and
+`USAGE_KEY` is keyed on that id. So a rotated side starts the day at zero. This
+is not a hostile-caller hole (no MCP tool issues tokens; rotation is
+operator-only) — it is a hole in the *honest* response to a refusal: agent hits
+`daily-cap` → reads our own message *"tell your operator the bridge budget is
+exhausted"* → operator rotates → the loop resumes with a full 400.
+`ROOM_USAGE_KEY` is keyed on the room, which rotation does not change, and
+`DENY_MESSAGE["room-daily-cap"]` explicitly tells the operator not to mint a
+replacement. **Two counters, two questions: "has this token spent its share" and
+"has this bridge spent its day".**
+
+**17. The audit log records SUCCESSES, and that is recent.**
+Until S#272 `writeAudit` fired only on the reject branch and on export, so a
+successful tool call left no row and *"who called what, how often"* — the first
+question an incident asks — was unanswerable. `AuditEntry.status` already had
+`"ok"` in its type; nothing wrote it. Rows are now written in `gated()`, the one
+seam every request passes, with the tool name read from a **clone** of the body
+(`lib/audit-call.ts`) so the handler still gets an unread request. Two
+consequences: `AUDIT_LOG_MAX` went 1000 → 5000 because denials are rare and
+successes are the traffic; and `durationMs` on an SSE `GET` row is
+time-to-headers, **not** how long the stream stayed open — the honest duration
+is on `bridger_wait`, which is a POST.
+
 ---
 
 ## Invariants — break these and something silent goes wrong
@@ -162,6 +186,14 @@ Edit tools, or `[System.IO.File]::WriteAllText` with a BOM-less encoder.
 5. **A missing field must never downgrade a partner mid-integration.** Absent
    `role` → participant. Absent `dailyCap` → the default, not infinity.
 6. **Counters are charged last**, after every other gate, so a refusal for the
-   wrong room never spends the caller's budget.
+   wrong room never spends the caller's budget. Within that block the order is
+   minute → token-day → room-day, **narrowest first**, so a caller over its own
+   cap is told `daily-cap` rather than `room-daily-cap`: those two refusals send
+   an operator to different places.
+8. **Every budget ceiling must be able to bind.** A room cap equal to the sum of
+   its tokens' caps can never be the constraint that fires, which makes it
+   decoration — the mistake the 120/min rate limit already taught this project
+   once. `DEFAULT_ROOM_DAILY_CAP` (600) is deliberately below
+   `2 x DEFAULT_DAILY_CAP` (800), and a test asserts it.
 7. **Provenance is a path, not a boolean.** A boolean can be set true without
    evidence, which is the exact failure the field exists to catch.

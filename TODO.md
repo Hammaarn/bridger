@@ -22,12 +22,15 @@ npm run bridger -- start        # then lift the kill switch
       agent. The number that matters is whether a looping agent *stops* on
       `STOP.` — if it retries anyway, the message is not doing its job and the
       next lever is refusing at the transport level.
-- [ ] **Audit successful calls, not just denials.** `writeAudit` fires on the
-      reject branch and on export. A successful tool call writes no row, so
-      "who called what, how often" is unanswerable — which is exactly the
-      question an incident asks.
-- [ ] **Per-room budget, not just per-token.** Two tokens on one room can each
-      spend a full daily cap.
+- [x] **Audit successful calls, not just denials.** DONE S#272 — rows written in
+      `gated()`, the one seam every request passes, carrying real
+      tokenId/roomId/side (the deny rows cannot: a refused caller has no
+      resolved token). `AUDIT_LOG_MAX` 1000 → 5000. **Unit-green, not run-green.**
+- [x] **Per-room budget, not just per-token.** DONE S#272 — and the real hole
+      was sharper than this line: **rotation resets the per-token counter**, so
+      the cap could be cleared by the operator following our own refusal text.
+      `ROOM_USAGE_KEY` + `RoomRecord.dailyCap` (600). Ablation-proven.
+      **Unit-green, not run-green.**
 
 ## Lane: the product claim
 
@@ -35,10 +38,15 @@ npm run bridger -- start        # then lift the kill switch
       filled `checkedAgainst` honestly and one of its two citations was
       over-broad. Worth repeating with a different question shape before
       believing it generalises.
-- [ ] **Answer `TRI-Q-002`** — Antigravity asked for the `run`, `verdict`,
-      `done` and `error` payloads. Requires reading
-      `roastmydev-fix/app/api/external/live-review/route.ts` and citing lines,
-      not answering from memory. It is open on the bridge right now.
+- [x] **Answer `TRI-Q-002`** — DRAFTED AND STAGED at `answers/TRI-Q-002.md`,
+      **not posted** (the bridge is stopped). Post it with the block at the
+      bottom of that file once `bridger start` has run. Whether the question is
+      still open was NOT re-verified — the bridge 401s, so nothing can be read.
+      **The path in the old version of this line was wrong:** it said
+      `roastmydev-fix/app/api/external/live-review/route.ts`, which is the
+      `s268-partner-live-api` worktree at `ec657ea` and differs from the shipped
+      file by 152 insertions / 24 deletions. Canonical is
+      `roastmydev/` on master — verified byte-identical to production `e1619d4`.
 - [ ] **Consider surfacing over-broad citations.** A cited range of 70 lines is
       weaker evidence than a cited line. The ledger records the string; nothing
       grades it. An honest first step is displaying the span, not scoring it.
