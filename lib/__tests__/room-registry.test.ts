@@ -22,7 +22,13 @@ import {
   rotateSide,
   TOKEN_PREFIX,
 } from "../room-registry";
-import { DEFAULT_DAILY_CAP, KILL_SWITCH, RATE_LIMIT_PER_MINUTE, ROOM_KEY } from "../store";
+import {
+  DEFAULT_DAILY_CAP,
+  DEFAULT_ROOM_DAILY_CAP,
+  KILL_SWITCH,
+  RATE_LIMIT_PER_MINUTE,
+  ROOM_KEY,
+} from "../store";
 import { FakeStore, T0, plus } from "./fake-store";
 
 const ORIGINAL_DISABLED = process.env.BRIDGER_DISABLED;
@@ -382,5 +388,119 @@ describe("parseRoom", () => {
     const ok = parseRoom(JSON.stringify({ id: "r1" }));
     assert.equal(ok?.sides.a.code, "XXX");
     assert.equal(ok?.closed, false);
+  });
+});
+
+describe("per-room budget — the ceiling a token cap cannot express", () => {
+  /**
+   * Rewrite the room's cap so these tests exercise the MECHANISM at small
+   * numbers instead of burning 600 authorize calls to re-assert a constant.
+   * The constant gets its own test below.
+   */
+  async function setRoomCap(store: FakeStore, roomId: string, cap: number) {
+    const room = parseRoom(await store.get(ROOM_KEY(roomId)));
+    await store.set(ROOM_KEY(roomId), JSON.stringify({ ...room, dailyCap: cap }));
+    clearRegistryCache();
+  }
+
+  /** Spread calls over minutes so the per-minute limiter is never what stops us. */
+  const spread = (i: number) => plus(T0, Math.floor(i / 10) * 60_000);
+
+  it("CLOSES THE ROTATION BYPASS — a fresh token inherits the room's spend", async () => {
+    const { store, room, ownerToken } = await freshRoom();
+    await setRoomCap(store, room.id, 3);
+
+    for (let i = 0; i < 3; i++) {
+      assert.equal((await authorize(store, { presentedToken: ownerToken, now: spread(i) })).ok, true);
+    }
+
+    // The operator's honest response to a refusal: mint a new token.
+    const rotated = await rotateSide(store, room, "a", T0);
+    assert.notEqual(rotated, ownerToken, "rotation really did issue a different token");
+
+    // Its OWN daily counter is at zero — before the room counter existed this
+    // is exactly where a looping agent got a full budget back.
+    const out = await authorize(store, { presentedToken: rotated, now: spread(3) });
+    assert.deepEqual(out, { ok: false, reason: "room-daily-cap" });
+  });
+
+  it("two tokens on one room share the ceiling instead of each getting one", async () => {
+    const { store, room, ownerToken, peerToken } = await freshRoom();
+    await setRoomCap(store, room.id, 4);
+
+    for (let i = 0; i < 2; i++) {
+      assert.equal((await authorize(store, { presentedToken: ownerToken, now: spread(i) })).ok, true);
+    }
+    for (let i = 2; i < 4; i++) {
+      assert.equal((await authorize(store, { presentedToken: peerToken, now: spread(i) })).ok, true);
+    }
+
+    assert.deepEqual(await authorize(store, { presentedToken: peerToken, now: spread(4) }), {
+      ok: false,
+      reason: "room-daily-cap",
+    });
+    assert.deepEqual(
+      await authorize(store, { presentedToken: ownerToken, now: spread(5) }),
+      { ok: false, reason: "room-daily-cap" },
+      "the ceiling binds both sides, not just whoever crossed it",
+    );
+  });
+
+  it("reports the NARROWEST limit — a token over its own cap is told so, not blamed on the room", async () => {
+    const { store, room, ownerToken } = await freshRoom();
+    // Room cap generous; the token's own cap is the binding one.
+    await setRoomCap(store, room.id, 10_000);
+    const hash = hashToken(ownerToken);
+    const token = parseToken(await store.get(`bridger:tok:${hash}`));
+    await store.set(`bridger:tok:${hash}`, JSON.stringify({ ...token, dailyCap: 2 }));
+    clearRegistryCache();
+
+    for (let i = 0; i < 2; i++) {
+      assert.equal((await authorize(store, { presentedToken: ownerToken, now: spread(i) })).ok, true);
+    }
+    assert.deepEqual(
+      await authorize(store, { presentedToken: ownerToken, now: spread(2) }),
+      { ok: false, reason: "daily-cap" },
+      "the two refusals send an operator to different places, so they must stay distinguishable",
+    );
+  });
+
+  it("a room over its cap does not spend the caller's per-minute allowance for nothing", async () => {
+    const { store, room, ownerToken } = await freshRoom();
+    await setRoomCap(store, room.id, 1);
+    assert.equal((await authorize(store, { presentedToken: ownerToken, now: T0 })).ok, true);
+    // Refused for the room, not the minute — the reason must not degrade into
+    // `rate-limited`, which reads as retryable and is the wrong instruction.
+    for (let i = 0; i < 5; i++) {
+      assert.deepEqual(await authorize(store, { presentedToken: ownerToken, now: T0 }), {
+        ok: false,
+        reason: "room-daily-cap",
+      });
+    }
+  });
+
+  it("a room stored before room caps existed gets the default, never Infinity", () => {
+    const legacy = parseRoom(JSON.stringify({ id: "r1", topic: "t", closed: false }));
+    assert.equal(legacy?.dailyCap, DEFAULT_ROOM_DAILY_CAP);
+    assert.equal(Number.isFinite(legacy?.dailyCap), true, "an uncapped bridge is the bug");
+  });
+
+  it("the default room cap BINDS — it is below two full token caps", () => {
+    assert.ok(
+      DEFAULT_ROOM_DAILY_CAP < 2 * DEFAULT_DAILY_CAP,
+      "a room cap equal to the sum of its tokens' caps can never be the binding constraint, " +
+        "which makes it decoration — the mistake the 120/min rate limit already taught us",
+    );
+    assert.ok(DEFAULT_ROOM_DAILY_CAP > DEFAULT_DAILY_CAP, "one side alone must not trip the room");
+  });
+
+  it("`room-daily-cap` is terminal, and tells the operator NOT to rotate", () => {
+    assert.equal(TERMINAL_DENIALS.has("room-daily-cap"), true);
+    assert.match(DENY_MESSAGE["room-daily-cap"], /^STOP\./);
+    assert.match(
+      DENY_MESSAGE["room-daily-cap"],
+      /do not ask for a replacement token/i,
+      "the counter closes the rotation path; the message has to close it in words too",
+    );
   });
 });

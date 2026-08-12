@@ -17,7 +17,10 @@
  *   bridger:room:<roomId>:cursor:<side> last seq this side has read
  *   bridger:room:<roomId>:contract      the shared wire spec (one document)
  *   bridger:rl:<tokenId>:<minute>       per-token rate-limit bucket
- *   bridger:audit                       capped audit list
+ *   bridger:used:<tokenId>:<day>        per-token daily counter
+ *   bridger:roomused:<roomId>:<day>     per-ROOM daily counter (survives rotation)
+ *   bridger:waits:<tokenId>             consecutive empty waits
+ *   bridger:audit                       capped audit list (denials AND successes)
  *
  * RETENTION, STATED PRECISELY
  * ---------------------------
@@ -64,6 +67,28 @@ export const ROOM_TOKENS_KEY = (roomId: string) => `${NS}:room:${roomId}:tokens`
 export const RATE_KEY = (tokenId: string, minute: string) => `${NS}:rl:${tokenId}:${minute}`;
 /** Calls made by one token on one UTC day. The hard stop. */
 export const USAGE_KEY = (tokenId: string, day: string) => `${NS}:used:${tokenId}:${day}`;
+/**
+ * Calls made by every token on one ROOM on one UTC day. The ceiling the
+ * per-token cap cannot express.
+ *
+ * TWO HOLES, and the second is the one that matters:
+ *
+ *  1. Two tokens on one room can each spend a full `dailyCap`, so the room's
+ *     real ceiling was N x 400 and grew every time a token was added.
+ *  2. **Rotation resets the per-token counter.** `rotateSide` calls
+ *     `issueToken`, which derives `id` from a fresh hash — and USAGE_KEY is
+ *     keyed on that id, so a rotated side starts the day at zero. The
+ *     realistic sequence: a looping agent hits `daily-cap`, reads our own
+ *     refusal ("tell your operator the bridge budget is exhausted"), its
+ *     operator asks for a new token, and the loop resumes with a full budget.
+ *     The cap restored after the quota incident could be cleared by the person
+ *     hitting it.
+ *
+ * Keyed on the room, which survives rotation. Rotation is operator-only (no MCP
+ * tool issues tokens), so this is not a hostile-caller defence — it is a
+ * defence against the honest operator response to a refusal.
+ */
+export const ROOM_USAGE_KEY = (roomId: string, day: string) => `${NS}:roomused:${roomId}:${day}`;
 /** Consecutive empty `bridger_wait` calls — the shape a polling loop makes. */
 export const WAIT_STREAK_KEY = (tokenId: string) => `${NS}:waits:${tokenId}`;
 /**
@@ -84,8 +109,22 @@ export const MAX_ENTRIES = 5000;
 
 /** Idle TTL. Refreshed on every write to the room. */
 export const ROOM_TTL_SECONDS = 30 * 24 * 60 * 60;
-/** Audit entries retained — enough to answer "what happened last week", bounded. */
-export const AUDIT_LOG_MAX = 1000;
+/**
+ * Audit entries retained — enough to answer "what happened last week", bounded.
+ *
+ * RAISED 1000 -> 5000 when successful calls started being logged. The old value
+ * was sized for denials only, which are rare; successes are the traffic. At the
+ * absolute ceiling (two tokens burning a 400/day cap each) 1000 rows would hold
+ * ~14 hours, and the docstring's promise of "last week" would have quietly
+ * become false the moment the log got useful. At a human-paced 50-200 calls a
+ * day, 5000 rows is weeks.
+ *
+ * Cost: ~5000 x ~200B ~= 1 MB of Upstash storage, and two extra Redis commands
+ * (lpush + ltrim) per successful call. Both are noise against the free tier's
+ * limits — but note STATUS.md still lists the free-tier ceiling as UNCHECKED,
+ * so this is reasoned, not measured.
+ */
+export const AUDIT_LOG_MAX = 5000;
 /**
  * Calls per token per minute.
  *
@@ -105,6 +144,20 @@ export const RATE_LIMIT_PER_MINUTE = 20;
  * cannot bound a loop that is patient.
  */
 export const DEFAULT_DAILY_CAP = 400;
+
+/**
+ * Default hard stop per ROOM per UTC day — the aggregate ceiling.
+ *
+ * 600, not 800: deliberately BELOW two full token caps, so it binds. A bridge
+ * where both sides are busy makes single-digit calls a minute; 600 is already
+ * far past any human-paced day and still stops a rotated loop inside one cycle.
+ *
+ * It is not `2 x DEFAULT_DAILY_CAP` on purpose. A room cap that exactly equals
+ * the sum of its tokens' caps can never be the binding constraint, which would
+ * make it decoration — the same mistake as the 120/min rate limit this project
+ * already learned from.
+ */
+export const DEFAULT_ROOM_DAILY_CAP = 600;
 
 /**
  * Consecutive empty waits before the bridge tells the caller to stop.

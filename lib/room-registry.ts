@@ -40,7 +40,9 @@ import {
   RATE_KEY,
   RATE_LIMIT_PER_MINUTE,
   DEFAULT_DAILY_CAP,
+  DEFAULT_ROOM_DAILY_CAP,
   USAGE_KEY,
+  ROOM_USAGE_KEY,
   WAIT_STREAK_KEY,
   utcDay,
   ROOM_KEY,
@@ -121,6 +123,15 @@ export interface RoomRecord {
   createdAt: string;
   closed: boolean;
   sides: Record<SideId, RoomSide>;
+  /**
+   * Aggregate hard stop per UTC day, across every token on this room.
+   *
+   * Survives rotation, which is the point — see `ROOM_USAGE_KEY`. A room stored
+   * before this field existed parses to `DEFAULT_ROOM_DAILY_CAP` rather than
+   * Infinity, on the same reasoning as `TokenRecord.dailyCap`: an uncapped
+   * bridge is the bug, so the missing field must fail toward the limit.
+   */
+  dailyCap: number;
 }
 
 export type DenyReason =
@@ -133,6 +144,7 @@ export type DenyReason =
   | "room-closed"
   | "rate-limited"
   | "daily-cap"
+  | "room-daily-cap"
   | "registry-unavailable";
 
 /**
@@ -151,6 +163,12 @@ export const DENY_MESSAGE: Record<DenyReason, string> = {
     "STOP. You are calling the bridge too fast and have been rate limited. Do not retry in a loop. The other side is a human-paced integration; if you have nothing new to say, stop calling and report what you have.",
   "daily-cap":
     "STOP. This token has spent its call budget for today. Do not call any bridger tool again — every further attempt will be refused and will waste your own context. Tell your operator the bridge budget is exhausted.",
+  // Deliberately does NOT suggest asking for a new token. `daily-cap` says
+  // "tell your operator the budget is exhausted", and the honest operator
+  // response to that is to rotate — which used to hand the loop a fresh 400.
+  // This message closes that path in words as well as in the counter.
+  "room-daily-cap":
+    "STOP. This bridge has spent its call budget for today, across every token on it. Do not call any bridger tool again, and do not ask for a replacement token — a new token will be refused the same way until the budget resets at 00:00 UTC. Tell your operator the bridge is done for the day.",
   revoked:
     "STOP. This token has been revoked. Do not retry; ask your operator for a new one.",
   expired: "STOP. This token has expired. Do not retry; ask your operator for a new one.",
@@ -177,6 +195,7 @@ export const DENY_STATUS: Record<DenyReason, number> = {
   "room-closed": 410,
   "rate-limited": 429,
   "daily-cap": 429,
+  "room-daily-cap": 429,
   "registry-unavailable": 503,
 };
 
@@ -184,6 +203,7 @@ export const DENY_STATUS: Record<DenyReason, number> = {
 export const TERMINAL_DENIALS: ReadonlySet<DenyReason> = new Set<DenyReason>([
   "bridge-disabled",
   "daily-cap",
+  "room-daily-cap",
   "revoked",
   "expired",
   "room-closed",
@@ -327,6 +347,8 @@ export function parseRoom(raw: unknown): RoomRecord | null {
     createdAt: typeof r.createdAt === "string" ? r.createdAt : "",
     closed: r.closed === true,
     sides: { a: side(r.sides?.a), b: side(r.sides?.b) },
+    // A room minted before room caps existed gets the default, never Infinity.
+    dailyCap: Number.isFinite(r.dailyCap) ? Number(r.dailyCap) : DEFAULT_ROOM_DAILY_CAP,
   };
 }
 
@@ -399,12 +421,22 @@ export async function authorize(store: Store | null, ctx: AuthContext): Promise<
       if (perMinute === 1) await store.expire(bucket, 120);
       if (perMinute > RATE_LIMIT_PER_MINUTE) return { ok: false, reason: "rate-limited" };
 
-      const dayKey = USAGE_KEY(token.id, utcDay(ctx.now));
+      const day = utcDay(ctx.now);
+      const dayKey = USAGE_KEY(token.id, day);
       const perDay = await store.incr(dayKey);
       // 48h so a counter always outlives its own UTC day whenever it started;
       // the key name already scopes it to one day.
       if (perDay === 1) await store.expire(dayKey, 172_800);
       if (perDay > token.dailyCap) return { ok: false, reason: "daily-cap" };
+
+      // The aggregate ceiling, charged LAST so the narrowest limit is the one
+      // that gets reported: a caller over its own cap should be told "your
+      // token is done", not "the whole bridge is done", because those two
+      // refusals send its operator to different places.
+      const roomKey = ROOM_USAGE_KEY(room.id, day);
+      const roomPerDay = await store.incr(roomKey);
+      if (roomPerDay === 1) await store.expire(roomKey, 172_800);
+      if (roomPerDay > room.dailyCap) return { ok: false, reason: "room-daily-cap" };
     } catch {
       return { ok: false, reason: "registry-unavailable" };
     }
@@ -508,6 +540,7 @@ export async function createRoom(
       a: { label: opts.ownerLabel, code: ownerCode, joinedAt: iso },
       b: { label: opts.peerLabel, code: peerCode, joinedAt: null },
     },
+    dailyCap: DEFAULT_ROOM_DAILY_CAP,
   };
 
   await store.set(ROOM_KEY(roomId), JSON.stringify(room));

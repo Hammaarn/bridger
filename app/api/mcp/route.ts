@@ -51,6 +51,7 @@ import {
   type TokenRecord,
 } from "@/lib/room-registry";
 import { createStore, MAX_EMPTY_WAIT_STREAK, type Store } from "@/lib/store";
+import { describeCall } from "@/lib/audit-call";
 
 // node:crypto and the Upstash client both need the Node runtime.
 export const runtime = "nodejs";
@@ -477,7 +478,45 @@ async function gated(req: Request): Promise<Response> {
     );
   }
 
-  return authed(req);
+  /**
+   * THE SUCCESS ROW.
+   *
+   * Until this existed `writeAudit` fired only on the reject branch and on
+   * export, so a successful tool call left no trace and "who called what, how
+   * often" was unanswerable — which is the first question an incident asks. The
+   * quota incident was diagnosed from the far side's own reports, because our
+   * log had nothing in it: every call that mattered had succeeded.
+   *
+   * `AuditEntry.status` already had `"ok"` in its type. The shape was right;
+   * nothing wrote it.
+   *
+   * These rows carry real identity. The deny rows above write `tokenId: null`
+   * because a refused caller has no resolved token — here `outcome` is narrowed
+   * to a resolved token and room, so the row can say who.
+   *
+   * Awaited, not fire-and-forget: two Redis commands (~20ms) in front of the
+   * response is the price of a log that is actually complete after an incident,
+   * and a floated promise on a serverless runtime is not guaranteed to run at
+   * all. For an SSE GET, `durationMs` is time-to-headers, NOT how long the
+   * stream stayed open — the long-lived one is `bridger_wait`, a POST, where it
+   * is the real figure.
+   */
+  const startedAt = Date.now();
+  const tool = await describeCall(req);
+  const res = await authed(req);
+
+  await writeAudit(store, {
+    ts: now.toISOString(),
+    tokenId: outcome.token.id,
+    roomId: outcome.room.id,
+    side: outcome.token.side,
+    tool,
+    status: res.ok ? "ok" : "error",
+    ...(res.ok ? {} : { reason: `http-${res.status}` }),
+    durationMs: Date.now() - startedAt,
+  });
+
+  return res;
 }
 
 export { gated as GET, gated as POST, gated as DELETE };
