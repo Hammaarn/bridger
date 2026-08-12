@@ -43,7 +43,7 @@ import {
   DEFAULT_ROOM_DAILY_CAP,
   USAGE_KEY,
   ROOM_USAGE_KEY,
-  WAIT_STREAK_KEY,
+  IDLE_STREAK_KEY,
   utcDay,
   ROOM_KEY,
   ROOM_TOKENS_KEY,
@@ -446,16 +446,25 @@ export async function authorize(store: Store | null, ctx: AuthContext): Promise<
 }
 
 /**
- * Consecutive empty `bridger_wait` calls for a token.
+ * Consecutive calls that returned the caller nothing new.
  *
- * `bump` returns the new streak; any other tool call resets it. A streak past
- * `MAX_EMPTY_WAIT_STREAK` means the caller is polling an empty bridge, which is
- * the exact shape of the loop that burned a quota — the wait tool answers
- * honestly ("nothing yet") and an agent reads that as a reason to wait again.
+ * `bump` returns the new streak. It is reset by ACQUIRING INFORMATION — a wait
+ * or read that returns entries, a status with unread — or by WRITING, because
+ * an agent that posts is doing work rather than spinning.
+ *
+ * **The old docstring here claimed "any other tool call resets it", and that
+ * was never true**: `resetWaitStreak` had exactly one call site, inside
+ * `bridger_wait`. The code was SAFER than its comment, which is the dangerous
+ * direction to be wrong in — the next reader "fixes" the code to match the
+ * comment and opens the hole. Corrected S#272 rather than implemented.
+ *
+ * A streak means the caller is polling a quiet bridge, which is the exact shape
+ * of the loop that burned a quota: every tool answers honestly, and an honest
+ * "nothing yet" reads to an agent as a reason to ask again.
  */
-export async function bumpWaitStreak(store: Store, tokenId: string): Promise<number> {
+export async function bumpIdleStreak(store: Store, tokenId: string): Promise<number> {
   try {
-    const key = WAIT_STREAK_KEY(tokenId);
+    const key = IDLE_STREAK_KEY(tokenId);
     const n = await store.incr(key);
     if (n === 1) await store.expire(key, 3600);
     return n;
@@ -464,9 +473,9 @@ export async function bumpWaitStreak(store: Store, tokenId: string): Promise<num
   }
 }
 
-export async function resetWaitStreak(store: Store, tokenId: string): Promise<void> {
+export async function resetIdleStreak(store: Store, tokenId: string): Promise<void> {
   try {
-    await store.set(WAIT_STREAK_KEY(tokenId), 0);
+    await store.set(IDLE_STREAK_KEY(tokenId), 0);
   } catch {
     /* best-effort */
   }

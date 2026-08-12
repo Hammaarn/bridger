@@ -16,10 +16,11 @@ import {
   authorize,
   clearRegistryCache,
   createRoom,
+  bumpIdleStreak,
   type RoomRecord,
   type TokenRecord,
 } from "../room-registry";
-import { ENTRIES_KEY } from "../store";
+import { ENTRIES_KEY, MAX_EMPTY_WAIT_STREAK, MAX_IDLE_STREAK } from "../store";
 import { FakeStore, T0, plus } from "./fake-store";
 
 /** A room with both sides resolved to real, token-proven identities. */
@@ -309,5 +310,46 @@ describe("waitForNew", () => {
     assert.equal(res.timedOut, true);
     assert.deepEqual(res.entries, []);
     assert.ok(res.waitedMs <= 500);
+  });
+});
+
+describe("the idle brake — writing is working, not spinning", () => {
+  it("a write CLEARS the idle streak, from the one seam every write funnels through", async () => {
+    const { store, room, jms } = await bridge();
+
+    assert.equal(await bumpIdleStreak(store, jms.id), 1);
+    assert.equal(await bumpIdleStreak(store, jms.id), 2);
+    assert.equal(await bumpIdleStreak(store, jms.id), 3);
+
+    await ask(store, room, jms, "does the verdict event carry a grade?");
+
+    assert.equal(
+      await bumpIdleStreak(store, jms.id),
+      1,
+      "an agent that posted a question is doing work — it must not inherit the poller's brake",
+    );
+  });
+
+  it("setContract clears it too — it is a write, and it routes through appendEntry", async () => {
+    const { store, room, jms } = await bridge();
+    await bumpIdleStreak(store, jms.id);
+    await bumpIdleStreak(store, jms.id);
+
+    await setContract(store, room, jms, "protocol: 1", "first cut", T0);
+
+    assert.equal(await bumpIdleStreak(store, jms.id), 1);
+  });
+
+  it("the streak is per TOKEN — one side spinning does not brake the other", async () => {
+    const { store, jms, tri } = await bridge();
+    for (let i = 0; i < 5; i++) await bumpIdleStreak(store, jms.id);
+    assert.equal(await bumpIdleStreak(store, tri.id), 1);
+  });
+
+  it("waiting is stricter than merely reading, and both thresholds are live", () => {
+    assert.ok(
+      MAX_EMPTY_WAIT_STREAK < MAX_IDLE_STREAK,
+      "a wait says 'I expect something now', so it gets less rope than a status check-in",
+    );
   });
 });

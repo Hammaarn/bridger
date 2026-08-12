@@ -38,11 +38,11 @@ import {
 } from "@/lib/entries";
 import {
   authorize,
-  bumpWaitStreak,
+  bumpIdleStreak,
   canWrite,
   DENY_MESSAGE,
   DENY_STATUS,
-  resetWaitStreak,
+  resetIdleStreak,
   TERMINAL_DENIALS,
   markJoined,
   VIEWER_REFUSAL,
@@ -50,7 +50,7 @@ import {
   type RoomRecord,
   type TokenRecord,
 } from "@/lib/room-registry";
-import { createStore, MAX_EMPTY_WAIT_STREAK, type Store } from "@/lib/store";
+import { createStore, MAX_EMPTY_WAIT_STREAK, MAX_IDLE_STREAK, type Store } from "@/lib/store";
 import { describeCall } from "@/lib/audit-call";
 
 // node:crypto and the Upstash client both need the Node runtime.
@@ -142,6 +142,55 @@ function reply(payload: unknown) {
   return { content: [{ type: "text" as const, text: JSON.stringify(payload, null, 2) }] };
 }
 
+/**
+ * THE IDLE BRAKE — the only thing standing between a quiet bridge and a loop.
+ *
+ * WHAT IT IS ACTUALLY PROTECTING, because it is not our tokens.
+ * ------------------------------------------------------------
+ * Bridger calls no LLM (invariant 1), so a call costs us nothing. It costs the
+ * CALLER one full inference over their whole context — and that context grows
+ * with every tool result, so the tenth poll is dearer than the first.
+ *
+ * The consequence that shapes this design: **blocking is cheap, turning is
+ * expensive.** A `bridger_wait` that holds the socket 45 seconds bills the
+ * caller exactly the same as one that returns instantly — one round trip. So
+ * long waits are not the problem and never were. The problem is the NUMBER of
+ * replies, each of which buys one more turn.
+ *
+ * Which is why the caps alone are not an answer. `RATE_LIMIT_PER_MINUTE` and
+ * the daily caps bound CALLS; they cannot bound TOKENS, because the tokens burn
+ * in a session we cannot see. 600 polls is a legal day under every cap we have
+ * and still a terrible day for whoever is paying for it.
+ *
+ * So the brake is on the BEHAVIOUR: consecutive calls that returned nothing
+ * new. Acquiring information resets it, and so does writing — an agent that
+ * posts is working, not spinning.
+ */
+async function brakeIfIdle(opts: {
+  store: Store;
+  tokenId: string;
+  /** Did this call hand the caller something it did not already have? */
+  learned: boolean;
+  limit: number;
+  /** What the caller should do instead. MUST NOT name another polling tool. */
+  instead: string;
+}): Promise<number> {
+  if (opts.learned) {
+    await resetIdleStreak(opts.store, opts.tokenId);
+    return 0;
+  }
+  const streak = await bumpIdleStreak(opts.store, opts.tokenId);
+  if (streak > opts.limit) {
+    throw new Error(
+      `STOP. You have called the bridge ${streak} times in a row and learned nothing new each time. ` +
+        `The other side is a human-paced team, not a service — they are not there right now. ` +
+        `Do NOT call any bridger tool again in this session. Every further call spends YOUR context ` +
+        `and cannot make them answer faster. ${opts.instead}`,
+    );
+  }
+  return streak;
+}
+
 function requireStore(): Store {
   const store = createStore();
   if (!store) throw new Error("bridger: registry unavailable");
@@ -178,8 +227,29 @@ const handler = createMcpHandler(
       },
       async (_args, ctx) => {
         const { room, token } = bridgeFrom(ctx);
-        const status = await getStatus(requireStore(), room, token);
-        return reply(status);
+        const store = requireStore();
+        const status = await getStatus(store, room, token);
+        // This was the UNBRAKED tool, and our own wait refusal used to point
+        // agents straight at it ("the answer will be here at your next
+        // bridger_status") — a safety message redirecting a loop from the tool
+        // that stops it to the tool that does not.
+        const idle = await brakeIfIdle({
+          store,
+          tokenId: token.id,
+          learned: status.unread > 0,
+          limit: MAX_IDLE_STREAK,
+          instead: "Report to your operator what you are waiting on, and let THEM decide when to check again.",
+        });
+        return reply({
+          ...status,
+          ...(idle > 0
+            ? {
+                quietChecksInARow: idle,
+                guidance:
+                  "Nothing new since your last check. Do not poll — stop and report; you will see it when you next resume work.",
+              }
+            : {}),
+        });
       },
     );
 
@@ -210,6 +280,13 @@ const handler = createMcpHandler(
         if (args.markRead && entries.length) {
           cursor = await setCursor(store, room.id, token.side, entries[entries.length - 1].seq);
         }
+        await brakeIfIdle({
+          store,
+          tokenId: token.id,
+          learned: entries.length > 0,
+          limit: MAX_IDLE_STREAK,
+          instead: "Report to your operator what you are waiting on, and stop.",
+        });
         return reply({ count: entries.length, entries: entries.map(wire), ...(cursor ? { cursor } : {}) });
       },
     );
@@ -378,7 +455,7 @@ const handler = createMcpHandler(
 
         // Something arrived: the wait did its job, and the streak is over.
         if (result.entries.length > 0) {
-          await resetWaitStreak(store, token.id);
+          await resetIdleStreak(store, token.id);
           return reply({
             timedOut: false,
             waitedMs: result.waitedMs,
@@ -390,15 +467,23 @@ const handler = createMcpHandler(
         // Nothing arrived. "Nothing yet" is an honest answer and an agent can
         // read it as a reason to wait again — which is a poll loop wearing a
         // tool call. Past the streak limit we stop answering politely.
-        const streak = await bumpWaitStreak(store, token.id);
-        if (streak > MAX_EMPTY_WAIT_STREAK) {
-          throw new Error(
-            `STOP WAITING. You have called bridger_wait ${streak} times with nothing arriving. ` +
-              `The other side is not responding right now — that is normal, they are a human-paced ` +
-              `team, not a service. Do NOT call bridger_wait again. Report to your operator what you ` +
-              `are waiting on and stop; the answer will be here at your next bridger_status.`,
-          );
-        }
+        //
+        // Stricter than the read tools on the same counter: a wait says "I
+        // expect something right now", so three empty ones is already the
+        // answer.
+        //
+        // The old refusal here ended "...the answer will be here at your next
+        // bridger_status", which sent a looping agent from the one braked tool
+        // to the one unbraked tool. Both are braked now, and the instruction
+        // points at a HUMAN instead of at another tool.
+        const streak = await brakeIfIdle({
+          store,
+          tokenId: token.id,
+          learned: false,
+          limit: MAX_EMPTY_WAIT_STREAK,
+          instead:
+            "Report to your operator what you are waiting on and stop. You will see their reply when you next resume work on this integration.",
+        });
         return reply({
           timedOut: true,
           waitedMs: result.waitedMs,

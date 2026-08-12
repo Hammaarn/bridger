@@ -89,8 +89,15 @@ export const USAGE_KEY = (tokenId: string, day: string) => `${NS}:used:${tokenId
  * defence against the honest operator response to a refusal.
  */
 export const ROOM_USAGE_KEY = (roomId: string, day: string) => `${NS}:roomused:${roomId}:${day}`;
-/** Consecutive empty `bridger_wait` calls — the shape a polling loop makes. */
-export const WAIT_STREAK_KEY = (tokenId: string) => `${NS}:waits:${tokenId}`;
+/**
+ * Consecutive calls that taught the caller NOTHING — the shape a polling loop
+ * makes, on whichever tool it happens to be spinning.
+ *
+ * Was `bridger:waits:` and counted empty `bridger_wait` calls only. Renamed
+ * when the brake was generalised: an agent polling `bridger_status` on a quiet
+ * room is the same loop, and it was the one tool with no brake at all.
+ */
+export const IDLE_STREAK_KEY = (tokenId: string) => `${NS}:idle:${tokenId}`;
 /**
  * Monotonic per-room sequence. Deliberately NOT the list index: the entries
  * list is trimmed at `MAX_ENTRIES`, which shifts indices, and a cursor that
@@ -167,6 +174,20 @@ export const DEFAULT_ROOM_DAILY_CAP = 600;
  * row with no new entry means the other side is not there right now.
  */
 export const MAX_EMPTY_WAIT_STREAK = 3;
+
+/**
+ * The same brake, looser, for the tools that merely READ.
+ *
+ * `bridger_wait` says "I expect something right now", so three empty ones is a
+ * strong signal and it stops there. `bridger_status` is the legitimate
+ * start-of-session call and a partner may reasonably check in a few times
+ * before there is news — so it gets more rope, and only a caller that has
+ * learned nothing SIX times running is spinning.
+ *
+ * One counter, two thresholds, because it is one behaviour: this caller is
+ * burning its own context without acquiring information.
+ */
+export const MAX_IDLE_STREAK = 6;
 
 export function minuteBucket(now: Date): string {
   return now.toISOString().slice(0, 16); // YYYY-MM-DDTHH:mm

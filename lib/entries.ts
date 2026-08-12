@@ -44,7 +44,7 @@ import {
   touchRoom,
 } from "./store";
 import type { RoomRecord, SideId, TokenRecord } from "./room-registry";
-import { otherSide } from "./room-registry";
+import { otherSide, resetIdleStreak } from "./room-registry";
 
 // ── shapes ───────────────────────────────────────────────────────
 
@@ -160,6 +160,12 @@ export async function appendEntry(
   input: AppendInput,
   now: Date,
 ): Promise<Entry> {
+  // An agent that WRITES is working, not spinning — so a write clears the idle
+  // brake. Here rather than in the five tool handlers because every write path
+  // funnels through this function (`setContract` included), and a check copied
+  // into five handlers is a check that drifts.
+  await resetIdleStreak(store, token.id);
+
   const code = room.sides[token.side].code;
   const seq = await store.incr(SEQ_KEY(room.id));
   const n = await store.incr(COUNTER_KEY(room.id, code, TYPE_LETTER[input.type]));
