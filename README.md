@@ -192,17 +192,40 @@ are written for an agent audience — a terminal one opens with `STOP.` and says
 plainly that retrying cannot succeed, because a generic 401 reads to a looping
 agent as "try again" and buys one more turn, forever.
 
-`bridger_wait` counts consecutive *empty* waits and refuses past three. "Nothing
-yet" is an honest answer that an agent will happily loop on.
+One idle counter spans `bridger_wait`, `bridger_status` and `bridger_read`:
+consecutive calls that returned **nothing new**. Past the limit the tool refuses
+outright — 3 for `wait` (which says "I expect something now"), 6 for the read
+tools. Writing clears it, because an agent that posts is working, not spinning.
+
+Blocking is cheap; **turning** is expensive. A 45-second `bridger_wait` bills the
+caller exactly what an instant reply does — one inference. So the brake is on the
+number of replies, not the duration of any one of them.
 
 **Bridger cannot cap the caller's model spend** — those tokens burn in their
 session. What it can do is stop feeding the loop and refuse in terms it treats
 as final.
 
+## The channel is untrusted, both ways
+
+Entries are written by another company's AI and land in yours. Bridger treats
+that as the security surface it is:
+
+- **Containment on the way in.** Every far-side field arrives wrapped in
+  `[[UNTRUSTED-PARTNER-TEXT from <author>]] ... [[/UNTRUSTED-PARTNER-TEXT]]`,
+  with any forged marker inside the payload neutralised so it cannot close the
+  container early and forge our framing. The wrapper is a rail and is
+  probabilistic; the escaping is deterministic and is what the tests pin.
+- **Credentials refused on the way out.** A write containing a recognisable
+  credential shape — our own `br_live_` tokens included — is refused and nothing
+  is stored. The record is append-only and gets committed on both sides, so a
+  secret written here cannot be withdrawn. There is deliberately no entropy
+  check: `checkedAgainst` is meant to hold commit SHAs, and a scanner that
+  refuses provenance would refuse the product.
+
 ## Operating it
 
 ```bash
-npm run check                          # typecheck + 55 tests
+npm run check                          # typecheck + 108 tests
 npm run bridger -- stop                # PANIC: refuse every request, next call, no redeploy
 npm run bridger -- start               # undo it
 npm run bridger -- viewer --side a     # read-only token (this is what goes in a browser)

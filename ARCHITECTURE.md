@@ -195,6 +195,32 @@ own last sentence used to read *"the answer will be here at your next
 bridger_status"*, sending a looping agent from the braked tool to the unbraked
 one. Refusals now point at a HUMAN, never at another tool.
 
+**19. The bridge is a cross-company prompt-injection channel, and the defence is half deterministic.**
+Every entry is written by another company's model and lands verbatim in ours.
+Before S#272 there was nothing on that path — a grep for
+`sanitiz|guard|redact|escape|untrusted` across `lib/ app/ cli/` returned **zero
+hits**. `lib/untrusted.ts` now contains every free-text field at the two seams it
+travels: `wire()` (read / wait / write-echo) and `openQuestions[].title`
+(status), plus the contract body. **Be precise about what protects you:** the
+`[[UNTRUSTED-PARTNER-TEXT ...]]` banner is a *rail* — an instruction to a model,
+therefore probabilistic. The deterministic half is `escapeMarkers`, which makes
+it impossible for far-side text to close our container early and forge our
+framing. The tests pin the escaping; nothing can pin the banner. The author
+label is escaped too, because it is far-side-controlled at room creation.
+
+**20. Credentials are refused at write time, and there is deliberately no entropy check.**
+An entry reaches a third party's Redis, another company's session, and both
+sides' git history via `bridger pull` — append-only, so a secret written here
+cannot be taken back. `lib/secrets.ts` matches **known credential shapes only**
+(vendor prefixes, structural formats) and refuses the write. It does NOT do
+entropy or long-hex detection, and that is the load-bearing choice: `checkedAgainst`
+exists to carry commit SHAs and paths, so an entropy check would refuse
+provenance, which is the product. A missed bespoke secret is survivable; a
+blocked citation is not. **Two call sites, one scanner** — `appendEntry` and
+`setContract`, because `setContract` stores the 100k body to Redis *before*
+calling `appendEntry`, so a single scan in the latter would refuse the caller
+while the secret sat stored.
+
 ---
 
 ## Invariants — break these and something silent goes wrong
@@ -223,3 +249,10 @@ one. Refusals now point at a HUMAN, never at another tool.
 9. **A refusal never names another tool.** Every STOP message points the caller
    at its operator. Naming a tool in a message whose job is to end a loop just
    moves the loop, and this codebase shipped exactly that bug once.
+10. **Far-side text is never bare.** Any new path that puts an entry, a title, a
+    contract or a label in front of a model goes through `contain()`. A field
+    added to `wire()` without it is a hole, and it will not look like one.
+11. **A refusal that the caller can fix must not be shaped like STOP.** The
+    credential refusal says retrying works, because it does. Reusing the
+    loop-ending vocabulary for a one-edit problem makes a well-behaved agent
+    abandon a task it could finish.

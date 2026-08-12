@@ -45,6 +45,7 @@ import {
 } from "./store";
 import type { RoomRecord, SideId, TokenRecord } from "./room-registry";
 import { otherSide, resetIdleStreak } from "./room-registry";
+import { scanForSecrets, secretRefusal } from "./secrets";
 
 // ── shapes ───────────────────────────────────────────────────────
 
@@ -160,6 +161,17 @@ export async function appendEntry(
   input: AppendInput,
   now: Date,
 ): Promise<Entry> {
+  // Credential scan BEFORE anything is written or any counter moves. Every
+  // write tool funnels through here, so this is the one seam — see
+  // `lib/secrets.ts` for why the answer is refuse rather than redact.
+  const hits = scanForSecrets({
+    title: input.title,
+    body: input.body,
+    why: input.why,
+    checkedAgainst: input.checkedAgainst,
+  });
+  if (hits.length) throw new Error(secretRefusal(hits));
+
   // An agent that WRITES is working, not spinning — so a write clears the idle
   // brake. Here rather than in the five tool handlers because every write path
   // funnels through this function (`setContract` included), and a check copied
@@ -359,6 +371,17 @@ export async function setContract(
   note: string,
   now: Date,
 ): Promise<Entry> {
+  // SCANNED HERE TOO, and the ordering is the whole reason.
+  //
+  // This function writes the contract to Redis and THEN calls `appendEntry`.
+  // A scan living only in `appendEntry` would fire after the 100,000-character
+  // body — the largest untrusted payload this API accepts — had already been
+  // stored. The refusal would look identical to the caller and the secret would
+  // be on disk. Same scanner, two call sites, because there are genuinely two
+  // writes and each has to guard its own.
+  const contractHits = scanForSecrets({ contract: body, note });
+  if (contractHits.length) throw new Error(secretRefusal(contractHits));
+
   const contract: Contract = {
     body,
     updatedBy: room.sides[token.side].label,
