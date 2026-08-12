@@ -4,10 +4,10 @@ import { after, beforeEach, describe, it } from "node:test";
 import {
   CACHE_TTL_MS,
   authorize,
-  bumpWaitStreak,
+  bumpIdleStreak,
   canWrite,
   DENY_MESSAGE,
-  resetWaitStreak,
+  resetIdleStreak,
   TERMINAL_DENIALS,
   clearRegistryCache,
   closeRoom,
@@ -236,17 +236,17 @@ describe("budget — the loop that burned a quota", () => {
 
   it("counts the empty-wait streak and resets it when something lands", async () => {
     const { store } = await freshRoom();
-    assert.equal(await bumpWaitStreak(store, "tok1"), 1);
-    assert.equal(await bumpWaitStreak(store, "tok1"), 2);
-    assert.equal(await bumpWaitStreak(store, "tok1"), 3);
-    await resetWaitStreak(store, "tok1");
-    assert.equal(await bumpWaitStreak(store, "tok1"), 1, "an arrival ends the streak");
+    assert.equal(await bumpIdleStreak(store, "tok1"), 1);
+    assert.equal(await bumpIdleStreak(store, "tok1"), 2);
+    assert.equal(await bumpIdleStreak(store, "tok1"), 3);
+    await resetIdleStreak(store, "tok1");
+    assert.equal(await bumpIdleStreak(store, "tok1"), 1, "an arrival ends the streak");
   });
 
   it("a bookkeeping failure never refuses a call that was otherwise fine", async () => {
     const { store } = await freshRoom();
     store.failAll();
-    assert.equal(await bumpWaitStreak(store, "tok1"), 0, "streak counting is best-effort");
+    assert.equal(await bumpIdleStreak(store, "tok1"), 0, "streak counting is best-effort");
   });
 });
 

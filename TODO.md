@@ -22,6 +22,14 @@ npm run bridger -- start        # then lift the kill switch
       agent. The number that matters is whether a looping agent *stops* on
       `STOP.` — if it retries anyway, the message is not doing its job and the
       next lever is refusing at the transport level.
+      **Watch the IDLE BRAKE in the same run** (S#272): does the throw past
+      `MAX_IDLE_STREAK` actually end the loop, or does the client treat a tool
+      error as retryable and spin on it? That is the one question none of the 75
+      tests can answer, and it decides whether the brake is real.
+- [x] **Close the polling hole on the unbraked tools.** DONE S#272 —
+      `bridger_status` and `bridger_read` had no brake, and the wait refusal
+      pointed agents straight at `bridger_status`. One idle-streak counter now
+      spans all three, writes clear it, and no refusal names another tool.
 - [x] **Audit successful calls, not just denials.** DONE S#272 — rows written in
       `gated()`, the one seam every request passes, carrying real
       tokenId/roomId/side (the deny rows cannot: a refused caller has no

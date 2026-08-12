@@ -58,12 +58,19 @@ cap, no terminal refusals — the exact configuration that burned the quota.
 
 `npm run check` → 71 pass, 0 fail. `tsc --noEmit` clean. `next build` clean.
 
-**S#272 — the safety lane, and what it is worth.** The per-room cap and the
-success-audit are in. The three behavioural room-cap tests were **ablated**
-(cap switched off → they fail; back on → they pass), so they are known to catch
-the bug rather than pass beside it. **None of it has touched a live bridge** —
-the bridge is stopped and production is stale, so this is unit-green, not
-run-green. It ships in the deploy production is already waiting for.
+**S#272 — the safety lane, and what it is worth.** Per-room cap, success-audit,
+and the **idle brake** generalised off `bridger_wait` onto every read tool (
+`bridger_status` had none, and the wait refusal used to point loops at it). The
+behavioural tests in both batches were **ablated** — mechanism switched off, watched
+them fail, switched back on — so they are known to catch the bug rather than pass
+beside it. **None of it has touched a live bridge**: the bridge is stopped and
+production is stale, so this is unit-green, not run-green. It ships in the deploy
+production is already waiting for.
+
+**The one question the tests cannot answer:** whether a real looping client
+*stops* when a tool throws, or treats a tool error as retryable and spins on it.
+That decides whether the brake is a brake. It is the first thing to watch when
+the bridge comes back.
 
 ### Proven by running it, not by reasoning
 - **Full round trip on a real bridge:** side A asked, side B answered with

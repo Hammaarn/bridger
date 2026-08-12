@@ -172,6 +172,29 @@ successes are the traffic; and `durationMs` on an SSE `GET` row is
 time-to-headers, **not** how long the stream stayed open — the honest duration
 is on `bridger_wait`, which is a POST.
 
+**18. Blocking is cheap; TURNING is expensive. The brake is on turns.**
+The costs live in the caller's session, and a `bridger_wait` that holds the
+socket 45s bills them exactly what an instant reply does — **one inference**. So
+long waits were never the problem, and shortening them would make things worse,
+not better. The problem is the number of *replies*, each of which buys one more
+turn over a context that grew since the last one.
+This is also why the caps are not the answer on their own: `RATE_LIMIT_PER_MINUTE`
+and the daily caps bound CALLS, and cannot bound TOKENS — those burn where we
+cannot see them. 600 polls is a legal day under every cap here and still a
+terrible day for whoever pays for it.
+So `IDLE_STREAK_KEY` counts **consecutive calls that returned nothing new**, on
+whichever tool the caller is spinning. Acquiring information resets it; so does
+writing, cleared inside `appendEntry` because every write path funnels through
+it. Two thresholds on one counter: `MAX_EMPTY_WAIT_STREAK` (3) for
+`bridger_wait`, which says *"I expect something right now"*, and
+`MAX_IDLE_STREAK` (6) for `bridger_status` / `bridger_read`, which are also the
+legitimate start-of-session calls. Past the limit the tool THROWS.
+**Two S#272 corrections worth keeping:** `bridger_status` had no brake at all and
+was the one tool an idle agent would naturally spin on — and the wait refusal's
+own last sentence used to read *"the answer will be here at your next
+bridger_status"*, sending a looping agent from the braked tool to the unbraked
+one. Refusals now point at a HUMAN, never at another tool.
+
 ---
 
 ## Invariants — break these and something silent goes wrong
@@ -197,3 +220,6 @@ is on `bridger_wait`, which is a POST.
    `2 x DEFAULT_DAILY_CAP` (800), and a test asserts it.
 7. **Provenance is a path, not a boolean.** A boolean can be set true without
    evidence, which is the exact failure the field exists to catch.
+9. **A refusal never names another tool.** Every STOP message points the caller
+   at its operator. Naming a tool in a message whose job is to end a loop just
+   moves the loop, and this codebase shipped exactly that bug once.

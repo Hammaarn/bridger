@@ -55,6 +55,50 @@ one — that is a guess wearing a config field); a global cross-room cap (one
 noisy room would then silently starve an unrelated partner, which is a worse
 failure than the one being fixed).
 
+### Then Erik asked the follow-up: *"does this burn tokens in vain while waiting for replies?"*
+
+Read the whole wait path to answer it. **Yes, it was still possible — and the
+hole was in a place the caps could not reach.**
+
+**The cost model, which decides the design.** Bridger calls no LLM, so a call
+costs us nothing and costs the caller one full inference over a context that
+grew since their last one. Therefore **blocking is cheap and turning is
+expensive**: a 45-second `bridger_wait` bills the caller exactly what an instant
+reply does. Long waits were never the problem, and shortening them would make it
+worse. The caps bound CALLS; they cannot bound TOKENS, because the tokens burn
+in a session we cannot see. 600 polls a day is legal under every cap here.
+
+**The hole.** The streak brake existed on `bridger_wait` only. `bridger_status`
+— the tool an idle agent would most naturally spin on, and the one our own
+instructions tell it to call on resume — had no brake at all. Worse, the wait
+refusal ended *"the answer will be here at your next bridger_status"*, which
+redirects a looping agent from the braked tool to the unbraked one. **A safety
+message that relocates the loop.**
+
+8. **The brake is on the BEHAVIOUR, not the tool: consecutive calls that
+   returned nothing new.** `WAIT_STREAK_KEY` → `IDLE_STREAK_KEY`,
+   `bumpWaitStreak` → `bumpIdleStreak`. Renamed rather than extended because the
+   concept genuinely changed, and a name that lies is what caused the next item.
+9. **One counter, two thresholds.** `MAX_EMPTY_WAIT_STREAK` (3) stays for
+   `bridger_wait` — it says *"I expect something right now"*. `MAX_IDLE_STREAK`
+   (6) for `bridger_status` / `bridger_read`, which are also legitimate
+   start-of-session calls and deserve more rope. Past either, the tool THROWS.
+10. **A write clears the brake**, because an agent that posts is working, not
+    spinning — placed inside `appendEntry`, the one function every write path
+    funnels through (`setContract` included), rather than in five handlers.
+11. **No refusal may name another tool.** Every STOP message now points at the
+    operator. Promoted to invariant 9.
+
+**A false comment, corrected rather than implemented.** `bumpWaitStreak`'s
+docstring claimed *"any other tool call resets it"*. It never did —
+`resetWaitStreak` had exactly one call site. The code was **safer** than its
+documentation, which is the dangerous direction: the next reader makes the code
+match the comment and opens the hole. Fixed the comment.
+
+**Verified:** 75 tests (71 → 75), tsc clean, build clean. The write-clears-the-
+brake tests were **ablated** (reset removed → both fail; restored → both pass).
+**Still NOT run-green** — no live request has met any of this.
+
 **Verified:** 71 tests (55 → 71), tsc clean, `next build` clean. The three
 behavioural room-cap tests were **ablated** — switched the cap off, watched them
 fail, switched it back — so they are known to catch the bug rather than merely
