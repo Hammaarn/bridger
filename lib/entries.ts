@@ -46,6 +46,7 @@ import {
 import type { RoomRecord, SideId, TokenRecord } from "./room-registry";
 import { otherSide, resetIdleStreak } from "./room-registry";
 import { scanForSecrets, secretRefusal } from "./secrets";
+import { openQuestionIds, wasReopened } from "./question-state";
 
 // ── shapes ───────────────────────────────────────────────────────
 
@@ -278,21 +279,10 @@ export function openQuestions(entries: Entry[], viewer: SideId): OpenQuestion[] 
    * id. Compared by `seq`, which is monotonic per room, so it does not depend
    * on clocks agreeing across two companies' machines.
    */
-  const newestBySeq = (type: EntryType) => {
-    const out = new Map<string, number>();
-    for (const e of entries) {
-      if (e.type !== type || !e.answers) continue;
-      const prev = out.get(e.answers) ?? -1;
-      if (e.seq > prev) out.set(e.answers, e.seq);
-    }
-    return out;
-  };
-  const answeredAt = newestBySeq("answer");
-  const reopenedAt = newestBySeq("reopen");
+  const open = openQuestionIds(entries);
 
   return entries
-    .filter((e) => e.type === "question")
-    .filter((e) => (answeredAt.get(e.id) ?? -1) < (reopenedAt.get(e.id) ?? -1) || !answeredAt.has(e.id))
+    .filter((e) => e.type === "question" && open.has(e.id))
     .map((e) => ({
       id: e.id,
       seq: e.seq,
@@ -301,7 +291,7 @@ export function openQuestions(entries: Entry[], viewer: SideId): OpenQuestion[] 
       ts: e.ts,
       title: e.title,
       yours: e.side !== viewer,
-      ...(reopenedAt.has(e.id) ? { reopened: true } : {}),
+      ...(wasReopened(entries, e.id) ? { reopened: true } : {}),
     }));
 }
 

@@ -24,11 +24,12 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { openQuestionIds } from "@/lib/question-state";
 
 interface Entry {
   id: string;
   seq: number;
-  type: "question" | "answer" | "decision" | "note" | "contract";
+  type: "question" | "answer" | "decision" | "note" | "contract" | "reopen" | "signoff";
   side: "a" | "b";
   code: string;
   author: string;
@@ -61,7 +62,17 @@ const TYPE_LABEL: Record<Entry["type"], string> = {
   decision: "decides",
   note: "notes",
   contract: "contract",
+  reopen: "REOPENS",
+  signoff: "signs off",
 };
+
+/**
+ * Never render a blank verb. `TYPE_LABEL` is typed against the union above, but
+ * the data arrives as JSON from a server that may be a version ahead of this
+ * page — an entry type added server-side would otherwise render as an empty
+ * span with no clue that anything was missing.
+ */
+const verbFor = (t: string) => TYPE_LABEL[t as Entry["type"]] ?? t;
 
 function timeOf(iso: string) {
   return iso.slice(11, 19);
@@ -160,8 +171,28 @@ export default function BridgeView() {
     );
   }
 
-  const answered = new Set((data?.entries ?? []).filter((e) => e.answers).map((e) => e.answers));
-  const open = (data?.entries ?? []).filter((e) => e.type === "question" && !answered.has(e.id));
+  /**
+   * Shared with the tools via `lib/question-state.ts` — NOT a local copy.
+   *
+   * The local copy that used to live here was `filter(e => e.answers)`, which
+   * was correct until `reopen` entries existed. A reopen carries `answers` too,
+   * so the moment reopening shipped this panel began showing every REOPENED
+   * question as answered: the opposite of the truth, in the one place a human
+   * looks to decide whose turn it is.
+   */
+  const openIds = openQuestionIds(data?.entries ?? []);
+  const reopenedIds = new Set(
+    (data?.entries ?? []).filter((e) => e.type === "reopen" && e.answers).map((e) => e.answers as string),
+  );
+  const open = (data?.entries ?? []).filter((e) => e.type === "question" && openIds.has(e.id));
+  const signedOff = (data?.entries ?? []).reduce<Record<string, { author: string; at: string; note: string }>>(
+    (acc, e) => {
+      if (e.type === "signoff") acc[e.side] = { author: e.author, at: e.ts, note: e.title };
+      else delete acc[e.side];
+      return acc;
+    },
+    {},
+  );
   const uncheckedAnswers = (data?.entries ?? []).filter(
     (e) => e.type === "answer" && !e.checkedAgainst,
   ).length;
@@ -213,6 +244,16 @@ export default function BridgeView() {
             </div>
           </section>
 
+          {Object.values(signedOff).length > 0 && (
+            <section className="signoff">
+              {Object.values(signedOff).map((s) => (
+                <div key={s.author}>
+                  <strong>{s.author}</strong> signed off {timeOf(s.at)} — {s.note}
+                </div>
+              ))}
+            </section>
+          )}
+
           {open.length > 0 && (
             <section className="open">
               <h2>Waiting on an answer</h2>
@@ -221,6 +262,7 @@ export default function BridgeView() {
                   <code>{q.id}</code>
                   <span className="who">{q.author} asked</span>
                   <span className="qt">{q.title}</span>
+                  {reopenedIds.has(q.id) && <span className="reopened">reopened</span>}
                 </div>
               ))}
             </section>
@@ -241,7 +283,7 @@ export default function BridgeView() {
                 <div className="head">
                   <code className="id">{e.id}</code>
                   <span className="author">{e.author}</span>
-                  <span className="verb">{TYPE_LABEL[e.type]}</span>
+                  <span className="verb">{verbFor(e.type)}</span>
                   {e.answers && <code className="ref">→ {e.answers}</code>}
                   <span className="time mono dim">{timeOf(e.ts)}</span>
                 </div>

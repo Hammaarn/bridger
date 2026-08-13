@@ -443,3 +443,27 @@ footer {
     margin-left: 0;
   }
 }
+
+/* S#272 — sign-off banner and the reopened badge. */
+.signoff {
+  margin: 0 0 1rem;
+  padding: 0.6rem 0.9rem;
+  border-left: 3px solid var(--dim, #6b7280);
+  background: rgba(107, 114, 128, 0.08);
+  border-radius: 4px;
+  font-size: 0.9rem;
+  color: var(--dim, #9ca3af);
+}
+.signoff strong { color: inherit; font-weight: 600; }
+
+.openq .reopened {
+  margin-left: 0.5rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 3px;
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: rgba(220, 38, 38, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(220, 38, 38, 0.35);
+}
