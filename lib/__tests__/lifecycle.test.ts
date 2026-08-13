@@ -12,6 +12,7 @@ import {
 } from "../entries";
 import { authorize, clearRegistryCache, createRoom, parseRoom, type RoomRecord } from "../room-registry";
 import { opPurge, opReopen, opSignoff } from "../operations";
+import { openQuestionIds } from "../question-state";
 import { executePurge, purgeState, recordPurgeConsent } from "../purge";
 import { mintInvite, redeemInvite } from "../invites";
 import { ENTRIES_KEY, PASTE_PATH_DAILY_CAP, ROOM_KEY, TOKEN_KEY } from "../store";
@@ -227,5 +228,43 @@ describe("D6 — purge takes BOTH sides", () => {
     const state = await recordPurgeConsent(store, room, "a", T0);
     assert.equal(state.a, T0.toISOString());
     assert.equal(state.b, null);
+  });
+});
+
+describe("the shared open-question predicate — one seam, three callers", () => {
+  /**
+   * The regression that actually shipped to the UI for the length of one
+   * session. `app/page.tsx` had its own copy: `filter(e => e.answers)` counted
+   * as answered. Correct until `reopen` entries existed — and a reopen carries
+   * `answers` too, so the moment reopening landed, the page rendered every
+   * REOPENED question as answered.
+   *
+   * Not a crash and not a blank: the opposite of the truth, in the one panel a
+   * human reads to decide whose turn it is. Measured on the seeded demo bridge,
+   * the fixed predicate returned one open question and the old logic returned
+   * none.
+   */
+  const entries = [
+    { id: "TRI-Q-001", seq: 1, type: "question", answers: null },
+    { id: "JMS-A-001", seq: 2, type: "answer", answers: "TRI-Q-001" },
+    { id: "TRI-Q-002", seq: 3, type: "question", answers: null },
+    { id: "JMS-A-002", seq: 4, type: "answer", answers: "TRI-Q-002" },
+    { id: "TRI-R-001", seq: 5, type: "reopen", answers: "TRI-Q-002" },
+  ];
+
+  it("a reopen is NOT an answer", () => {
+    assert.deepEqual([...openQuestionIds(entries)], ["TRI-Q-002"]);
+  });
+
+  it("the logic the UI used to carry gets it exactly backwards", () => {
+    const answered = new Set(entries.filter((e) => e.answers).map((e) => e.answers));
+    const oldOpen = entries.filter((e) => e.type === "question" && !answered.has(e.id));
+    assert.equal(oldOpen.length, 0, "the old copy saw nothing open...");
+    assert.equal(openQuestionIds(entries).size, 1, "...while one question was genuinely waiting");
+  });
+
+  it("a newer answer closes a reopened question again", () => {
+    const withFix = [...entries, { id: "JMS-A-003", seq: 6, type: "answer", answers: "TRI-Q-002" }];
+    assert.equal(openQuestionIds(withFix).size, 0);
   });
 });
