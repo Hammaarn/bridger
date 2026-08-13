@@ -42,15 +42,16 @@ npm run bridger -- start        # then lift the kill switch
 
 ## Lane: from the S#272 sweep — see plans/DECISIONS-FOR-ERIK-s272.md
 
-- [ ] **D4 protocol gaps:** a question closes on the FIRST answer with no
-      reopen; a contract change logs only "<N> chars" so you cannot see what
-      changed; and there is no way to say "I am done for today" — which is the
-      honest answer to nearly every idle-brake situation.
-- [ ] **D6 no deletion path.** `close` only flags a room; entries live to the
-      30-day idle TTL. And no command can undo what either side already pulled
-      to disk — any deletion promise covers the buffer only.
-- [ ] **D7 incident playbook.** `bridger audit` answers "who called what" and
-      `stop` ends it; nobody has written the order down.
+- [x] **D4 protocol gaps — ALL THREE CLOSED.** `bridger_reopen` (asker-only,
+      newest-seq wins), `bridger_signoff` (any write clears it), and contract
+      entries that summarise added/removed lines instead of "<N> chars".
+- [x] **D6 deletion path — `bridger purge`, and it takes BOTH sides.** Partner
+      consents with `bridger_purge`, operator executes with the CLI. `--force`
+      exists only for a vanished partner. It removes the SERVER copy only.
+- [x] **D7** — folded into the README as four commands rather than a page; the
+      only real content would have been Erik's stop-vs-revoke judgment.
+- [ ] **D3 `/api/whoami` — greenlit, NOT BUILT.** Answer only for a valid token,
+      opaque refusal otherwise. The last piece of the join story.
 
 ## Lane: the product claim
 

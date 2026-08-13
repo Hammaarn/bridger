@@ -10,7 +10,7 @@
 | # | Read | Why |
 |---|---|---|
 | 1 | **this file, "State right now"** below | the bridge is STOPPED and prod is STALE — start there or you will be confused |
-| 2 | `ARCHITECTURE.md` | 20 non-obvious facts + 11 invariants. Traps that already cost a session |
+| 2 | `ARCHITECTURE.md` | 23 non-obvious facts + 12 invariants. Traps that already cost a session |
 | 3 | `DECISIONS.md` (newest first) | why it is shaped this way; what was rejected and why |
 | 4 | `TODO.md` | what to do next, by lane |
 | 5 | `skill/SKILL.md` | what the agents are told; change this before adding rules to prompts |
@@ -49,16 +49,16 @@ cap, no terminal refusals — the exact configuration that burned the quota.
 
 | Piece | State | How it was checked |
 |---|---|---|
-| `lib/store.ts` + `room-registry.ts` | done | **123 tests** — fail-closed, cache grace, revoke-beats-cache, rate limit, daily cap, **per-room cap**, roles, terminal refusals |
+| `lib/store.ts` + `room-registry.ts` | done | **139 tests** — fail-closed, cache grace, revoke-beats-cache, rate limit, daily cap, **per-room cap**, roles, terminal refusals |
 | `lib/audit-call.ts` | done (S#272) | batch/single, tools/call vs verb, unparsed body, and that it does NOT consume the request |
 | `lib/entries.ts` | done | namespacing, token-derived identity, derived open-questions, seq-survives-trim, wait semantics |
 | `lib/file-store.ts` | done | restart persistence, corrupt-file recovery, **cross-process revocation** |
-| `app/api/mcp/route.ts` | 8 tools + budget gate | live JSON-RPC round trip; terminal STOP payload verified |
+| `app/api/mcp/route.ts` | 11 tools, thin adapter | live JSON-RPC round trip; terminal STOP payload verified |
 | `app/api/export`, `/api/health` | done | health verified reporting `killSwitchSource: "redis"` |
 | `app/page.tsx` + `globals.css` | done | **screenshotted** (`.local/shots/ledger2.png`) after shipping unstyled once |
-| `cli/bridger.ts` | 12 commands | usage path run; `open`/`rotate`/`revoke`/`viewer`/`stop` exercised for real |
+| `cli/bridger.ts` | 13 commands | usage path run; `open`/`rotate`/`revoke`/`viewer`/`stop` exercised for real |
 
-`npm run check` → 123 pass, 0 fail. `tsc --noEmit` clean. `next build` clean.
+`npm run check` → 139 pass, 0 fail. `tsc --noEmit` clean. `next build` clean.
 
 **S#272 — the safety lane, and what it is worth.** Per-room cap, success-audit,
 and the **idle brake** generalised off `bridger_wait` onto every read tool (
@@ -77,6 +77,12 @@ credential refusal on the write path, the paste-and-go transport (flagged off),
 cross-process revocation miss hiding behind a flaky test, and `del` reporting
 the wrong count, which silently made single-use join codes reusable on the file
 backend. Both fixed and ablated.
+
+**S#272b — Erik's nine decisions answered and built.** Paste-path cap halved
+(D2), `bridger_reopen` / `bridger_signoff` / contract diffs (D4), two-sided
+`purge` (D6), client matrix + incident commands in the README (D8). D5 and D9
+were DROPPED on the evidence — see `plans/DECISIONS-FOR-ERIK-s272.md`. D3
+(`/api/whoami`) is greenlit and **not yet built**.
 
 **The one question the tests cannot answer:** whether a real looping client
 *stops* when a tool throws, or treats a tool error as retryable and spins on it.
@@ -130,6 +136,12 @@ checkable at all**, which is the entire product claim.
 6. **`bridger.ai` / npm `bridger`** availability: unchecked.
 7. **`maxDuration` for `bridger_wait`** on this Vercel plan: unconfirmed. The
    tool self-caps at 45s so it degrades rather than breaks.
+8. **The purge CONSENT GATE in the CLI is not unit-tested.** `purgeState`,
+   `recordPurgeConsent` and `executePurge` all are, and are ablation-proven —
+   but `cmdPurge`'s decision to refuse without the other side's consent lives in
+   `cli/bridger.ts`, and there is no CLI test harness. The state machine is
+   verified; its one caller is verified by reading. Said plainly because a
+   destructive command is the wrong place to imply more coverage than exists.
 
 ## Known holes in the surrounding rails (not Bridger's code)
 

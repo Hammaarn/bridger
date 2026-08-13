@@ -569,6 +569,7 @@ export async function issueToken(
   now: Date,
   expiresAt: string | null = null,
   role: TokenRole = "participant",
+  dailyCap: number = DEFAULT_DAILY_CAP,
 ): Promise<string> {
   const raw = mintTokenString();
   const hash = hashToken(raw);
@@ -580,7 +581,7 @@ export async function issueToken(
     code: room.sides[side].code,
     role,
 
-    dailyCap: DEFAULT_DAILY_CAP,
+    dailyCap,
     active: true,
     createdAt: now.toISOString(),
     expiresAt,

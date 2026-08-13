@@ -42,6 +42,7 @@ import {
 } from "../lib/store";
 import type { Entry } from "../lib/entries";
 import { mintInvite } from "../lib/invites";
+import { executePurge, purgeState, recordPurgeConsent } from "../lib/purge";
 import type { AuditEntry } from "../lib/room-registry";
 
 const FOLDER = "bridger";
@@ -345,6 +346,69 @@ async function cmdAudit() {
 `);
 }
 
+/**
+ * Delete a bridge and everything on it — WITH THE OTHER SIDE'S AGREEMENT.
+ *
+ * Erik's requirement, and it is the right shape: the ledger is a JOINT record,
+ * so one side erasing it destroys the other's account of what was asked,
+ * answered and decided — which is exactly what they may need most when a
+ * relationship is ending. The partner consents with `bridger_purge`; the
+ * operator consents and executes here. Neither can finish it alone.
+ */
+async function cmdPurge() {
+  const store = operatorStore();
+  const local = readLocalRoomSafe();
+  // Never inferred from room.json for this one command. Every other command
+  // defaulting to "the room you are in" is a convenience; here it would mean a
+  // mistyped flag deletes a live bridge.
+  const roomId = arg("--room", "");
+  if (!roomId) die("bridger purge --room <id>   (required -- this command is not allowed to guess)");
+  const room = parseRoom(await store.get(ROOM_KEY(roomId)));
+  if (!room) die(`No such room: ${roomId}`);
+
+  const side = (arg("--side", local?.side ?? "a")) as SideId;
+  const force = process.argv.includes("--force");
+
+  let state = await purgeState(store, room!);
+  if (!state[side]) state = await recordPurgeConsent(store, room!, side, new Date());
+
+  const theirs = side === "a" ? state.b : state.a;
+  if (!theirs && !force) {
+    console.log(`
+  Your consent is recorded for "${room!.topic}".
+
+  WAITING ON ${room!.sides[side === "a" ? "b" : "a"].label.toUpperCase()}.
+  Nothing has been deleted. Ask them to call bridger_purge with consent: true,
+  then run this again. Consent expires after 7 days on both sides.
+
+  If they are gone for good and will never consent, --force overrides this.
+`);
+    return;
+  }
+
+  if (!theirs && force) {
+    console.log(`
+  [!!] FORCING. ${room!.sides[side === "a" ? "b" : "a"].label} has NOT agreed.
+
+  You are deleting a shared record without the other side's consent. This is
+  here for the case where a partner has genuinely vanished -- not as a way
+  around the agreement.
+`);
+  }
+
+  const removed = await executePurge(store, room!);
+  console.log(`
+  Purged "${room!.topic}" (${roomId}). ${removed.length} keys removed:
+
+${removed.map((k) => `      ${k}`).join("\n")}
+
+  [!!] THIS DELETED THE SERVER'S COPY ONLY.
+  Anything either side already pulled into a local bridger/ folder -- and it is
+  probably committed to a repo -- is untouched and cannot be reached from here.
+  If you promised a partner deletion, that promise covers this buffer.
+`);
+}
+
 async function cmdViewer() {
   const store = operatorStore();
   const local = readLocalRoomSafe();
@@ -575,6 +639,7 @@ const USAGE = `
                                          ONE-TIME join code -- the paste-and-go path
     revoke --side a|b [--room <id>]      kill a side's access
     close  [--room <id>]                 end the bridge
+    purge  --room <id> [--side a|b]      DELETE it -- needs BOTH sides' consent
     audit  [--status ok|deny|error] [--token <id>] [--limit N]
                                          who called what, how often
     stop                                 PANIC: refuse every request, now
@@ -598,6 +663,7 @@ async function main() {
     case "start": return cmdStart();
     case "revoke": return cmdRevoke();
     case "close": return cmdClose();
+    case "purge": return cmdPurge();
     case "join": return cmdJoin();
     case "pull": return cmdPull();
     case "log": return cmdLog();

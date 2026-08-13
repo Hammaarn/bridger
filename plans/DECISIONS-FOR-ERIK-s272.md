@@ -1,14 +1,22 @@
 # DECISIONS FOR ERIK — S#272
 
+> **ANSWERED 2026-08-13.** Erik's calls are recorded under each item. D2, D4, D6
+> and D8 were greenlit and are BUILT; **D3 is greenlit and still unbuilt** — the
+> only outstanding one. D5 and D9 were dropped, D7 shrank to four README lines.
+> Nothing is run-green; the deploy is still gated.
+
 Each is a choice I could have guessed at and deliberately did not. Ordered by
 what blocks the most.
-
-**Nothing here is urgent enough to answer before the deploy.** D1 is the only one
-that changes what you ship first.
 
 ---
 
 ## D1. Does `/api/rpc` become a supported transport, or stay a prototype?
+
+> **ERIK: "you'll take that decision."** -> **Stays flagged OFF until the
+> deploy lands and is verified, then promote as a separate step.** Shipping
+> an untested public surface inside the same deploy as everything else means
+> two unknowns at once, and if anything misbehaved there would be no way to
+> tell which caused it. Deploy, verify, then set `BRIDGER_PASTE_PATH=1`.
 
 Built behind `BRIDGER_PASTE_PATH=1`, unset everywhere. Right now it does not
 exist in production.
@@ -37,6 +45,12 @@ with no live testing at all, and the deploy is already carrying a lot.
 
 ## D2. Should the paste path get its own, lower daily cap?
 
+> **ERIK: "Whatever is best for the project."** -> **BUILT at 200**
+> (`PASTE_PATH_DAILY_CAP`), half the MCP default. The asymmetry is the whole
+> argument: a paste-path token sits in the far side's model context where an
+> injection arriving over this bridge can reach it; an MCP token sits in a
+> config file the model never reads.
+
 Today a redeemed token gets `DEFAULT_DAILY_CAP` (400), same as an MCP token.
 
 **Recommendation: yes, halve it — 200.** A paste-path token is the one whose
@@ -50,6 +64,10 @@ actually works, and I have never watched one use this.
 ---
 
 ## D3. `/api/whoami` — build it, and in which shape?
+
+> **ERIK: "Build it."** -> **NOT YET BUILT. The one greenlit item
+> outstanding.** The shape is settled (valid-token-only, opaque otherwise);
+> it is the last piece of the join story.
 
 A partner who cannot connect gets the same opaque refusal as an attacker. That
 is deliberate and it is also why "it doesn't work" is undiagnosable from their
@@ -70,6 +88,11 @@ Not built: it is a new public surface on a security boundary, and that is yours.
 ---
 
 ## D4. The three protocol gaps — which, if any, are worth closing?
+
+> **ERIK: "All 3 should be closed."** -> **ALL THREE BUILT.**
+> `bridger_reopen` (asker-only; newest `seq` wins, so it never depends on two
+> companies' clocks agreeing), `bridger_signoff` (any later write clears it),
+> and contract entries that summarise added/removed lines.
 
 All three change the shape of the record, which is why none were built.
 
@@ -93,6 +116,14 @@ into a fact.
 
 ## D5. Provenance — display the span, or leave it alone?
 
+> **ERIK: "Don't understand exactly what this would do, make the best
+> decision."** -> **DROPPED — and I was wrong to recommend it.** The idea was
+> to print `(70 lines)` beside a citation so a wide range reads as weaker
+> evidence. The only real evidence we have points the other way: in the
+> Antigravity test the **70-line** citation was the SOLID one and the
+> **9-line** citation was the over-broad one. A number that looks like a
+> quality signal and is not is worse than no number.
+
 `checkedAgainst` is ungraded. The one cross-vendor test gave one solid citation
 and one over-broad one (a 70-line range where one line was relevant).
 
@@ -110,6 +141,15 @@ theirs reads as a judgment about them.
 
 ## D6. `bridger purge` — a real deletion path?
 
+> **ERIK: "Yes thats a good idea, and both sides have to agree on the
+> purge."** -> **BUILT, with consent as the core of it** (now invariant 23).
+> The partner consents via `bridger_purge`, the operator consents and
+> executes via the CLI; neither can finish alone. Erik's addition is the
+> right shape: the ledger is a JOINT record, and one side erasing it destroys
+> the other's account of what was asked and decided — which is what they may
+> need most when a relationship ends. `--force` exists only for a partner who
+> has genuinely vanished, and says so loudly.
+
 There is none. `close` only flags a room; entries live until the 30-day idle
 TTL. If a partner asks for deletion, today's honest answer is "wait 30 days".
 
@@ -126,6 +166,11 @@ cannot test live, is exactly what the stop conditions are for.
 
 ## D7. An incident playbook — worth the page?
 
+> **ERIK: "Why is that needed?"** -> **It was not, and I overrated it.** The
+> playbook is three commands already in `bridger --help`; the only real
+> content would have been your stop-vs-revoke judgment. Shrunk to four lines
+> in the README.
+
 **Recommendation: yes, and it is fifteen minutes.** `bridger audit` now answers
 "who called what" and `bridger stop` ends it, but nobody has written down the
 order to do things in. That is a page you want to already have rather than be
@@ -138,6 +183,10 @@ bridge versus revoke one side, and I would be inventing that.
 
 ## D8. The `.local/` client-config files
 
+> **ERIK: "Yes."** -> **BUILT.** The three-client matrix is a README table
+> now, framed as "only if you take the MCP route" — the paste path needs none
+> of it.
+
 Three real client-config artefacts from the cross-vendor session live in
 `.local/`, which is gitignored. They are the only record of how each client
 spells remote MCP.
@@ -149,6 +198,14 @@ becomes the default, this shrinks to a footnote for durability-minded partners.
 ---
 
 ## D9. Publish the CLI to npm?
+
+> **ERIK: "What difference does that make?"** -> **Less than it did this
+> morning.** Publishing lets a partner run `npx bridger pull` instead of
+> cloning the repo. But the CLI only materialises the local folder, and with
+> the paste path a partner never needs it for the actual work — so it buys
+> convenience on a step most partners will never take, and spends a public
+> package name before the product has a shape. **Recommendation: do not.
+> Revisit when a partner actually asks for the folder.**
 
 Carried from `TODO.md`, untouched tonight. Still gated on checking whether the
 name `bridger` is free — and I did not check, because the honest scope of "check
