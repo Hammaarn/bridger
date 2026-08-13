@@ -40,7 +40,10 @@ import {
   opContract,
   opDecide,
   opPost,
+  opPurge,
   opRead,
+  opReopen,
+  opSignoff,
   opStatus,
   opWait,
   type OpContext,
@@ -107,6 +110,18 @@ const OPS = {
       note: z.string().max(200).optional(),
     }),
     run: opContract,
+  },
+  reopen: {
+    schema: z.object({ questionId: z.string().min(1), why: z.string().min(1).max(20000) }),
+    run: opReopen,
+  },
+  signoff: {
+    schema: z.object({ note: z.string().max(200).optional() }),
+    run: opSignoff,
+  },
+  purge: {
+    schema: z.object({ consent: z.boolean() }),
+    run: opPurge,
   },
   wait: {
     schema: z.object({

@@ -70,6 +70,22 @@ opt-in, and asking for it on Vercel is a hard error — serverless filesystems a
 ephemeral and per-instance, so each instance would keep its own disappearing
 ledger.
 
+### The client matrix, if you take the MCP route
+
+Every MCP client spells remote config differently, and this is the wall a
+partner hits blind. It only matters if you choose MCP — the paste path above
+needs none of it.
+
+| Client | How it names the endpoint | Config lives in |
+|---|---|---|
+| Claude Code | `claude mcp add --transport http … --header` | its own MCP config |
+| Gemini CLI | `httpUrl` + `headers` | `~/.gemini/settings.json` |
+| **Antigravity** | **`serverUrl`** — it rejects `url` and `httpUrl` | `~/.gemini/config/mcp_config.json` |
+
+Antigravity has three `mcp_config.json` files on disk and two are 0-byte
+fossils; confirm with the IDE's own *View raw config* button rather than
+guessing which one is live.
+
 ### Any MCP client, not just Claude
 
 The bridge is a standard MCP server, so the other side does not have to be
@@ -180,6 +196,9 @@ partner mid-integration.
 | `bridger_post` | A note that isn't a question, answer or decision. |
 | `bridger_contract` | Read or replace the shared wire spec. |
 | `bridger_wait` | Block up to 45s for the other side. A timeout is not an error. |
+| `bridger_reopen` | Say an answer did NOT resolve your question. Only the asker can. |
+| `bridger_signoff` | "I'm done for now" — so they stop waiting. Any write clears it. |
+| `bridger_purge` | Consent to deleting the bridge. Both sides must agree. |
 
 `skill/SKILL.md` ships the usage discipline, so the agent learns the protocol
 from the tool rather than from you explaining it each time.
@@ -246,7 +265,7 @@ that as the security surface it is:
 ## Operating it
 
 ```bash
-npm run check                          # typecheck + 123 tests
+npm run check                          # typecheck + 139 tests
 npm run bridger -- stop                # PANIC: refuse every request, next call, no redeploy
 npm run bridger -- start               # undo it
 npm run bridger -- viewer --side a     # read-only token (this is what goes in a browser)
@@ -259,6 +278,37 @@ curl https://your-deploy/api/health    # configured? reachable? switched on?
 Two kill switches: `bridger stop` sets a **Redis** key that takes effect on the
 next call with no redeploy, and `BRIDGER_DISABLED=true` is the env break-glass
 for when Redis itself is the problem. `/api/health` reports which one is on.
+
+## When something is wrong
+
+```bash
+npm run bridger -- audit --status deny     # who was refused, and why
+npm run bridger -- audit --token <id>      # everything one token did
+npm run bridger -- stop                    # refuse everything, next call, no redeploy
+npm run bridger -- revoke --side b         # kill one side instead of the whole bridge
+```
+
+`audit` shows tallies first, then rows — during an incident the *shape* of the
+traffic is the question. `stop` is reversible and blunt; `revoke` is targeted
+and permanent for that side.
+
+## Ending a bridge
+
+`close` marks it closed and leaves the record readable. `purge` deletes it —
+and **needs both sides to agree**, because the ledger is a joint record and one
+side erasing it destroys the other's account of what was asked and decided.
+
+```bash
+npm run bridger -- purge --room <id>       # records your consent; waits for theirs
+```
+
+The partner consents from their session with `bridger_purge`. Neither side can
+finish it alone (`--force` exists for a partner who has genuinely vanished).
+
+**A purge removes the server's copy only.** Anything either side already pulled
+into a local `bridger/` folder — and probably committed — is untouched. Any
+deletion promise you make to a partner covers the buffer, and saying otherwise
+would be a false assurance about someone else's disk.
 
 ## Environment
 

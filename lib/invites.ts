@@ -42,7 +42,7 @@
 import { randomBytes } from "node:crypto";
 
 import { issueToken, type RoomRecord, type SideId } from "./room-registry";
-import { INVITE_KEY, coerceJson, type Store } from "./store";
+import { INVITE_KEY, PASTE_PATH_DAILY_CAP, coerceJson, type Store } from "./store";
 
 /** Default life of a join code. Long enough to send, short enough to matter. */
 export const INVITE_TTL_SECONDS = 30 * 60;
@@ -164,6 +164,16 @@ export async function redeemInvite(
   if (!room) return { ok: false, reason: "room-missing" };
 
   const expiresAt = new Date(now.getTime() + invite.tokenTtlSeconds * 1000).toISOString();
-  const token = await issueToken(store, room, invite.side, now, expiresAt);
+  // Half the MCP daily cap: this token reaches a model's context, so it is the
+  // one that can leak. See PASTE_PATH_DAILY_CAP.
+  const token = await issueToken(
+    store,
+    room,
+    invite.side,
+    now,
+    expiresAt,
+    "participant",
+    PASTE_PATH_DAILY_CAP,
+  );
   return { ok: true, token, invite };
 }

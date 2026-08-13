@@ -49,7 +49,15 @@ import { scanForSecrets, secretRefusal } from "./secrets";
 
 // ── shapes ───────────────────────────────────────────────────────
 
-export const ENTRY_TYPES = ["question", "answer", "decision", "note", "contract"] as const;
+export const ENTRY_TYPES = [
+  "question",
+  "answer",
+  "decision",
+  "note",
+  "contract",
+  "reopen",
+  "signoff",
+] as const;
 export type EntryType = (typeof ENTRY_TYPES)[number];
 
 const TYPE_LETTER: Record<EntryType, string> = {
@@ -58,6 +66,9 @@ const TYPE_LETTER: Record<EntryType, string> = {
   decision: "D",
   note: "N",
   contract: "C",
+  /** `reopen` reuses R; `signoff` uses S. Both are namespaced per side like the rest. */
+  reopen: "R",
+  signoff: "S",
 };
 
 export interface Entry {
@@ -107,6 +118,11 @@ export interface RoomStatus {
   latestSeq: number;
   openQuestions: OpenQuestion[];
   totalEntries: number;
+  /**
+   * The other side's most recent sign-off, if they said they were done. Turns
+   * "they are silent" from an inference into a fact.
+   */
+  peerSignedOff?: { at: string; note: string };
 }
 
 export interface OpenQuestion {
@@ -118,6 +134,8 @@ export interface OpenQuestion {
   title: string;
   /** True when it is YOUR turn to answer. */
   yours: boolean;
+  /** Set when the asker reopened it — they did not accept the answer. */
+  reopened?: boolean;
 }
 
 // ── parsing ──────────────────────────────────────────────────────
@@ -250,11 +268,31 @@ export async function readEntries(
  * answer is simply another entry.
  */
 export function openQuestions(entries: Entry[], viewer: SideId): OpenQuestion[] {
-  const answered = new Set(
-    entries.filter((e) => e.type === "answer" && e.answers).map((e) => e.answers as string),
-  );
+  /**
+   * A question used to close on the FIRST entry that referenced it, and stay
+   * closed. The asker — the only party who knows whether they actually got an
+   * answer — had no say, which quietly made this list optimistic: every
+   * half-answer and misunderstanding read as resolved.
+   *
+   * Now it is a race between the newest answer and the newest reopen for that
+   * id. Compared by `seq`, which is monotonic per room, so it does not depend
+   * on clocks agreeing across two companies' machines.
+   */
+  const newestBySeq = (type: EntryType) => {
+    const out = new Map<string, number>();
+    for (const e of entries) {
+      if (e.type !== type || !e.answers) continue;
+      const prev = out.get(e.answers) ?? -1;
+      if (e.seq > prev) out.set(e.answers, e.seq);
+    }
+    return out;
+  };
+  const answeredAt = newestBySeq("answer");
+  const reopenedAt = newestBySeq("reopen");
+
   return entries
-    .filter((e) => e.type === "question" && !answered.has(e.id))
+    .filter((e) => e.type === "question")
+    .filter((e) => (answeredAt.get(e.id) ?? -1) < (reopenedAt.get(e.id) ?? -1) || !answeredAt.has(e.id))
     .map((e) => ({
       id: e.id,
       seq: e.seq,
@@ -263,7 +301,26 @@ export function openQuestions(entries: Entry[], viewer: SideId): OpenQuestion[] 
       ts: e.ts,
       title: e.title,
       yours: e.side !== viewer,
+      ...(reopenedAt.has(e.id) ? { reopened: true } : {}),
     }));
+}
+
+/**
+ * The most recent sign-off from each side.
+ *
+ * "I am done for today" is the honest answer to nearly every situation the idle
+ * brake exists for, and until now there was no way to say it — so a partner's
+ * agent had to INFER silence, get braked, and report a guess. A sign-off turns
+ * that guess into a fact the other side can read.
+ */
+export function signOffs(entries: Entry[]): Partial<Record<SideId, { at: string; note: string }>> {
+  const out: Partial<Record<SideId, { at: string; note: string }>> = {};
+  for (const e of entries) {
+    if (e.type === "signoff") out[e.side] = { at: e.ts, note: e.title };
+    // A write of any other kind means they are back, so the sign-off is stale.
+    else if (out[e.side]) delete out[e.side];
+  }
+  return out;
 }
 
 // ── cursor ───────────────────────────────────────────────────────
@@ -334,6 +391,7 @@ export async function getStatus(
     latestSeq,
     openQuestions: openQuestions(entries, token.side),
     totalEntries: entries.length,
+    ...(signOffs(entries)[peerSide] ? { peerSignedOff: signOffs(entries)[peerSide] } : {}),
   };
 }
 
@@ -382,6 +440,11 @@ export async function setContract(
   const contractHits = scanForSecrets({ contract: body, note });
   if (contractHits.length) throw new Error(secretRefusal(contractHits));
 
+  // What the ledger used to record for the single most expensive edit either
+  // side can make was `"<N> chars"` — which tells you a change happened and
+  // nothing about what it was. Reading the previous body first costs one GET
+  // and turns the entry into something a human can actually act on.
+  const previous = await getContract(store, room.id);
   const contract: Contract = {
     body,
     updatedBy: room.sides[token.side].label,
@@ -395,7 +458,7 @@ export async function setContract(
     {
       type: "contract",
       title: note || "contract updated",
-      body: `${body.length} chars`,
+      body: describeContractChange(previous?.body ?? null, body),
       checkedAgainst: null,
     },
     now,
@@ -456,4 +519,35 @@ export async function waitForNew(
     }
     await sleep(pollMs);
   }
+}
+
+/**
+ * A line-level summary of a contract change, for the ledger entry.
+ *
+ * Deliberately NOT a full diff: the contract can be 100,000 characters and the
+ * entry is meant to be skimmed in a status listing. Counts plus the first few
+ * changed lines answer "what moved?" without turning the ledger into a git log.
+ */
+export function describeContractChange(before: string | null, after: string): string {
+  if (before === null) return `contract created — ${after.split("\n").length} lines, ${after.length} chars`;
+  if (before === after) return `no change — ${after.length} chars`;
+
+  const beforeLines = before.split("\n");
+  const afterLines = after.split("\n");
+  const beforeSet = new Set(beforeLines);
+  const afterSet = new Set(afterLines);
+  const added = afterLines.filter((l) => l.trim() && !beforeSet.has(l));
+  const removed = beforeLines.filter((l) => l.trim() && !afterSet.has(l));
+
+  const sample = (label: string, lines: string[]) =>
+    lines.slice(0, 3).map((l) => `  ${label} ${l.trim().slice(0, 100)}`).join("\n");
+
+  return [
+    `${before.length} -> ${after.length} chars, +${added.length}/-${removed.length} lines`,
+    added.length ? sample("+", added) : "",
+    removed.length ? sample("-", removed) : "",
+    added.length > 3 || removed.length > 3 ? "  (truncated — read the contract for the rest)" : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
 }

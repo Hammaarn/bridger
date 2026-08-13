@@ -87,6 +87,8 @@ export const ROOM_TOKENS_KEY = (roomId: string) => `${NS}:room:${roomId}:tokens`
  * `lib/invites.ts`.
  */
 export const INVITE_KEY = (code: string) => `${NS}:invite:${code.toUpperCase()}`;
+/** One side's standing consent to purge the room. Expires; see `lib/purge.ts`. */
+export const PURGE_KEY = (roomId: string, side: string) => `${NS}:room:${roomId}:purge:${side}`;
 export const RATE_KEY = (tokenId: string, minute: string) => `${NS}:rl:${tokenId}:${minute}`;
 /** Calls made by one token on one UTC day. The hard stop. */
 export const USAGE_KEY = (tokenId: string, day: string) => `${NS}:used:${tokenId}:${day}`;
@@ -188,6 +190,21 @@ export const DEFAULT_DAILY_CAP = 400;
  * already learned from.
  */
 export const DEFAULT_ROOM_DAILY_CAP = 600;
+
+/**
+ * Daily cap for a token minted through the PASTE path. Half the MCP default.
+ *
+ * Erik's call was "whatever is best for the project", and the asymmetry is the
+ * honest answer: a paste-path token lives in the far side's model context,
+ * where an injection arriving over this very bridge can reach it, while an
+ * MCP-path token lives in a config file the model never reads. Same trust, two
+ * very different exposures — so the one that can leak gets the smaller budget.
+ *
+ * 200 is still far past a human-paced integration day, so it costs an honest
+ * partner nothing; it simply halves what a stolen one can spend before the
+ * room ceiling (600) stops it anyway.
+ */
+export const PASTE_PATH_DAILY_CAP = 200;
 
 /**
  * Consecutive empty waits before the bridge tells the caller to stop.

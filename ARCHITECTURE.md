@@ -21,7 +21,9 @@ subscriptions; running cost is Vercel invocations plus Redis commands.
 app/
   page.tsx              the read-only live view (client component, polls /api/export)
   globals.css           ALL styling lives here — see trap #1
-  api/mcp/route.ts      the 8 MCP tools + the budget gate in front of auth
+  api/mcp/route.ts      MCP transport — a THIN ADAPTER over lib/operations.ts
+  api/rpc/route.ts      flat HTTP transport, same operations (BRIDGER_PASTE_PATH=1)
+  j/[code]/route.ts     the join document; burns a one-time code, mints a token
   api/export/route.ts   bearer-authed JSON dump; feeds the UI and `bridger pull`
   api/health/route.ts   is the bridge configured, reachable, and switched on
 lib/
@@ -29,30 +31,46 @@ lib/
   file-store.ts         file-backed Store for local bridges (opt-in, never a fallback)
   room-registry.ts      tokens, roles, budgets, revocation — the whole auth surface
   entries.ts            the append-only ledger, cursors, status, wait
+  operations.ts         THE BEHAVIOUR — viewer gate, idle brake, containment
+  http-gate.ts          kill switch + budget + deny vocabulary + audit, both routes
+  untrusted.ts          containment of far-side text
+  secrets.ts            credential refusal on the write path
+  invites.ts            one-time join codes
+  purge.ts              two-sided deletion
 cli/bridger.ts          operator + partner commands
 skill/SKILL.md          the usage discipline shipped to the agent
+
+**Looking for a rule? It is in `operations.ts`, never in a route.** The routes
+parse and serialise; that is the only reason two transports are safe.
 ```
 
 ## The shape of a request
 
 ```
-  POST /api/mcp
-      │
-      ▼
-  gated()                 ← budget gate, BEFORE auth (route.ts)
-      │  authorize({charge: true})
-      │  · env kill switch → Redis kill switch → token → room → rate → daily cap
-      │  · refused?  terminal JSON-RPC error, message opens with "STOP."
-      ▼
-  withMcpAuth(verifyToken)
-      │  authorize({charge: false})   ← MUST NOT charge again
-      │  AuthInfo.extra = { room, token }
-      ▼
-  tool handler
-      │  bridgeFrom(ctx)          reads      → any token
-      │  writableBridgeFrom(ctx)  writes     → participants only
-      ▼
-  entries.ts → Redis
+  POST /api/mcp                          POST /api/rpc
+      │                                       │
+      └──────────────┬────────────────────────┘
+                     ▼
+             gate()  (lib/http-gate.ts)   ← ONE gate, both transports
+                     │  authorize({charge: true})
+                     │  · env kill switch → Redis kill switch → token → room
+                     │    → rate → token daily cap → ROOM daily cap
+                     │  · refused? terminal payload, message opens with "STOP."
+                     ▼
+             the adapter parses its own dialect
+                     │  MCP: withMcpAuth + zod tool schema (charge: false — the
+                     │       gate already spent it; charging twice halves caps)
+                     │  RPC: {op, ...args} + the same zod shapes
+                     ▼
+             lib/operations.ts            ← EVERY guard lives here
+                     │  requireWrite()    writes → participants only
+                     │  brakeIfIdle()     consecutive calls that learned nothing
+                     │  contain()         far-side text is never bare
+                     ▼
+             entries.ts → Redis
+                     │  scanForSecrets()  credentials refused before any write
+                     ▼
+             audit row (ok / deny / error), both transports
 ```
 
 ---
@@ -221,6 +239,34 @@ blocked citation is not. **Two call sites, one scanner** — `appendEntry` and
 calling `appendEntry`, so a single scan in the latter would refuse the caller
 while the secret sat stored.
 
+**21. A question is open until the ASKER says otherwise.**
+It used to close on the first entry referencing it and stay closed, which made
+the open-questions list optimistic: every half-answer and misunderstanding read
+as resolved, and the one party who knew better — the asker — had no way to say
+so. `openQuestions` now races the newest `answer` against the newest `reopen`
+for that id, **compared by `seq`**, not by timestamp: `seq` is monotonic per
+room, so it does not depend on two companies' clocks agreeing. `bridger_reopen`
+is guarded to the asking side, because a side that could reopen its own answer
+would make the signal meaningless.
+
+**22. A sign-off is cleared by any write, deliberately.**
+`bridger_signoff` exists because "I am done for today" is the honest answer to
+nearly every situation the idle brake exists for, and without it a partner's
+agent has to INFER silence, get braked, and report a guess. It is cancelled
+automatically by the next write of any kind — **being back IS the signal**. A
+sign-off you have to remember to cancel is one that will be wrong, and a stale
+"they are away" is worse than no signal at all.
+
+**23. Purge needs both sides, and cannot reach the copies.**
+The ledger is a joint record: one side deleting it destroys the other's account
+of what was asked, answered and decided — which is what they may need most when
+a relationship ends. So the partner consents via `bridger_purge` and the
+operator consents and executes via the CLI; neither can finish alone. Keys are
+ENUMERATED rather than scanned, because a purge that can glob is a purge that
+can over-delete. **It removes the server's copy only** — `bridger pull` folders
+on both sides, usually committed, are out of reach, and any deletion promise
+has to say so.
+
 ---
 
 ## Invariants — break these and something silent goes wrong
@@ -252,7 +298,10 @@ while the secret sat stored.
 10. **Far-side text is never bare.** Any new path that puts an entry, a title, a
     contract or a label in front of a model goes through `contain()`. A field
     added to `wire()` without it is a hole, and it will not look like one.
-11. **A refusal that the caller can fix must not be shaped like STOP.** The
+11. **Two transports, one set of rules.** Every guard — viewer gate, idle brake,
+    containment — lives in `lib/operations.ts`, never in a route. A rule added
+    to one adapter and not the other is a fork, and the drift is silent.
+12. **A refusal that the caller can fix must not be shaped like STOP.** The
     credential refusal says retrying works, because it does. Reusing the
     loop-ending vocabulary for a one-edit problem makes a well-behaved agent
     abandon a task it could finish.

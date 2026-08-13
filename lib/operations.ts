@@ -43,6 +43,7 @@ import {
 } from "./room-registry";
 import { MAX_EMPTY_WAIT_STREAK, MAX_IDLE_STREAK, type Store } from "./store";
 import { contain, CONTAINMENT_NOTE } from "./untrusted";
+import { recordPurgeConsent, withdrawPurgeConsent } from "./purge";
 
 export const WAIT_DEFAULT_SECONDS = 25;
 export const WAIT_MAX_SECONDS = 45;
@@ -280,6 +281,96 @@ export async function opContract(ctx: OpContext, args: { body?: string; note?: s
   requireWrite(ctx.token);
   const entry = await setContract(ctx.store, ctx.room, ctx.token, args.body, args.note ?? "", ctx.now);
   return { updated: true, logged: wire(entry) };
+}
+
+/**
+ * Reopen a question the asker does not consider answered.
+ *
+ * Guarded to the ASKER's side on purpose: reopening is a statement about
+ * whether YOUR question was answered, and letting the answering side reopen its
+ * own answer would make the signal meaningless.
+ */
+export async function opReopen(ctx: OpContext, args: { questionId: string; why: string }) {
+  requireWrite(ctx.token);
+  const entries = await readEntries(ctx.store, ctx.room.id, { ids: [args.questionId] });
+  const question = entries.find((e) => e.id === args.questionId && e.type === "question");
+  if (!question) {
+    throw new OperationRefused(
+      `No question ${args.questionId} on this bridge. Check the id from bridger_status.`,
+      false,
+    );
+  }
+  if (question.side !== ctx.token.side) {
+    throw new OperationRefused(
+      `${args.questionId} is THEIR question, not yours. Only the side that asked can say an answer ` +
+        `did not resolve it — otherwise the signal means nothing. If you disagree with an answer to ` +
+        `their question, post a note or ask a new question.`,
+      true,
+    );
+  }
+  const entry = await appendEntry(
+    ctx.store,
+    ctx.room,
+    ctx.token,
+    { type: "reopen", title: args.why, body: args.why, answers: args.questionId },
+    ctx.now,
+  );
+  return {
+    posted: wire(entry),
+    reopened: args.questionId,
+    note: "It is back on their open-questions list, marked as reopened.",
+  };
+}
+
+/**
+ * Say you are done for now, so the other side stops guessing.
+ *
+ * Any subsequent write clears it automatically — being back IS the signal, and
+ * a sign-off you have to remember to cancel is one that will be wrong.
+ */
+export async function opSignoff(ctx: OpContext, args: { note?: string }) {
+  requireWrite(ctx.token);
+  const text = args.note?.trim() || "Signing off for now.";
+  const entry = await appendEntry(
+    ctx.store,
+    ctx.room,
+    ctx.token,
+    { type: "signoff", title: text, body: text },
+    ctx.now,
+  );
+  return {
+    posted: wire(entry),
+    note: "The other side will see this on their next status check. Your next write clears it automatically.",
+  };
+}
+
+/**
+ * Consent to (or withdraw consent from) deleting this bridge.
+ *
+ * Both sides must agree — see `lib/purge.ts`. This op is one half; the operator
+ * running `bridger purge` is the other. Neither can complete it alone, which is
+ * what makes the ledger a joint record rather than one company's database.
+ */
+export async function opPurge(ctx: OpContext, args: { consent: boolean }) {
+  requireWrite(ctx.token);
+  const state = args.consent
+    ? await recordPurgeConsent(ctx.store, ctx.room, ctx.token.side, ctx.now)
+    : await withdrawPurgeConsent(ctx.store, ctx.room, ctx.token.side);
+
+  const theirs = state[ctx.token.side === "a" ? "b" : "a"];
+  return {
+    yourConsent: args.consent,
+    theirConsent: Boolean(theirs),
+    bothAgreed: state.bothAgreed,
+    note: args.consent
+      ? state.bothAgreed
+        ? "Both sides have agreed. The operator can now run the purge."
+        : "Recorded. Nothing is deleted until the other side agrees too, and consent expires after 7 days."
+      : "Consent withdrawn. Nothing will be deleted.",
+    limit:
+      "A purge deletes the SERVER's copy only. Anything either side already pulled into a local " +
+      "bridger/ folder — and probably committed — is untouched by it.",
+  };
 }
 
 export async function opWait(ctx: OpContext, args: { since?: number; timeoutSeconds?: number }) {

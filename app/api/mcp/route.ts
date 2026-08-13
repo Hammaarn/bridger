@@ -45,7 +45,10 @@ import {
   opContract,
   opDecide,
   opPost,
+  opPurge,
   opRead,
+  opReopen,
+  opSignoff,
   opStatus,
   opWait,
   type OpContext,
@@ -261,6 +264,46 @@ const handler = createMcpHandler(
         }),
       },
       async (args, ctx) => run(() => opContract(ctxFrom(ctx), args)),
+    );
+
+    server.registerTool(
+      "bridger_reopen",
+      {
+        title: "Reopen your question",
+        description:
+          "Say that an answer did NOT resolve your question, putting it back on their list. Use it when the reply missed the point, answered a different question, or was too vague to build on — that is far more useful to them than silently asking again. Only the side that asked can reopen; `why` is what tells them what was actually missing.",
+        inputSchema: z.object({
+          questionId: z.string().min(1).describe("The question of YOURS that is still open, e.g. 'JMS-Q-014'."),
+          why: z.string().min(1).max(20000).describe("What the answer missed. Be specific — this is the whole value."),
+        }),
+      },
+      async (args, ctx) => run(() => opReopen(ctxFrom(ctx), args)),
+    );
+
+    server.registerTool(
+      "bridger_signoff",
+      {
+        title: "Say you are done for now",
+        description:
+          "Tell the other side you are stopping work on this integration for now, so they stop waiting on you. Call it when you finish a session with open questions on their side, or when you have asked something and will not be around for the answer. Your next write of any kind clears it automatically.",
+        inputSchema: z.object({
+          note: z.string().max(200).optional().describe("Optional: what you are waiting on, or when you are back."),
+        }),
+      },
+      async (args, ctx) => run(() => opSignoff(ctxFrom(ctx), args)),
+    );
+
+    server.registerTool(
+      "bridger_purge",
+      {
+        title: "Agree to delete this bridge",
+        description:
+          "Record your side's consent to permanently delete this bridge and everything on it. BOTH sides must agree before anything is deleted — the record is joint, and one side erasing it would destroy the other's account of what was asked, answered and decided. Only ask your operator to call this if they have decided to end the integration. Note that it removes the SERVER's copy only: anything either side already pulled to a local folder is untouched.",
+        inputSchema: z.object({
+          consent: z.boolean().describe("true to agree to deletion, false to withdraw a previous agreement."),
+        }),
+      },
+      async (args, ctx) => run(() => opPurge(ctxFrom(ctx), args)),
     );
 
     server.registerTool(
