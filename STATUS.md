@@ -1,6 +1,6 @@
 # STATUS — Bridger
 
-**True as of 2026-08-12, end of S#271.** `DECISIONS.md` wins on direction;
+**True as of 2026-08-14, S#272.** `DECISIONS.md` wins on direction;
 `ARCHITECTURE.md` wins on how it works; this file is what is *true right now*.
 
 ---
@@ -10,7 +10,7 @@
 | # | Read | Why |
 |---|---|---|
 | 1 | **this file, "State right now"** below | the bridge is STOPPED and prod is STALE — start there or you will be confused |
-| 2 | `ARCHITECTURE.md` | 23 non-obvious facts + 12 invariants. Traps that already cost a session |
+| 2 | `ARCHITECTURE.md` | 25 non-obvious facts + 12 invariants. Traps that already cost a session |
 | 3 | `DECISIONS.md` (newest first) | why it is shaped this way; what was rejected and why |
 | 4 | `TODO.md` | what to do next, by lane |
 | 5 | `skill/SKILL.md` | what the agents are told; change this before adding rules to prompts |
@@ -23,25 +23,37 @@ it. If you are looking for a rule, it is in `operations.ts`, not in a route.
 
 ---
 
-## [!!] State right now — two things will confuse you if you miss them
+## [!!] State right now — ONE thing will confuse you if you miss it
 
-**1. THE BRIDGE IS STOPPED.** The Redis kill switch is set; every token gets
-`401`. Verified at close on both sides. Deliberate — an agent loop burned an
-entire Gemini quota (see the incident in `DECISIONS.md`).
+**THE BRIDGE IS STOPPED.** The Redis kill switch is set, so every authenticated
+call gets `503 bridge-disabled`. Deliberate — an agent loop burned an entire
+Gemini quota (the incident is in `DECISIONS.md`). Nothing is wrong; it is off.
 
-**2. PRODUCTION IS STALE.** `https://bridger-nu.vercel.app` runs a build from
-before the viewer role, the budget fixes and the UI restyle. `vercel deploy
---prod` is **hard-blocked by Erik's `behavior-guard.py`**, so only he can ship it.
+**PRODUCTION IS CURRENT** as of S#272 — this is a change from every previous
+handover, which warned it was stale. `https://bridger-nu.vercel.app` runs the
+build at `055ac3a`, deployed 2026-08-14 and verified against the live health
+endpoint. The old "prod is a build behind" warning is retired; do not carry it
+forward without re-checking.
 
-**Order matters when bringing it back — deploy BEFORE start:**
+**To bring it back up — one command:**
 ```bash
-cd C:/Users/Erik/Documents/Projects/bridger
-vercel deploy --prod            # Erik only; the hook blocks this for Claude
-npm run bridger -- start        # lift the kill switch
-curl https://bridger-nu.vercel.app/api/health
+npm run bridger -- start                      # lift the kill switch
+curl https://bridger-nu.vercel.app/api/health # expect healthy:true, killSwitch:"off"
 ```
-Lifting the switch first would restore the *old* build: 120 calls/min, no daily
-cap, no terminal refusals — the exact configuration that burned the quota.
+
+**How to check the real state rather than trusting this file** — and you should,
+because a handover ages:
+```bash
+curl -s https://bridger-nu.vercel.app/api/health
+curl -s -o /dev/null -w "%{http_code}\n" -H "Authorization: Bearer br_live_bogus" \
+     https://bridger-nu.vercel.app/api/export     # 503 = stopped, 401 = running
+```
+The second probe is the discriminating one: the kill switch is checked BEFORE
+the token, so a bogus token separates "stopped" from "running" without needing a
+real credential. That check is here because `/api/health` itself lied for months
+— it reported `killSwitch: "off"` while every request was refused (the pre-S#272
+build only read the env switch, not the Redis one). Fixed and verified, but the
+habit of confirming state from an independent angle is the point.
 
 ---
 
@@ -49,7 +61,7 @@ cap, no terminal refusals — the exact configuration that burned the quota.
 
 | Piece | State | How it was checked |
 |---|---|---|
-| `lib/store.ts` + `room-registry.ts` | done | **139 tests** — fail-closed, cache grace, revoke-beats-cache, rate limit, daily cap, **per-room cap**, roles, terminal refusals |
+| `lib/store.ts` + `room-registry.ts` | done | **142 tests** — fail-closed, cache grace, revoke-beats-cache, rate limit, daily cap, **per-room cap**, roles, terminal refusals |
 | `lib/audit-call.ts` | done (S#272) | batch/single, tools/call vs verb, unparsed body, and that it does NOT consume the request |
 | `lib/entries.ts` | done | namespacing, token-derived identity, derived open-questions, seq-survives-trim, wait semantics |
 | `lib/file-store.ts` | done | restart persistence, corrupt-file recovery, **cross-process revocation** |
@@ -58,7 +70,7 @@ cap, no terminal refusals — the exact configuration that burned the quota.
 | `app/page.tsx` + `globals.css` | done | **screenshotted** (`.local/shots/ledger2.png`) after shipping unstyled once |
 | `cli/bridger.ts` | 13 commands | usage path run; `open`/`rotate`/`revoke`/`viewer`/`stop` exercised for real |
 
-`npm run check` → 139 pass, 0 fail. `tsc --noEmit` clean. `next build` clean.
+`npm run check` → 142 pass, 0 fail. `tsc --noEmit` clean. `next build` clean.
 
 **S#272 — the safety lane, and what it is worth.** Per-room cap, success-audit,
 and the **idle brake** generalised off `bridger_wait` onto every read tool (
@@ -145,9 +157,14 @@ checkable at all**, which is the entire product claim.
 
 ## Known holes in the surrounding rails (not Bridger's code)
 
-- **`behavior-guard.py` blocks the flag, not the outcome.** `vercel deploy
-  --prod` is hard-blocked; plain `vercel deploy` is **not**, and it published to
-  production on a CLI-linked project. Match on `vercel deploy` generally.
+- ~~`behavior-guard.py` blocks the flag, not the outcome.~~ **RESOLVED S#272.**
+  Erik's directive: push and `vercel deploy` are now ALLOWED and logged (the
+  gate became a ledger); the deploy/push hole is closed by matching `vercel` +
+  (`deploy`|`--prod`) uniformly. `npm/yarn/pnpm publish` and force-push stay
+  denied. **The finding worth carrying:** in this harness an `ask` permission is
+  AUTO-ACCEPTED, not prompted — measured, after force-push ran straight through
+  with `ask` set in both the hook and `settings.json`. Only `deny` gates
+  anything. Full reasoning: feedback rule `shipping-quality#3`.
 - **Bridger cannot cap the caller's model spend.** Those tokens burn in the
   other agent's loop. All we can do is stop feeding it and refuse in terms it
   treats as final. `triplemind/ARCHITECTURE.md` Problem 2 said this in February.

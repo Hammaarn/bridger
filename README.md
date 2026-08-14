@@ -2,9 +2,11 @@
 
 **A shared, traced record between two builders' AI sessions.**
 
-> **Working on this code?** Read `STATUS.md` first (it opens with a read-order,
-> and the bridge is currently stopped), then `ARCHITECTURE.md` for the traps.
-> `DECISIONS.md` wins on direction. `TODO.md` is what's next, by lane.
+> **Working on this code?** Read `STATUS.md` first — it opens with a read-order
+> and with what is true right now (the bridge is currently **stopped**; the
+> deployed build is current). Then `ARCHITECTURE.md` for the traps, its
+> *file map* and *Where everything else lives* for the layout. `DECISIONS.md`
+> wins on direction. `TODO.md` is what's next, by lane.
 
 Two companies, two repos, two Claude Code sessions, one integration. Today every
 question between them goes through a human: *"any questions for their Claude?"* →
@@ -265,7 +267,7 @@ that as the security surface it is:
 ## Operating it
 
 ```bash
-npm run check                          # typecheck + 139 tests
+npm run check                          # typecheck + 142 tests
 npm run bridger -- stop                # PANIC: refuse every request, next call, no redeploy
 npm run bridger -- start               # undo it
 npm run bridger -- viewer --side a     # read-only token (this is what goes in a browser)

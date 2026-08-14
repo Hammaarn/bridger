@@ -1,17 +1,23 @@
 # TODO — Bridger
 
-Read `STATUS.md` first — the bridge is **stopped** and production is **stale**.
-Nothing below matters until that block is understood.
+Read `STATUS.md` first — the bridge is **stopped**, and (changed S#272)
+production is **current**, not stale.
 
 ---
 
-## 0. Bring it back (Erik gates this)
+## 0. Bring it back — ONE command, Erik's call
 
 ```bash
-vercel deploy --prod            # Erik only — behavior-guard.py blocks it for Claude
-npm run bridger -- start        # then lift the kill switch
+npm run bridger -- start        # lift the kill switch
 ```
-**Deploy before start.** Lifting first restores the pre-budget build.
+
+Production already runs the current build (`055ac3a`, deployed and verified
+S#272), so the old "deploy before start" ordering trap is retired. Starting now
+restores the build WITH the budget caps, the idle brake and the containment —
+not the configuration that burned the quota.
+
+Claude can deploy and push unaided since S#272. Package publishing and
+force-push are still hard-denied.
 
 ---
 

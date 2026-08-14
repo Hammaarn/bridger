@@ -5,6 +5,94 @@ Append-only, newest first. **DECISIONS wins on direction** — where this file a
 
 ---
 
+## 2026-08-14 — S#272b — ERIK'S NINE DECISIONS, THE DEPLOY, AND THE HARNESS
+
+Erik answered every open item in `plans/DECISIONS-FOR-ERIK-s272.md`. His calls
+are recorded there under each heading; this is what changed as a result.
+
+### Built
+
+1. **`PASTE_PATH_DAILY_CAP = 200`** — half the MCP default. A paste-path token
+   sits in the far side's model context, where an injection arriving over this
+   very bridge can reach it; an MCP token sits in a config file the model never
+   reads. Same trust, different exposure.
+2. **`bridger_reopen`** — a question is open until the ASKER says otherwise.
+   Newest `answer` vs newest `reopen`, compared by `seq` rather than timestamp,
+   so it never depends on two companies' clocks agreeing. Asker-only.
+3. **`bridger_signoff`** — cleared by any later write. Being back IS the signal,
+   and a sign-off you must remember to cancel is one that will be wrong.
+4. **Contract entries summarise what changed** instead of `"<N> chars"`.
+5. **`bridger purge`, and it takes BOTH sides** (Erik's addition, now invariant
+   23). The ledger is a joint record: one side erasing it destroys the other's
+   account of what was asked and decided, which is what they may need most when
+   a relationship ends. Partner consents via the tool, operator executes via the
+   CLI, neither finishes alone. Keys are ENUMERATED, not scanned — a purge that
+   can glob is a purge that can over-delete.
+6. **The client matrix moved into the README**, framed as "only if you take the
+   MCP route".
+
+### Dropped, on the evidence
+
+- **D5 (show citation span width): dropped, and the recommendation was mine.**
+  The idea was to print `(70 lines)` so a wide citation reads as weaker. The
+  only real evidence contradicts it — in the Antigravity test the **70-line**
+  citation was the SOLID one and the **9-line** citation was over-broad. A
+  number that looks like a quality signal and is not is worse than no number.
+- **D7 (incident playbook): overrated.** It is three commands already in
+  `bridger --help`. Four README lines instead of a page.
+- **D9 (publish the CLI): not recommended.** It buys `npx bridger pull` for a
+  step most partners never take, and spends a public package name before the
+  product has a shape.
+
+**Still open: D3 `/api/whoami`** — greenlit, shape settled, unbuilt.
+
+### The UI bug I shipped and caught the same session
+
+`app/page.tsx` had its own copy of the open-question rule. Correct until
+`reopen` existed — a reopen carries `answers` too — so from that commit the page
+rendered every reopened question as ANSWERED. The panel a human reads to decide
+whose turn it is went empty while a partner waited. Fixed by giving the rule one
+home (`lib/question-state.ts`, zero imports, because the page is a client
+component). Facts #24 and #6.
+
+### PRODUCTION IS NO LONGER STALE
+
+Deployed `055ac3a` to `https://bridger-nu.vercel.app` and verified against the
+live endpoints. **The deploy fixed a diagnostic that had been lying:**
+`/api/health` reported `healthy: true, killSwitch: "off"` while every
+authenticated request was refused, because the deployed build predated the
+two-switch fix. It now reports `killSwitch: "on", killSwitchSource: "redis"`.
+
+The kill switch was deliberately NOT lifted — deploying and starting are two
+decisions, and only the first was Erik's instruction. The paste path stays
+behind its flag (D1, taken as delegated): shipping an untested public surface in
+the same deploy as everything else means two unknowns at once.
+
+### The harness gate — Erik's directive, and a correction to S#262
+
+Erik: *"that's literally just causing flow issues when we work, you should be
+able to push and commit."* The gate blocked a deploy he had authorised in chat
+minutes earlier — friction with no safety value, because the human was already
+in the loop and the gate could not hear him.
+
+`behavior-guard.py` now ALLOWS push and `vercel deploy` **and logs both** — the
+gate became a ledger, so "what went outward and when" stays answerable while the
+prompt goes away. `permissions.deny` is publish-only.
+
+**The correction worth carrying, because it invalidates the reasoning S#262
+recorded:** `ask` is not a gate in this harness. Force-push ran straight through
+with `ask` set in BOTH the hook and `settings.json`. Only `deny` bites. My first
+explanation ("ask is unsatisfiable in a non-interactive session") was wrong in
+the opposite direction, and I only learned it by running the command and
+watching it not stop. Fact #25; rule `shipping-quality#3`, stamped
+`challenged: S#272`.
+
+A regression I introduced in the same edit: putting `Bash(git push:*)` in the
+native allow list is a PREFIX match, and it silently ungated `git push --force`.
+Force-push is now a hook `deny` — the only decision that holds here.
+
+---
+
 ## 2026-08-13 — S#272 (overnight) — THE LEVEL-UP SWEEP
 
 **Source:** `plans/LEVEL-UP-BRIEF-s272.md`, ten domains. Full findings in

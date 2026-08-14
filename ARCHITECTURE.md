@@ -35,13 +35,38 @@ lib/
   http-gate.ts          kill switch + budget + deny vocabulary + audit, both routes
   untrusted.ts          containment of far-side text
   secrets.ts            credential refusal on the write path
+  question-state.ts     is a question still open — shared with the UI, no imports
+  audit-call.ts         names a JSON-RPC call for the audit row
   invites.ts            one-time join codes
   purge.ts              two-sided deletion
 cli/bridger.ts          operator + partner commands
+scripts/seed-demo.ts    seeds a local bridge so the UI can be LOOKED at
 skill/SKILL.md          the usage discipline shipped to the agent
+```
 
 **Looking for a rule? It is in `operations.ts`, never in a route.** The routes
 parse and serialise; that is the only reason two transports are safe.
+
+`lib/question-state.ts` is the exception that proves it. The web view is a
+CLIENT component and cannot import `entries.ts` — that reaches
+`room-registry.ts` and `node:crypto`, which breaks the browser bundle. That
+constraint is why the page once carried its own COPY of the open-question rule,
+and why the copy silently inverted the moment `reopen` entries existed
+(fact #24). So the one rule both sides need lives in a file with **no imports at
+all**. Any future rule the UI also needs belongs there, for the same reason.
+
+## Where everything else lives
+
+```
+README.md          what it is + quick start. Read first if you have never seen it.
+STATUS.md          what is TRUE RIGHT NOW + the read order. Read first otherwise.
+ARCHITECTURE.md    this file — how it works, the traps, the invariants.
+DECISIONS.md       why it is shaped this way. Wins on intent. Newest first.
+TODO.md            what is next, by lane.
+plans/             per-session briefs and findings. Historical; read on demand.
+answers/           replies drafted for the bridge but not yet posted.
+bridger/           the LOCAL materialised record — `bridger pull` writes here.
+.local/            working artefacts (screenshots, join snippets). Gitignored.
 ```
 
 ## The shape of a request
@@ -110,9 +135,12 @@ party's namespace. Codes are disambiguated at room creation, so two partners
 both called "Acme" cannot collide.
 
 **6. Open questions are DERIVED, never stored.**
-A question is answered because some `answer` entry references its id. Nothing
-mutates, so two sides answering at once is just two entries. There is no flag to
-race on.
+Status comes from the entries themselves — nothing mutates, so two sides acting
+at once is just two entries and there is no flag to race on. **Since S#272 the
+derivation is a race between the newest `answer` and the newest `reopen` for
+that id, compared by `seq`** (see #21); it is no longer "any answer closes it".
+The rule lives in `lib/question-state.ts` and is shared with the UI — do not
+re-derive it anywhere else (#24).
 
 **7. `seq` is a counter, not a list index.**
 The entries list is trimmed at `MAX_ENTRIES`, which shifts indices. Cursors
@@ -266,6 +294,29 @@ ENUMERATED rather than scanned, because a purge that can glob is a purge that
 can over-delete. **It removes the server's copy only** — `bridger pull` folders
 on both sides, usually committed, are out of reach, and any deletion promise
 has to say so.
+
+**24. A rule the UI also needs must be SHARED, or it inverts silently.**
+`app/page.tsx` carried its own copy of "is this question answered":
+`entries.filter(e => e.answers)`. Correct for months — until `reopen` entries
+existed, because a reopen carries `answers: <questionId>` too. From that commit
+on, the page rendered every REOPENED question as ANSWERED: not a crash, not a
+blank, but **the opposite of the truth in the one panel a human reads to decide
+whose turn it is**. Measured on a seeded bridge: the shared predicate found one
+open question, the page's copy found none.
+The copy existed because of a real constraint (client component, see the file
+map), so the fix was to give the rule a home neither side has to reach around —
+`lib/question-state.ts`, zero imports. **A second copy of a rule is not a
+duplication problem; it is a correctness problem with a delay on it.**
+
+**25. `ask` is not a gate in this harness — only `deny` is.**
+Not a Bridger fact, but it governs what Claude can ship from here, and it cost a
+wrong explanation before it was measured. `settings.json::permissions.ask` and a
+hook returning `permissionDecision: "ask"` are AUTO-ACCEPTED in this session's
+permission mode: force-push ran straight through with `ask` set in *both*.
+So the honest ladder is **`deny` = gate, `ask` = depends on the mode, prose =
+hope** — and the only way to know which you have is to RUN the command and watch
+it fail. S#272: push and `vercel deploy` are now allowed-and-logged, `npm
+publish` and force-push are denied. Rule: `shipping-quality#3`.
 
 ---
 
