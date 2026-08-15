@@ -19,6 +19,21 @@
 >
 > **192 tests (was 142). Four mechanisms ablated.** The bridge is still STOPPED
 > — that is Erik's switch and it was not touched.
+>
+> **PRODUCTION IS CURRENT: `9135d6c`**, deployed 2026-08-15 and aliased to
+> `bridger-nu.vercel.app`. Verified by independent probe, not by the deploy
+> tool's own success message: `/api/health` still reports
+> `killSwitch:"on", killSwitchSource:"redis"`, and `/api/whoami` answers — a
+> route that did not exist before, which is what proves the new build is live.
+>
+> **What that probe DID and DID NOT establish.** It proved the stopped-bridge
+> path end to end: a presented token gets `503` and is told *"your token is not
+> the problem"*, which is the difference between a partner waiting and a partner
+> chasing a replacement that would fail identically. It did NOT prove the
+> token-reason opacity — with the switch on, every presented token
+> short-circuits to `bridge-disabled` before the token is even examined, so
+> valid and bogus are indistinguishable and there is nothing to compare.
+> That property stays unit-green until `bridger start`.
 
 ---
 
