@@ -414,3 +414,77 @@ export async function opWait(ctx: OpContext, args: { since?: number; timeoutSeco
         : "Nothing yet. If the next wait is also empty, stop rather than polling.",
   };
 }
+
+/**
+ * THE PING. One call, everything, then stop.
+ *
+ * `status` + `read` + `wait` collapsed into a single round trip, for a caller
+ * whose only job is to answer what was asked.
+ *
+ * WHY IT EXISTS, and it is a COST argument rather than a capability one
+ * ---------------------------------------------------------------------
+ * We call no LLM, so everything we publish is billed to the CALLER: every tool
+ * schema on every one of their turns, plus one full inference per call over a
+ * context that grew since last time. Answering a question used to cost the far
+ * side three turns minimum (`wait` -> `status` -> `answer`) because `wait`
+ * returns entries but not open questions, so knowing *what* to answer needed a
+ * second call. Measured S#274: the full 11-tool surface is ~1,800 tokens of
+ * standing context per turn, so those extra turns are not free curiosity —
+ * they are the quota.
+ *
+ * `opPing` returns the questions awaiting YOU, the unread entries themselves,
+ * and whether the peer signed off. After it there is nothing left to look up:
+ * the only next move is `bridger_answer`, or stop.
+ *
+ * THE CURSOR ADVANCES HERE, and that is deliberate. A ping that re-delivered
+ * everything would grow the caller's context on every call — the precise cost
+ * this exists to remove. Nothing is lost: entries stay in the record and remain
+ * readable by seq, and `bridger pull` still materialises the whole thing. The
+ * tradeoff is real and it is the right way round: a crash after a ping costs a
+ * re-read by seq, while re-delivery would cost tokens on every single call.
+ *
+ * The idle brake applies unchanged. A ping loop is still a loop, and the point
+ * was never to make polling cheap — it was to make it unnecessary.
+ */
+export async function opPing(ctx: OpContext) {
+  const status = await getStatus(ctx.store, ctx.room, ctx.token);
+  const fresh = await readEntries(ctx.store, ctx.room.id, { sinceSeq: status.cursor });
+  const fromPeer = fresh.filter((e) => e.side !== ctx.token.side);
+
+  if (fresh.length) {
+    await setCursor(ctx.store, ctx.room.id, ctx.token.side, fresh[fresh.length - 1].seq);
+  }
+
+  // `yours` is the whole point: of every open question, the ones where the ball
+  // is on this side. Titles are the partner's prose, so they are contained on
+  // the way out exactly as `opStatus` does it.
+  const awaitingYou = status.openQuestions
+    .filter((q) => q.yours)
+    .map((q) => ({ ...q, title: contain(q.title, q.askedBy) }));
+
+  const learned = awaitingYou.length > 0 || fromPeer.length > 0;
+  const idle = await brakeIfIdle({
+    store: ctx.store,
+    tokenId: ctx.token.id,
+    learned,
+    limit: MAX_IDLE_STREAK,
+    instead: "Report to your operator that there is nothing to answer, and stop.",
+  });
+
+  return {
+    you: status.you,
+    peer: status.peer,
+    topic: status.topic,
+    awaitingYou,
+    newEntries: fromPeer.map(wire),
+    ...(status.peerSignedOff ? { peerSignedOff: status.peerSignedOff } : {}),
+    ...(fromPeer.length || awaitingYou.length ? { _note: CONTAINMENT_NOTE } : {}),
+    ...(idle > 0 ? { quietPingsInARow: idle } : {}),
+    // Terminal by construction. Names no tool that could be used to look again,
+    // because the wait refusal that pointed loops at `bridger_status` is the
+    // bug this whole surface is shaped around (S#272).
+    guidance: awaitingYou.length
+      ? `${awaitingYou.length} question(s) are waiting on you. Answer each with bridger_answer, then stop — you have already been given everything there is to see.`
+      : "Nothing is waiting on you. Do not call again; report to your operator and stop.",
+  };
+}

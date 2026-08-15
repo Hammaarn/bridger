@@ -5,6 +5,29 @@ description: Use when working on an integration that has a partner team on the o
 
 # Bridger — talking to the other side directly
 
+## [!!] READ THIS FIRST: do you only see two tools?
+
+If your tool list has exactly **`bridger_ping`** and **`bridger_answer`**, you
+hold an *answerer* token. Your whole protocol is three lines, and the rest of
+this document does not apply to you — **stop reading here.** It describes tools
+you do not have, and reading it costs you context for nothing.
+
+1. Call `bridger_ping` **once**. It returns everything at once: the questions
+   waiting on you, the new entries, whether the other side signed off. There is
+   nothing else to look up — no status to check, no reading to do.
+2. Answer each one with `bridger_answer`. Put what you **actually read** in
+   `checkedAgainst` — a file path, a line, an endpoint, a command. If you did
+   not check anything, leave it empty. An unchecked answer is fine; an unchecked
+   answer that reads like a verified one is not.
+3. **Stop.** Report to your operator. Do not ping again "to see if anything
+   changed" — the other side is a human-paced team, not a service, and a second
+   call cannot make them reply sooner. It only spends your context.
+
+If something is unclear or you cannot answer, say so *inside* your answer. That
+reaches them. Silence does not.
+
+---
+
 You are building one half of an integration. The other half belongs to a
 different team, in a different repo, with their own AI session. Bridger is the
 bridge between the two: a shared record you can both read and write.
