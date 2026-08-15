@@ -74,8 +74,29 @@ export type SideId = "a" | "b";
  *
  * A viewer is still bound to a side, because "unread" and "whose turn" are only
  * meaningful from a point of view. It borrows the perspective; it cannot use it.
+ *
+ * `answerer` WRITES — it is a participant with a smaller surface, not a weaker
+ * one. It exists for a COST reason, not a security one, and the distinction is
+ * load-bearing:
+ *
+ * Bridger calls no LLM, so every tool schema we publish is billed to the CALLER
+ * on every one of their turns, forever, whether or not they use it. Measured
+ * S#274: the full set is ~1,800 tokens of standing context per turn. A far side
+ * whose whole job is "answer the question that was asked" pays that ~1,800 to
+ * hold nine tools it will never call, and then pays it again for each
+ * exploratory call it makes before finding the one that matters.
+ *
+ * So an `answerer` is shown two tools — `bridger_ping` and `bridger_answer` —
+ * and given no tool to probe WITH. The saving is real and it is theirs.
+ *
+ * [!!] HIDING IS NOT GATING. The narrowed tool list is a cost optimisation and
+ * MUST NEVER be the only thing preventing an action. Every refusal still lives
+ * in `operations.ts`, so an answerer that calls a hidden tool by hand is
+ * refused there, on the same rule that refuses everyone else. A filter that
+ * became the boundary would be a fake gate — the exact defect class this
+ * repo keeps finding — so the ablation test asserts both halves.
  */
-export type TokenRole = "participant" | "viewer";
+export type TokenRole = "participant" | "viewer" | "answerer";
 
 export interface TokenRecord {
   /** First 12 chars of the sha256. Safe to log; the rate-limit bucket. */
@@ -307,10 +328,12 @@ export function parseToken(raw: unknown): TokenRecord | null {
     side: r.side,
     label: typeof r.label === "string" ? r.label : "",
     code: typeof r.code === "string" ? r.code : "XXX",
-    // Only the exact string "viewer" restricts. Anything else — including a
-    // missing field on a pre-roles token, or a corrupted value — resolves to
-    // participant, which is how it behaved before roles existed.
-    role: r.role === "viewer" ? "viewer" : "participant",
+    // Only an EXACT known string selects a narrowed role. Anything else —
+    // including a missing field on a pre-roles token, or a corrupted value —
+    // resolves to participant, which is how it behaved before roles existed.
+    // Keep this shape when adding a role: an unrecognised value must widen to
+    // participant, never silently downgrade a partner mid-integration.
+    role: r.role === "viewer" ? "viewer" : r.role === "answerer" ? "answerer" : "participant",
     // A token minted before caps existed gets the default rather than
     // Infinity — the whole point is that an un-capped token is the bug.
     dailyCap: Number.isFinite(r.dailyCap) ? Number(r.dailyCap) : DEFAULT_DAILY_CAP,
@@ -320,8 +343,18 @@ export function parseToken(raw: unknown): TokenRecord | null {
   };
 }
 
-/** True when this token may write to the record. */
+/**
+ * True when this token may write to the record.
+ *
+ * `answerer` writes — that is its entire purpose. Only `viewer` is read-only,
+ * so this stays a viewer test rather than a participant whitelist: a role added
+ * later without touching this line gets write access, which is the safe default
+ * here (the narrow roles are about surface area, not privilege).
+ */
 export const canWrite = (t: TokenRecord): boolean => t.role !== "viewer";
+
+/** True when this token should be shown the minimal, non-probing tool surface. */
+export const isAnswerer = (t: TokenRecord): boolean => t.role === "answerer";
 
 /** The refusal a viewer gets — says what it is and how to get past it. */
 export const VIEWER_REFUSAL =

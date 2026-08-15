@@ -431,6 +431,42 @@ async function cmdViewer() {
 }
 
 /**
+ * Mint an answerer token — the cheap seat, for a partner who pays per turn.
+ *
+ * Bridger calls no LLM, so every tool schema we publish is billed to the CALLER
+ * on every one of their turns whether they use it or not. An answerer is shown
+ * two tools (`bridger_ping`, `bridger_answer`) and given nothing to probe with.
+ *
+ * It WRITES. This is a smaller surface, not a weaker one — and the narrowed
+ * tool list is a cost optimisation, never a permission boundary: every refusal
+ * still lives in `operations.ts`. Do not hand this out as a way to restrict
+ * someone; hand out `viewer` for that.
+ */
+async function cmdAnswerer() {
+  const store = operatorStore();
+  const local = readLocalRoomSafe();
+  const roomId = arg("--room", local?.roomId ?? "");
+  const side = arg("--side", local?.side ?? "b") as SideId;
+  const room = parseRoom(await store.get(ROOM_KEY(roomId)));
+  if (!room) die(`No such room: ${roomId}`);
+
+  const token = await issueToken(store, room!, side, new Date(), null, "answerer");
+  const server = local?.server ?? "https://bridger.vercel.app";
+  console.log(`
+  Answerer token for ${room!.sides[side].label} on "${room!.topic}".
+  Two tools only: bridger_ping (one call, everything) and bridger_answer.
+
+  Send your partner this ONE line:
+
+      npx bridger join ${token} --server ${server.replace(/\/$/, "")}
+
+  Then tell their agent: "call bridger_ping, answer what is waiting, then stop."
+
+  Shown once. Revoke with:  bridger revoke --side ${side}
+`);
+}
+
+/**
  * The panic button, and the reason it is a first-class command.
  *
  * When an agent loop on the other side of a bridge started burning a model
@@ -635,6 +671,9 @@ const USAGE = `
     open   --topic "<what this is>" --me "<You>" --them "<Partner>" [--server <url>]
     rotate --side a|b [--room <id>]      mint a fresh token, revoke the old one
     viewer --side a|b [--room <id>]      mint a READ-ONLY token (for a browser tab)
+    answerer --side a|b [--room <id>]    mint a TWO-TOOL token -- ping + answer only.
+                                         For a far side that pays per turn: ~1,800
+                                         tokens/turn of tool schema becomes ~320.
     invite [--side a|b] [--ttl-minutes N] [--token-days N]
                                          ONE-TIME join code -- the paste-and-go path
     revoke --side a|b [--room <id>]      kill a side's access
@@ -657,6 +696,7 @@ async function main() {
     case "open": return cmdOpen();
     case "rotate": return cmdRotate();
     case "viewer": return cmdViewer();
+    case "answerer": return cmdAnswerer();
     case "invite": return cmdInvite();
     case "audit": return cmdAudit();
     case "stop": return cmdStop();
