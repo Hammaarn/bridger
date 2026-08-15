@@ -41,6 +41,7 @@ import {
   createStore,
 } from "../lib/store";
 import type { Entry } from "../lib/entries";
+import { classifyCitation, describeCitation, isUnlocated, isWideRange } from "../lib/citation";
 import { mintInvite } from "../lib/invites";
 import { executePurge, purgeState, recordPurgeConsent } from "../lib/purge";
 import type { AuditEntry } from "../lib/room-registry";
@@ -641,12 +642,24 @@ async function cmdLog() {
   const data = await fetchExport(local.server, requireToken());
   console.log(`\n  ${data.room.topic}  (room ${data.room.id})\n`);
   for (const e of data.entries) {
-    const mark = e.checkedAgainst ? "✓" : e.type === "answer" ? "?" : " ";
+    // `✓` used to mean "cited something", which flattened a pinpoint and a
+    // gesture into one glyph. `◐` splits off the citations that name no place
+    // you could go and look — or that span so many lines they barely narrow
+    // anything. It grades the CITATION, never the answer.
+    const c = classifyCitation(e.checkedAgainst);
+    const mark = !e.checkedAgainst
+      ? e.type === "answer"
+        ? "?"
+        : " "
+      : isUnlocated(c) || isWideRange(c)
+        ? "◐"
+        : "✓";
+    const span = e.checkedAgainst ? `  (${describeCitation(c)})` : "";
     console.log(
-      `  ${mark} ${String(e.seq).padStart(3)} ${e.id.padEnd(12)} ${e.type.padEnd(9)} ${e.author.padEnd(14)} ${e.title.slice(0, 60)}`,
+      `  ${mark} ${String(e.seq).padStart(3)} ${e.id.padEnd(12)} ${e.type.padEnd(9)} ${e.author.padEnd(14)} ${e.title.slice(0, 60)}${span}`,
     );
   }
-  console.log("");
+  console.log("\n  ✓ cited to a place you can check   ◐ cited, but not narrowly   ? answered with no citation\n");
 }
 
 async function cmdStatus() {
