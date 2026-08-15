@@ -56,8 +56,12 @@ force-push are still hard-denied.
       exists only for a vanished partner. It removes the SERVER copy only.
 - [x] **D7** — folded into the README as four commands rather than a page; the
       only real content would have been Erik's stop-vs-revoke judgment.
-- [ ] **D3 `/api/whoami` — greenlit, NOT BUILT.** Answer only for a valid token,
-      opaque refusal otherwise. The last piece of the join story.
+- [x] **D3 `/api/whoami` — BUILT S#274.** Answers only for a valid token; every
+      other failure is one status and one sentence. Shaping lives in
+      `lib/whoami.ts` so the indistinguishability is asserted, not claimed — a
+      route calling `createStore()` cannot be tested without live creds. Costs
+      no budget and touches no idle streak, deliberately. **Unit-green: never
+      called over HTTP, because the bridge is stopped.**
 
 ## Lane: the product claim
 
@@ -74,9 +78,21 @@ force-push are still hard-denied.
       `s268-partner-live-api` worktree at `ec657ea` and differs from the shipped
       file by 152 insertions / 24 deletions. Canonical is
       `roastmydev/` on master — verified byte-identical to production `e1619d4`.
-- [ ] **Consider surfacing over-broad citations.** A cited range of 70 lines is
-      weaker evidence than a cited line. The ledger records the string; nothing
-      grades it. An honest first step is displaying the span, not scoring it.
+- [x] **Surface over-broad citations — DONE S#274, as "display the span, not a
+      score".** `lib/citation.ts` classifies `checkedAgainst` into
+      line/range/file/command/commit/unlocated/none and reports the line count.
+      Surfaced three places: `checkedSpan` on the agent wire, a badge plus a
+      "thin citations" stat in the UI (kept SEPARATE from "unchecked" — one is
+      an honest admission, the other reads as verified), and `✓`/`◐`/`?` in
+      `bridger log`. Both S#271 citations are regression fixtures: `CLAUDE.md:29`
+      is a pinpoint, `plans/05-ux-architecture.md:925-994` is 70 lines.
+      **It grades the citation, never the claim** — a test asserts no label ever
+      emits a verdict word, so adding one takes an argument, not an edit.
+- [ ] **The judgment this deliberately does NOT make.** Nothing scores whether a
+      citation actually supports its answer. That needs reading both, which
+      needs a model, which puts an LLM in the trust path of the thing whose
+      whole pitch is that it calls no LLM. Worth Erik's call before anyone
+      builds it.
 
 ## Lane: the join experience (highest leverage for a real partner)
 
@@ -86,10 +102,13 @@ force-push are still hard-denied.
       `BRIDGER_PASTE_PATH=1`. **Unit-green only — no far-side agent has ever
       redeemed a code.** Whether it becomes supported is D1 in
       `plans/DECISIONS-FOR-ERIK-s272.md`.
-- [ ] **`/api/whoami`** — still open, and now the last piece of the join story.
-      Recommended shape (D3): answer only for a VALID token, opaque refusal
-      otherwise. A prober with an invalid token learns nothing; a prober with a
-      valid one already knows everything it would say.
+- [x] **`/api/whoami`** — BUILT S#274, shape exactly as greenlit. See the D3 line
+      above.
+- [ ] **The answerer path has never met a far-side agent.** `bridger answerer
+      --side b` mints a two-tool token (ping + answer, ~318 tok of standing
+      schema against ~1,800). Whether Antigravity honours a narrowed
+      `tools/list`, and whether Gemini actually stops after one ping, are both
+      untested — same class as "does a looping client stop on `STOP.`".
 
 ## Lane: hygiene
 

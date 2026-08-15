@@ -42,6 +42,7 @@ import {
   type TokenRecord,
 } from "./room-registry";
 import { MAX_EMPTY_WAIT_STREAK, MAX_IDLE_STREAK, type Store } from "./store";
+import { classifyCitation, describeCitation } from "./citation";
 import { contain, CONTAINMENT_NOTE } from "./untrusted";
 import { recordPurgeConsent, withdrawPurgeConsent } from "./purge";
 
@@ -100,6 +101,15 @@ export function wire(e: Entry) {
     checked: e.checkedAgainst
       ? `checked-against: ${contain(e.checkedAgainst, e.author)}`
       : "unchecked",
+    // How specific that citation is, in OUR words. Derived by our own regex
+    // from their string, so unlike `checked` it carries nothing far-side and
+    // needs no containment — which is exactly why it is safe to read.
+    //
+    // It describes the CITATION, never the claim: "70 lines" says where they
+    // pointed, not whether they were right. A reader weighing a peer's evidence
+    // can see the difference between a pinpoint and a gesture, which is the
+    // whole difference S#271 had to audit by hand.
+    checkedSpan: describeCitation(classifyCitation(e.checkedAgainst)),
   };
 }
 

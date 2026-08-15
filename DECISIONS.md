@@ -5,6 +5,81 @@ Append-only, newest first. **DECISIONS wins on direction** — where this file a
 
 ---
 
+## 2026-08-15 — S#274 — THE FAR-SIDE COST LANE, AND WHAT I DECIDED ALONE
+
+Erik asked for "a Ping, no probing — it burns tokens on Antigravity", chose
+answer-only when asked, then handed over full autonomy and went to sleep.
+Everything below after §1 is a call I made without him. Recording them here
+because a decision taken while the operator is asleep needs MORE traceability
+than one taken in conversation, not less.
+
+### 1. The answerer role — Erik's ask, Erik's choice of shape
+
+He picked "answer only, two tools" over "answer + ask" and over "keep all 11".
+
+**The measurement changed the design, and it is worth keeping.** Bridger calls
+no LLM, so every tool schema is billed to the CALLER on every one of their
+turns, used or not: **~1,800 tokens standing, measured**. I was about to add a
+`bridger_ping` tool to the existing eleven, which would have made it twelve and
+made the standing cost *worse*. The dominant cost was the surface, not the turn
+count — so the real fix was a deletion, not an addition. **Do not "improve" this
+by adding tools to the answerer surface.**
+
+### 2. Citation specificity — mine, and the one I would defend hardest
+
+`checkedAgainst` is the product, and it was an unvalidated string: `store.ts:41`
+and `the codebase` both rendered as "✓ checked". S#271 had to audit two
+citations BY HAND to discover one covered 70 lines and only glancingly touched
+the claim — **over-broad, not fabricated** — and nothing in the product could
+show the difference. A record that cannot distinguish those is provenance
+theatre, and provenance is the whole moat.
+
+`lib/citation.ts` classifies the string and reports the SPAN. Surfaced on the
+agent wire (`checkedSpan`), in the UI (badge + "thin citations" count, kept
+separate from "unchecked"), and in `bridger log` (`✓` / `◐` / `?`).
+
+**[!!] It grades the CITATION, never the CLAIM, and that restraint is the
+design.** A one-line citation can point at the wrong line; a 400-line citation
+can be honest for a claim about a module. The moment this returns a quality
+score it becomes a confident number derived from a regex — fake rigor, and worse
+than no signal, because a number gets trusted. A test asserts the labels never
+emit a verdict word, so adding one requires arguing for it rather than sliding
+it in.
+
+### 3. `/api/whoami` — building D3 as greenlit, not re-deciding it
+
+Erik greenlit the shape in S#272; it was simply unbuilt. Answers only for a
+valid token, refuses opaquely otherwise. Refusal shaping lives in `lib/whoami.ts`
+rather than the route, because the security property is that every failure looks
+identical, and **a property nothing asserts is a property that drifts** — a route
+handler calling `createStore()` cannot be tested without live credentials.
+
+One deliberate exception: a stopped bridge says so. It reveals nothing about the
+token, and collapsing it into the generic refusal would send a partner whose
+token is fine off to fetch a replacement that fails identically.
+
+`whoami` costs no budget and touches no idle streak. It is the one free
+authenticated call, on purpose: the alternative is a partner afraid to check
+whether their own token works.
+
+### 4. What I deliberately did NOT do
+
+- **Did not lift the kill switch.** TODO §0 says that is Erik's call. He
+  approved building, not starting. The bridge is still stopped.
+- **Did not build the transport-level refusal** that TODO names as "the next
+  lever" if `STOP.` proves insufficient. Nothing has yet shown it insufficient;
+  building the escalation before the evidence is how you end up maintaining a
+  mechanism no incident asked for.
+- **Did not add write access to the browser UI.** It would put a writing token
+  in a browser tab, which is the exact exposure the `viewer` role exists to
+  prevent. That is a product decision, not a gap to quietly fill.
+- **Did not verify the UI visually.** The feed only renders against a live
+  bridge, and the bridge is stopped. Classes are confirmed present in the
+  stylesheet — which catches S#271's "shipped it unstyled" failure — but that is
+  not a look. First thing to check after `bridger start`.
+
+---
+
 ## 2026-08-14 — S#272b — ERIK'S NINE DECISIONS, THE DEPLOY, AND THE HARNESS
 
 Erik answered every open item in `plans/DECISIONS-FOR-ERIK-s272.md`. His calls

@@ -1,7 +1,24 @@
 # STATUS — Bridger
 
-**True as of 2026-08-14, S#272.** `DECISIONS.md` wins on direction;
+**True as of 2026-08-15, S#274.** `DECISIONS.md` wins on direction;
 `ARCHITECTURE.md` wins on how it works; this file is what is *true right now*.
+
+> **S#274 added three things, all unit-green and none run-green.**
+> 1. **The answerer role** — `bridger answerer --side b` mints a token shown two
+>    tools (`bridger_ping`, `bridger_answer`) and nothing to probe with.
+>    Measured: the full surface is ~1,800 tokens of schema billed to the CALLER
+>    on *every* turn; the answerer's is ~318. Answering used to cost 3 turns
+>    minimum (`wait` -> `status` -> `answer`) because `wait` returns entries but
+>    not open questions. `bridger_ping` returns both and advances the cursor.
+> 2. **Citation specificity** — `checkedAgainst` is classified and its SPAN
+>    displayed (`checkedSpan` on the wire, a badge + "thin citations" stat in
+>    the UI, `✓`/`◐`/`?` in `bridger log`). It grades the citation, never the
+>    claim. This is the S#271 hand-audit turned into a product feature.
+> 3. **`/api/whoami`** — D3 as greenlit. Valid token gets an answer; everything
+>    else gets one status and one sentence.
+>
+> **192 tests (was 142). Four mechanisms ablated.** The bridge is still STOPPED
+> — that is Erik's switch and it was not touched.
 
 ---
 

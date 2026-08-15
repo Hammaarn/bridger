@@ -402,6 +402,33 @@ h2 {
   color: var(--bad);
 }
 
+/*
+  Cited, but not to a place you could go and look. Deliberately NOT the same
+  colour as `.bad`: an unchecked answer is honest, a thin citation reads as
+  verified and is not. They are different failures and must not look alike.
+*/
+.prov.thin {
+  /* `--hot` rather than a literal: it is the existing amber and it is already
+     defined for both colour schemes, so this stays correct in dark mode. */
+  color: var(--hot);
+}
+
+/*
+  The span badge. States what was cited — "70 lines", "whole file" — never a
+  verdict on the answer. Muted on purpose: it is context for the citation
+  beside it, not a score competing with it for attention.
+*/
+.prov .span {
+  margin-left: 8px;
+  padding: 1px 6px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  opacity: 0.75;
+  white-space: nowrap;
+}
+
 .contract pre {
   background: var(--panel);
   border: 1px solid var(--line);

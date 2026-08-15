@@ -25,6 +25,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { openQuestionIds } from "@/lib/question-state";
+import { classifyCitation, describeCitation, isUnlocated, isWideRange } from "@/lib/citation";
 
 interface Entry {
   id: string;
@@ -196,6 +197,16 @@ export default function BridgeView() {
   const uncheckedAnswers = (data?.entries ?? []).filter(
     (e) => e.type === "answer" && !e.checkedAgainst,
   ).length;
+  /**
+   * Answers that DID cite something, but not to a place a reader could go.
+   * Counted apart from `uncheckedAnswers` because the two failures are not the
+   * same: one is honest about resting on nothing, the other reads as verified.
+   */
+  const thinEvidence = (data?.entries ?? []).filter((e) => {
+    if (e.type !== "answer" || !e.checkedAgainst) return false;
+    const c = classifyCitation(e.checkedAgainst);
+    return isUnlocated(c) || isWideRange(c);
+  }).length;
 
   return (
     <main className="wrap">
@@ -241,6 +252,17 @@ export default function BridgeView() {
             <div className={uncheckedAnswers ? "flag" : ""}>
               <strong>{uncheckedAnswers}</strong>
               <span>unchecked answer{uncheckedAnswers === 1 ? "" : "s"}</span>
+            </div>
+            {/*
+              Kept SEPARATE from unchecked, deliberately. "No citation" is an
+              honest admission. A citation that names no place you could go and
+              look — "the codebase" — or one spanning hundreds of lines, reads
+              as verified and is not. Merging the two counts would hide the
+              worse case behind the better-behaved one.
+            */}
+            <div className={thinEvidence ? "flag" : ""} title="Cited, but not to a place you could go and check. Counts the citation, not the answer.">
+              <strong>{thinEvidence}</strong>
+              <span>thin citation{thinEvidence === 1 ? "" : "s"}</span>
             </div>
           </section>
 
@@ -303,9 +325,23 @@ export default function BridgeView() {
                 )}
                 {e.type === "answer" &&
                   (e.checkedAgainst ? (
-                    <p className="prov ok">
-                      ✓ checked against <code>{e.checkedAgainst}</code>
-                    </p>
+                    (() => {
+                      // A citation and a gesture used to render identically —
+                      // both as "✓ checked". S#271 had to audit two citations
+                      // BY HAND to find that one covered 70 lines and only
+                      // glancingly touched the claim. The span is a fact; show
+                      // it and let the reader judge.
+                      const c = classifyCitation(e.checkedAgainst);
+                      const weak = isUnlocated(c) || isWideRange(c);
+                      return (
+                        <p className={`prov ${weak ? "thin" : "ok"}`}>
+                          {weak ? "◐" : "✓"} checked against <code>{e.checkedAgainst}</code>
+                          <span className="span" title="How specific the citation is. Says nothing about whether the answer is correct.">
+                            {describeCitation(c)}
+                          </span>
+                        </p>
+                      );
+                    })()
                   ) : (
                     <p className="prov bad">⚠ unchecked — nobody named what this rests on</p>
                   ))}
