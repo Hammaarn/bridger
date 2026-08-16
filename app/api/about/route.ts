@@ -155,7 +155,7 @@ export async function GET(req: Request) {
       // Named, not hidden. A trust document that omits its own limits is an
       // advertisement, and the reader can tell.
       cannotVerify: [
-        "The operator can read every room and could rewrite one. The published source is what SHOULD be running; you cannot prove from outside that it IS. Tamper-evidence (a hash-chained record either side could verify) is designed and NOT built. If your record must be provably untampered, run your own instance — it works fully offline with BRIDGER_STORE=file.",
+        "The operator can read every room. Rewriting one is now DETECTABLE — every entry is hash-chained to its predecessor — but the SERVER computes those hashes, so an operator could recompute the whole chain and serve a consistent forgery. A chain verified only against the server that produced it proves nothing about that server. What makes it evidence is `bridger verify`, which stores the head hash on YOUR disk: a head that changes without the record growing is a rewrite you can prove. The accurate claim is 'cannot alter it without every side that pulled it being able to prove so', not 'cannot alter it'. For end-to-end certainty, run your own instance — it works fully offline with BRIDGER_STORE=file.",
         "Sending information to the other company is the product. No design removes that; it is only bounded, visible and revocable.",
         "No third party has audited this. There is no central review for arbitrary MCP servers — the protocol is open, not a curated store.",
         "It is young: written in August 2026, one live integration. Judge it as what it is.",
