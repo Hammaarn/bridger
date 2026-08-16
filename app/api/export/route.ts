@@ -17,6 +17,7 @@
  */
 
 import { getContract, readEntries } from "@/lib/entries";
+import { verifyChain, type ChainedEntry } from "@/lib/chain";
 import { authorize, writeAudit } from "@/lib/room-registry";
 import { DENY_STATUS } from "@/lib/room-registry";
 import { createStore } from "@/lib/store";
@@ -61,6 +62,12 @@ export async function GET(req: Request) {
     status: "ok",
   });
 
+  // The chain verdict travels WITH the record, so a caller never has to know
+  // that verification exists to benefit from it. It is computed here from the
+  // entries actually being served, not from a stored summary — a cached "ok"
+  // would survive the very edit it is supposed to catch.
+  const chain = verifyChain(entries as ChainedEntry[]);
+
   return Response.json({
     room: {
       id: room.id,
@@ -71,6 +78,7 @@ export async function GET(req: Request) {
     },
     contract,
     entries,
+    chain,
     exportedAt: now.toISOString(),
   });
 }

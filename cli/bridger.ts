@@ -42,6 +42,7 @@ import {
 } from "../lib/store";
 import type { Entry } from "../lib/entries";
 import { classifyCitation, describeCitation, isUnlocated, isWideRange } from "../lib/citation";
+import { verifyChain, type ChainedEntry } from "../lib/chain";
 import { mintInvite } from "../lib/invites";
 import { executePurge, purgeState, recordPurgeConsent } from "../lib/purge";
 import type { AuditEntry } from "../lib/room-registry";
@@ -719,6 +720,95 @@ ${open.map((q) => `    · ${q.id}  ${q.author}: ${q.title}`).join("\n")}
 `);
 }
 
+async function cmdVerify() {
+  const local = readLocalRoom();
+  const data = await fetchExport(local.server, requireToken());
+  const verdict = verifyChain((data.entries ?? []) as ChainedEntry[]);
+
+  const HEAD_FILE = join(FOLDER, "chain.json");
+  const stored = existsSync(HEAD_FILE)
+    ? readJsonFile<{ head: string; seq: number; at: string }>(HEAD_FILE)
+    : null;
+
+  if (!verdict.ok) {
+    // `return die(...)` rather than a bare call: `die` is a const arrow with a
+    // `never` return type, and TypeScript only narrows on never-returning
+    // functions declared with `function` or an annotated variable. Without the
+    // return, everything below still sees the failure branch of the union.
+    return die(
+      `THE RECORD DOES NOT VERIFY.
+
+` +
+        `    ${verdict.note}
+` +
+        `    First bad entry: ${verdict.at.id} (seq ${verdict.at.seq})
+` +
+        `    Reason: ${verdict.reason}
+
+` +
+        `    Entries checked before the break: ${verdict.verified}
+` +
+        `    Do not build on this record until it is explained.`,
+    );
+  }
+
+  // THE COMPARISON IS THE POINT. A chain served by the party that could have
+  // rewritten it verifies against itself no matter what -- the only thing that
+  // makes it evidence is a head recorded independently, earlier, on this disk.
+  let drift = "";
+  if (stored && verdict.head) {
+    if (stored.seq > (verdict.to ?? 0)) {
+      drift =
+        `
+  [!!] THE RECORD SHRANK. You stored seq ${stored.seq}; the server now ends at ` +
+        `${verdict.to}. Entries you already saw are gone.`;
+    } else if (stored.seq === verdict.to && stored.head !== verdict.head) {
+      drift =
+        `
+  [!!] THE HEAD CHANGED WITHOUT THE RECORD GROWING.
+` +
+        `       You stored ${stored.head.slice(0, 16)}... at seq ${stored.seq}
+` +
+        `       The server now reports ${verdict.head.slice(0, 16)}... at the same seq.
+` +
+        `       Something was rewritten. Keep bridger/chain.json as evidence.`;
+    } else {
+      drift = `
+  Matches the head you stored on ${stored.at} and has grown since. No rewrite.`;
+    }
+  } else if (!stored) {
+    drift = `
+  No previously stored head, so this run establishes the baseline.`;
+  }
+
+  if (verdict.head) {
+    writeFile(
+      HEAD_FILE,
+      JSON.stringify(
+        { head: verdict.head, seq: verdict.to, at: new Date().toISOString() },
+        null,
+        2,
+      ) + "\n",
+    );
+  }
+
+  console.log(`
+  Chain verified.
+
+  entries hashed and checked : ${verdict.verified}
+  written before chaining    : ${verdict.unchained}
+  segment                    : seq ${verdict.from ?? "-"} to ${verdict.to ?? "-"}
+  head                       : ${verdict.head ?? "(none)"}
+${drift}
+
+  What this proves: no entry was altered relative to the others in what the
+  server just sent. What it does NOT prove on its own: that the server did not
+  recompute the whole chain. That is why the head is written to
+  ${HEAD_FILE} -- run this regularly, and a rewrite becomes provable by you
+  rather than deniable by us.
+`);
+}
+
 // ── dispatch ─────────────────────────────────────────────────────
 
 const USAGE = `
@@ -746,6 +836,8 @@ const USAGE = `
     pull                                 write the record into ./bridger/
     log                                  one line per entry (✓ = has provenance)
     status                               unread, open questions, whose turn
+    verify                               recompute the tamper-evidence chain and
+                                         compare it to the head YOU stored last time
 `;
 
 async function main() {
@@ -765,6 +857,7 @@ async function main() {
     case "pull": return cmdPull();
     case "log": return cmdLog();
     case "status": return cmdStatus();
+    case "verify": return cmdVerify();
     default:
       console.log(USAGE);
       process.exit(process.argv[2] ? 1 : 0);
