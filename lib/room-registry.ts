@@ -33,6 +33,8 @@
  */
 
 import { createHash, randomBytes } from "node:crypto";
+
+import { sanitiseRoomMetadata } from "./room-text";
 import {
   AUDIT_LOG,
   AUDIT_LOG_MAX,
@@ -570,17 +572,24 @@ export async function createRoom(
   const roomId = newRoomId();
   const iso = opts.now.toISOString();
 
-  const ownerCode = deriveCode(opts.ownerLabel);
-  const peerCode = disambiguateCode(deriveCode(opts.peerLabel), ownerCode);
+  // Sanitise HERE, not in the callers. Since S#275 a room can be opened from a
+  // public browser endpoint, so `topic` and both labels are strings a stranger
+  // picks that our model later reads — see `lib/room-text.ts`. Throws
+  // `RoomTextRejected` on input that cannot be made safe; the mint route turns
+  // that into a 400 and the CLI prints it.
+  const { topic, ownerLabel, peerLabel } = sanitiseRoomMetadata(opts);
+
+  const ownerCode = deriveCode(ownerLabel);
+  const peerCode = disambiguateCode(deriveCode(peerLabel), ownerCode);
 
   const room: RoomRecord = {
     id: roomId,
-    topic: opts.topic,
+    topic,
     createdAt: iso,
     closed: false,
     sides: {
-      a: { label: opts.ownerLabel, code: ownerCode, joinedAt: iso },
-      b: { label: opts.peerLabel, code: peerCode, joinedAt: null },
+      a: { label: ownerLabel, code: ownerCode, joinedAt: iso },
+      b: { label: peerLabel, code: peerCode, joinedAt: null },
     },
     dailyCap: DEFAULT_ROOM_DAILY_CAP,
   };

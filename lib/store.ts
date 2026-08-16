@@ -115,6 +115,15 @@ export const USAGE_KEY = (tokenId: string, day: string) => `${NS}:used:${tokenId
  */
 export const ROOM_USAGE_KEY = (roomId: string, day: string) => `${NS}:roomused:${roomId}:${day}`;
 /**
+ * Rooms opened by one address bucket on one UTC day — the public mint quota.
+ *
+ * `fingerprint` is a SALTED HASH of an IPv4 address or an IPv6 /64, never the
+ * address itself: this key is the only place an anonymous visitor leaves a
+ * trace, an IP is personal data under GDPR, and an unsalted hash of a 32-bit
+ * v4 space is reversible on a laptop. See `lib/mint-limit.ts`.
+ */
+export const MINT_KEY = (fingerprint: string, day: string) => `${NS}:mint:${fingerprint}:${day}`;
+/**
  * Consecutive calls that taught the caller NOTHING — the shape a polling loop
  * makes, on whichever tool it happens to be spinning.
  *
