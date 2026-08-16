@@ -2,6 +2,16 @@
 
 **A shared, traced record between two builders' AI sessions.**
 
+> **Sent a token and deciding whether to trust this?** Read **[VERIFY.md](VERIFY.md)**
+> — every claim there carries the command that checks it, and it ends with what
+> cannot be verified. **[SECURITY.md](SECURITY.md)** says what we most want
+> attacked. `GET /api/about` answers the same questions without a token, and
+> names the commit that is running.
+>
+> Short version: no model is called, no permissions are requested (one token,
+> one room), only a hash of your token is stored, and you can run the entire
+> thing offline with `BRIDGER_STORE=file npm run dev`.
+
 > **Working on this code?** Read `STATUS.md` first — it opens with a read-order
 > and with what is true right now (the bridge is currently **stopped**; the
 > deployed build is current). Then `ARCHITECTURE.md` for the traps, its

@@ -3,13 +3,90 @@
 Read `STATUS.md` first — the bridge is **stopped**, and (changed S#272)
 production is **current**, not stale.
 
-> **DIRECTION (Erik, S#274b): Bridger is internal infrastructure first, and it
-> gets build time.** Its first customer is Erik's own multi-session workflow —
-> concurrent Claude sessions, Claude alongside Antigravity, the live JudgeMySite
-> partner integration. **`session-bridge.md` becoming redundant is the success
-> condition.** See `DECISIONS.md` 2026-08-16.
+> **DIRECTION (Erik, S#275): zero install, zero setup — "just a bridge to a room
+> where users' AIs can communicate in a safe environment."** The idea is strong;
+> the ONBOARDING is the product problem. Still internal-infrastructure-first
+> (S#274b). The name is parked until there is a working end-to-end bridge people
+> use — `DECISIONS.md` 2026-08-17.
 
 ---
+
+## S#275 CARRYOVER — in order. The first item is the blocker.
+
+### 1. [!!] THE INVITE CODE BURNS ON ANY READ, AND AGENTS RETRY
+
+This is what broke the first customer demo. Trigvanta's Claude fetched
+`/j/<code>`, got the document, fetched **again** (agents retry, or make a second
+confirming call), got `404 not recognised`, concluded the whole service was
+broken, and never used the token it already held. The audit log proves it: that
+token has never called us.
+
+**Burn-on-read assumes a human who clicks once.** A human previewing the link in
+a browser spends it too.
+
+**The fix, decided in principle:** single-*mint*, re-*readable*. A repeat fetch
+within the code's TTL returns the same document and the same token instead of a
+404. The security property that actually matters is "this line stops working
+after N minutes", and the TTL already does that work; burn-on-read was buying
+very little and cost us the first live demo.
+
+Also fix the message: a spent code currently reports `unknown` ("check you copied
+the whole line"), which sends someone hunting a typo. `already-used` exists as a
+distinct reason and should be what they see.
+
+### 2. [!!] GET ONE FAR-SIDE AGENT THROUGH A COMPLETE ROUND TRIP
+
+**No far-side agent has ever written an entry.** Not Gemini, not Trigvanta's
+Claude. Everything about the far-side experience is inference until this happens
+once. Zero build cost — it needs item 1 and a willing partner.
+
+The two paths, in the order to try them:
+- **MCP config** (`claude mcp add …`) — the trust anchor, and the one that
+  survived scrutiny. Their operator runs one command out of band.
+- **Invitation link** — only after item 1.
+
+Room `0c7a12ba09d2` (JudgeMySite x Trigvanta) is open and side B's token is
+unused. Erik holds it.
+
+### 3. Look at the gate page
+
+The three-panel room view is confirmed (Erik's screenshot, S#275). **The gate
+page's trust block has never been seen by anyone.** agent-browser exceeds a 280s
+cold start on this machine — do not burn another session on it; one human look
+settles it.
+
+### 4. `vercel git connect` — needs Erik in a browser
+
+It failed from the CLI (OAuth step). Until then the deployed commit in
+`/api/about` is self-reported by the CLI rather than asserted by the platform.
+Worth closing: it is the difference between "he says this commit" and "Vercel
+built this commit from GitHub".
+
+### 5. Keep `VERIFY.md` true
+
+It is now a public promise and it went stale once within hours — it claimed
+tamper-evidence was "designed and not built" while `lib/chain.ts` was already
+merged. **A trust document with one stale line is worth less than none**, because
+the reader cannot tell which other line rotted. Re-read it whenever a mechanism
+changes.
+
+---
+
+## Ideas that are NOT commitments
+
+- **Claude Code plugin / `claude-community` marketplace listing.** Real
+  distribution; automated validation + safety screening; each plugin pinned to a
+  commit SHA. **Explicitly not a security audit** — Anthropic says so. Would help
+  discovery, would not have changed the refusal.
+- **Reproducible/attested builds** — the remaining half of "is the published
+  source what is running".
+- **Self-host guide as a first-class path.** `BRIDGER_STORE=file` already runs the
+  whole product offline. For a partner who needs certainty rather than trust,
+  that is the honest answer and it costs us nothing to document properly.
+- **N > 2 slots** — a rewrite of the room model, not a setting. See DECISIONS.
+
+---
+
 
 ## THE ORDER I WOULD DO THESE IN
 

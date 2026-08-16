@@ -378,6 +378,86 @@ the tool list has silently become a boundary nothing else enforces.
 
 ---
 
+### 30. The mint route must check the kill switch itself — every other route gets it free
+
+`authorize()` checks `KILL_SWITCH` for every authenticated request, so twelve
+tools and four endpoints inherit the panic button without knowing it exists.
+`POST /api/rooms` has **no token to authorise**, so it inherits nothing. Without
+its own explicit check, `bridger stop` would refuse every existing room while
+cheerfully minting new ones — the panic button failing open on the one path that
+creates work. Any future unauthenticated route has the same hole by default.
+
+### 31. Two-ness is the data model, not a setting
+
+`SideId = "a" | "b"`; `otherSide()` is a boolean flip; `sides` is a fixed-shape
+object; entry ids are namespaced per side (`JMS-Q-014`); "the peer" is singular
+in `whoami`, in the wait cursor and in the idle brake. N parties is a rewrite of
+the core plus new semantics that do not exist yet (does an answer close a
+question for *everyone*? does the brake trip per party or per room? who does a
+contract bind?). The slot picker shows 3 and 4 disabled **with the reason**
+rather than implying it is a bigger number away.
+
+### 32. A quota REFUSAL burns a slot; a VALIDATION failure must not
+
+`chargeMint` increments atomically *before* deciding, so a refused attempt still
+costs — otherwise the boundary can be probed for free. But the first build also
+charged before validating the form, so an empty label or an over-long topic
+burned one of the day's three rooms. **Measured, not reasoned:** the live counter
+read 3 with only two rooms in existence. Two typos and an honest person is locked
+out until midnight UTC. Validation now runs first and costs nothing; the sanitiser
+runs twice (once to validate, once inside `createRoom`) rather than passing
+cleaned values back in, which would risk double-escaping the containment markers.
+
+### 33. `parseEntry` rebuilds entries field by field — anything unnamed is silently dropped
+
+It does not spread the stored object; it constructs a new one. So a field added
+to `Entry` and written by `appendEntry` will be **erased on every read** unless
+`parseEntry` is updated too. This bit the hash chain immediately: entries were
+written with `hash`/`prevHash`, stripped on read, and the verifier reported
+`unchained` while looking perfectly correct. Written-and-invisible is worse than
+never written, because the failure renders as a legitimate state.
+
+### 34. IPv6 must be counted by /64, or the limit does not exist
+
+A residential ISP hands one customer a /64 at minimum — 18 quintillion addresses,
+often a /56 or /48. Counting exact v6 addresses is therefore identical to having
+no limit at all for anyone on a modern connection, while v4 users get the real
+cap. The asymmetry is **invisible in testing** (a laptop on v4 watches the limit
+work perfectly) and total in production. Same trap applies to any future
+per-address counter.
+
+### 35. The rate limit and the poll interval are one system, and they collided
+
+A 3-second poll is 20 requests a minute. `RATE_LIMIT_PER_MINUTE` was 20. The UI
+therefore ran permanently ON the ceiling and the first extra call — the `whoami`
+on mount — tipped it into `429`. And `setInterval` has a fixed period, so a
+rate-limited tab re-earned its limit every minute and **could never recover**
+without a manual reload. Three fixes, all needed: viewers get their own ceiling
+(60/min — they cannot write and call no model, so the agent-loop reasoning behind
+the 20 does not apply), the poll is 4s, and the loop is a self-rescheduling
+timeout with backoff. **Whenever either number moves, check it against the other.**
+
+### 36. A credential-shaped test fixture is a real problem for a public repo
+
+GitHub push protection blocked the first publish, citing a Stripe key in
+`lib/__tests__/secrets.test.ts` — our own secret scanner's test fixture, fake
+since the day it was written and realistic enough to trip GitHub's detector. That
+is inherent to testing a secret detector. Fixtures are now **assembled from
+fragments at runtime** (`j("sk", "_live_", "…")`) so no credential-shaped literal
+exists on disk while the value reaching `scanForSecrets` is byte-identical.
+Clicking GitHub's "allow this secret" was rejected: a repo whose pitch is *audit
+me* cannot carry strings that light up an auditor's tooling.
+
+### 37. Raw control bytes in source make a file binary to `grep`
+
+Four files in S#275 shipped raw NUL or bidi characters where escape *text* was
+intended — including `lib/chain.ts`, where a NUL sat inside the hash input. It
+worked (NUL is a fine domain separator) but it made the hashing function
+unreviewable by `grep`, in the one file whose entire purpose is being auditable.
+**Write character classes as numeric code points** (`STRIP_RANGES` in
+`room-text.ts`) and build hostile test fixtures with `String.fromCodePoint`. A
+regex of invisible characters cannot be reviewed by anyone, including its author.
+
 ## Invariants — break these and something silent goes wrong
 
 1. **No LLM call, ever.** The moment a model call enters this codebase, the cost

@@ -5,6 +5,133 @@ Append-only, newest first. **DECISIONS wins on direction** — where this file a
 
 ---
 
+## 2026-08-17 — S#275 — THE NAME IS PARKED UNTIL THE PRODUCT EARNS ONE
+
+**Erik's call, verbatim:** *"This isn't even a real product with credibility yet,
+that will have to wait until we have fixed a real working end to end bridge that
+people use."* `.ai` at $80/yr base was the trigger; the reasoning generalises.
+
+**Also his direction, and it is the sharpest statement of the product so far:**
+*"The idea is genuinely strong, especially if we can get it to be 0 install and
+0 setup. Just a bridge to a room where users' AIs can communicate in a safe
+environment."* Zero-install/zero-setup is the goal; "safe environment" is the
+constraint that makes it hard, and S#275 proved the two pull against each other.
+
+**Names rejected, with reasons** (so nobody re-proposes them):
+- `bridger` everywhere — taken. `bridger.vercel.app` belongs to a stranger, and
+  our CLI printed join lines pointing at it for weeks (fixed S#275).
+- `meshbridge.org` — **mesh means many-to-many; this product is strictly two
+  party** (`SideId = "a" | "b"` is the data model, not a setting). The name
+  promises a topology we would have to refuse in the first sales call. Also two
+  connection words stacked, saying the same thing twice.
+- `syncexxer.net` — invented word, unspellable from hearing, and "sync" is wrong:
+  this is an append-only record, not state mirroring. An invented word on `.net`
+  is exactly the texture that made a partner's AI refuse us.
+- `routemachine.org/.net` — "route" is the pipe framing, and routing is precisely
+  what we do NOT do. Names the commodity half.
+- `llm-chain.com` — **collides with a real published Rust crate** (`llm-chain` on
+  docs.rs) and with the established industry term for sequencing prompts. A
+  developer reads "prompt orchestration framework". Also collides with our own
+  `lib/chain.ts`, and "LLM" as a brand dates like "AJAX".
+
+**Checked and free at the time:** `trycrossing.com` $11.25 · `crossing.team`
+$7.99 · `crossing.dev` $97.90 · `bothsides.dev` $9.99 · `coupler.sh` $22.
+
+**The standing tension, worth re-reading before picking:** a name optimised purely
+for "ah, it's about connecting" names the commodity. Every competitor found in the
+S#271 scan is a pipe — AgentDM never stores message content, Agent Relay keeps
+transcripts, **none of them keep the record**. The moat is that every answer
+carries what it was checked against.
+
+---
+
+## 2026-08-17 — S#275 — ANYONE MAY OPEN A ROOM. NO LOGIN.
+
+**Erik, asked directly who should be allowed to press "Start new Room":**
+*"Anyone. The room is the platform and the tokens generated from that room are
+the connectors you paste into the session you are having with your AI of
+choice."*
+
+Accepted, and the guards are deliberately NOT authentication: a per-address mint
+quota (3/day, a cost-of-abuse measure a VPN defeats — stated as such in
+`lib/mint-limit.ts`), metadata sanitising, a 2-hour TTL for unclaimed rooms, and
+the kill switch checked explicitly on the mint path.
+
+**Two answers that shrank the build:**
+- **The chat is watch-only.** *"The communication between you and gemini is the
+  users chatting."* So the browser mints and renames and never writes an entry —
+  one write path into the ledger, still through the tools.
+- **The folder tree is a VIEW, not a store.** *"Storage of things like
+  implementations agreed upon or decisions argued and conclusion reached on. It's
+  for traceability."* Rendered from entry types that already exist; folder names
+  are editable and live in `localStorage`, deliberately not server state, so one
+  side's cosmetic choice cannot rewrite the other's screen.
+
+**Deferred, not rejected: N > 2 slots.** Two-ness is the data model — `otherSide()`
+is a boolean flip, entry ids are namespaced per side, "the peer" is singular in
+whoami, the wait cursor and the idle brake. The slot picker offers 3 and 4 as
+visibly disabled with the reason stated, rather than pretending it is a setting.
+
+---
+
+## 2026-08-17 — S#275 — PUBLISH THE SOURCE, AND SAY WHAT CANNOT BE VERIFIED
+
+**Erik:** *"We may publish it, make sure to write a real comprehensive check and
+use list other AI's can read and understand as well as people like me."* Operator
+named as **Erik Hammarström**. Repo public at
+https://github.com/Hammaarn/bridger.
+
+**Why this became the priority — a partner's Claude refused to connect and was
+right.** Handed a Bridger token, it declined to call anything at all, reasoning
+that a pasted bearer token for a domain it had never seen is structurally
+identical to a prompt injection, and that our credible-sounding reference to
+JudgeMySite came from its OWN session history rather than proof we were
+legitimate. Its follow-up is the load-bearing sentence:
+
+> *"Att config-filen är rätt typ av tillitsankare löser inte automatiskt frågan om
+> Bridger specifikt är legitimt. 'Rätt tillitsmekanism' och 'verifierad tjänst' är
+> två separata saker, och den här tråden har bara etablerat den första."*
+
+**The doctrine that follows, and it should not be re-litigated: first contact is
+always operator-to-operator. After that, the agents talk.** An agent cannot
+verify a stranger's URL from a pasted message — the credibility of the message is
+exactly what is in question. The MCP config path is the trust anchor because an
+operator editing their own config is an out-of-band act by someone the agent
+already trusts. The invitation link is a convenience path INSIDE established
+trust, never the thing that establishes it.
+
+**Standing policy (`SECURITY.md`): we do not help bypass another agent's refusal.**
+A refusal is a bug report about our onboarding, not an objection to argue away.
+
+**Shipped in response:** `VERIFY.md` (every claim carries the command that checks
+it; ends with what cannot be verified), `SECURITY.md` (ranked invitation to
+attack), `GET /api/about` (unauthenticated — the refusal was specifically about
+having to present a credential to find out what this is; carries the build commit
+so the service names the revision that answered).
+
+**Rejected:** clicking GitHub's "allow this secret" link when push protection
+blocked our secret-scanner's own test fixture. A repository whose pitch is *audit
+me* has no business carrying credential-shaped strings. Fixtures are assembled
+from fragments; history was rewritten to scrub the old literals (backup ref
+`backup-pre-scrub`).
+
+---
+
+## 2026-08-17 — S#275 — TAMPER-EVIDENCE, AND THE LIMIT ON THE CLAIM
+
+Entries are hash-chained (`lib/chain.ts`). **The claim is bounded and the code
+says so:** the server computes the hashes, so an operator who edits an entry can
+recompute the chain and serve a self-consistent forgery. A chain verified only
+against the server that produced it proves nothing about that server.
+
+What makes it evidence is a second observer: `bridger verify` writes the head to
+`bridger/chain.json` on the partner's disk. **The accurate claim is "an operator
+cannot alter the record without every side that has pulled it being able to prove
+so", not "cannot alter it".** A test asserts the success note contains "does NOT
+prove". Do not upgrade this wording without upgrading the mechanism.
+
+---
+
 ## 2026-08-16 — S#274b — BRIDGER IS INTERNAL INFRASTRUCTURE FIRST. ERIK'S CALL.
 
 **Source:** Erik, verbatim — *"Bridger is a tool worth building because the use
