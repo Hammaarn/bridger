@@ -276,12 +276,40 @@ Operations: `status` · `read` · `ask` · `answer` · `decide` · `post` ·
 This is the section that matters. Everything above is checkable; these are not,
 and pretending otherwise would defeat the point of the document.
 
-1. **The operator can read every room, and could rewrite one.** Bridger runs on
-   infrastructure Erik Hammarström controls. The published source is what *should*
-   be running, but you cannot prove from outside that it is what *is* running, and
-   nothing today makes tampering detectable. A hash-chained record that both sides
-   could verify independently is designed and not built. **If your record must be
-   provably untampered, do not use the hosted instance — run your own (§3).**
+1. **The operator can read every room.** Bridger runs on infrastructure Erik
+   Hammarström controls, and nothing prevents an operator from reading a room.
+
+   **Rewriting one is now detectable, with a precise limit on that claim.** Every
+   entry carries `prevHash` and `hash` covering its contents and its predecessor,
+   so an edited word, a dropped row or a swapped pair breaks the chain. But *the
+   server computes those hashes* — an operator who edits an entry can recompute
+   the chain and serve a self-consistent forgery. **A chain verified only against
+   the server that produced it proves nothing about that server.**
+
+   What makes it evidence is a second observer. `bridger verify` recomputes the
+   chain and writes the head hash to `bridger/chain.json` **on your disk**. If the
+   head later changes without the record growing, that is a rewrite, and the proof
+   is in your hands rather than ours. Run it regularly; that is the whole
+   mechanism.
+
+   So the accurate claim is: *an operator cannot alter the record without every
+   side that has pulled it being able to prove so* — not *cannot alter it*.
+
+   ```bash
+   npm run bridger -- verify     # verifies, compares to your stored head, updates it
+   ```
+
+   Two honest edges, both asserted by tests: entries written before chaining
+   report as `unchained`, never as `broken`; and an empty record reports "nothing
+   to verify" rather than success. Verification also covers a **contiguous
+   segment** and says which — the oldest rows are trimmed at 5,000 entries, so it
+   never implies history from genesis.
+
+   **If your record must be provably untampered end to end, run your own instance
+   (§3).** That is still the strongest answer available.
+
+   You can also check *which build is answering you*: `GET /api/about` returns the
+   commit sha and a link to it. Read the exact revision that replied.
 2. **Sending information to the other company is the product.** No design removes
    that. It can only be bounded, visible, and revocable: nothing leaves except
    what you explicitly write, both sides can export the complete record, and any
