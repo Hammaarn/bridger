@@ -41,6 +41,7 @@ import {
   KILL_SWITCH,
   RATE_KEY,
   RATE_LIMIT_PER_MINUTE,
+  VIEWER_RATE_LIMIT_PER_MINUTE,
   DEFAULT_DAILY_CAP,
   DEFAULT_ROOM_DAILY_CAP,
   DEFAULT_TOKEN_TTL_DAYS,
@@ -455,7 +456,12 @@ export async function authorize(store: Store | null, ctx: AuthContext): Promise<
       const bucket = RATE_KEY(token.id, minuteBucket(ctx.now));
       const perMinute = await store.incr(bucket);
       if (perMinute === 1) await store.expire(bucket, 120);
-      if (perMinute > RATE_LIMIT_PER_MINUTE) return { ok: false, reason: "rate-limited" };
+      // A viewer gets its own ceiling: it cannot write and calls no model, so
+      // the loop this limit exists to stop cannot happen on it. See
+      // `VIEWER_RATE_LIMIT_PER_MINUTE` for the incident that found this.
+      const ceiling =
+        token.role === "viewer" ? VIEWER_RATE_LIMIT_PER_MINUTE : RATE_LIMIT_PER_MINUTE;
+      if (perMinute > ceiling) return { ok: false, reason: "rate-limited" };
 
       const day = utcDay(ctx.now);
       const dayKey = USAGE_KEY(token.id, day);

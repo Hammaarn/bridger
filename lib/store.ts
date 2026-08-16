@@ -178,6 +178,29 @@ export const AUDIT_LOG_MAX = 5000;
 export const RATE_LIMIT_PER_MINUTE = 20;
 
 /**
+ * The same ceiling, for a token that cannot write.
+ *
+ * FOUND BY DEMOING IT. The web view polls `/api/export` every few seconds; at a
+ * 3-second interval that is exactly 20 requests a minute, which is exactly the
+ * participant limit. So the product's own UI sat precisely on the product's own
+ * ceiling and tipped over on the first extra call — and because the poll kept
+ * firing at the same rate afterwards, a tripped viewer stayed rate-limited
+ * forever. The first screen a customer saw said `429: rate-limited`.
+ *
+ * Raising the shared number would have been the wrong fix. The 20 exists
+ * because an agent loop burned an entire model quota, and that reasoning is
+ * about a caller that REASONS between calls — each turn costs the far side real
+ * money and can spiral. A viewer is the opposite case in every respect: it
+ * calls no model, cannot write a single byte into the record, and costs one
+ * Redis read. It is a browser tab belonging to a human who is watching.
+ *
+ * 60/minute is one call a second — comfortably above any sane poll, still a
+ * bound rather than an invitation. The client also backs off now, so this is
+ * the ceiling, not the operating point.
+ */
+export const VIEWER_RATE_LIMIT_PER_MINUTE = 60;
+
+/**
  * Default hard stop per token per UTC day.
  *
  * Restored from `roastmydev/lib/external/key-registry.ts`, which has enforced a
