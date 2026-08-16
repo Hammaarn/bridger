@@ -89,7 +89,7 @@ describe("whoami — what a VALID token is told", () => {
 
   it("an answerer is pointed at ping, not status — the tool it does not have", async () => {
     const { store, room } = await bridge();
-    const raw = await issueToken(store, room, "b", T0, null, "answerer");
+    const raw = await issueToken(store, room, "b", T0, undefined, "answerer");
     const out = await authorize(store, { presentedToken: raw, now: T0 });
     assert.ok(out.ok);
 
@@ -102,7 +102,7 @@ describe("whoami — what a VALID token is told", () => {
 
   it("a viewer is told it cannot write BEFORE it gets refused mid-task", async () => {
     const { store, room } = await bridge();
-    const raw = await issueToken(store, room, "b", T0, null, "viewer");
+    const raw = await issueToken(store, room, "b", T0, undefined, "viewer");
     const out = await authorize(store, { presentedToken: raw, now: T0 });
     assert.ok(out.ok);
     assert.equal(whoamiBody(room, out.token).you.canWrite, false);

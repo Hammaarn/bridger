@@ -43,6 +43,7 @@ import {
   RATE_LIMIT_PER_MINUTE,
   DEFAULT_DAILY_CAP,
   DEFAULT_ROOM_DAILY_CAP,
+  DEFAULT_TOKEN_TTL_DAYS,
   USAGE_KEY,
   ROOM_USAGE_KEY,
   IDLE_STREAK_KEY,
@@ -609,10 +610,24 @@ export async function issueToken(
   room: RoomRecord,
   side: SideId,
   now: Date,
-  expiresAt: string | null = null,
+  /**
+   * `undefined` (or omitted) takes the default lifetime. `null` means FOREVER
+   * and must now be written deliberately.
+   *
+   * The distinction is the whole fix. This parameter used to default to `null`,
+   * so every caller that wanted to reach `role` typed `null` as filler and
+   * minted an immortal credential without deciding to — five call sites, none
+   * of which meant it. Making "forever" require an explicit `null` turns a
+   * default into a choice someone has to justify in a diff.
+   */
+  expiresAt?: string | null,
   role: TokenRole = "participant",
   dailyCap: number = DEFAULT_DAILY_CAP,
 ): Promise<string> {
+  const expiry =
+    expiresAt === undefined
+      ? new Date(now.getTime() + DEFAULT_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000).toISOString()
+      : expiresAt;
   const raw = mintTokenString();
   const hash = hashToken(raw);
   const record: TokenRecord = {
@@ -626,7 +641,7 @@ export async function issueToken(
     dailyCap,
     active: true,
     createdAt: now.toISOString(),
-    expiresAt,
+    expiresAt: expiry,
   };
   await store.set(TOKEN_KEY(hash), JSON.stringify(record));
   await store.sadd(ROOM_TOKENS_KEY(room.id), hash);
