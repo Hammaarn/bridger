@@ -5,6 +5,49 @@ Append-only, newest first. **DECISIONS wins on direction** — where this file a
 
 ---
 
+## 2026-08-16 — S#274b — BRIDGER IS INTERNAL INFRASTRUCTURE FIRST. ERIK'S CALL.
+
+**Source:** Erik, verbatim — *"Bridger is a tool worth building because the use
+cases we can utilize from our end is quite big, that's why I have been focusing
+on it."*
+
+**Reverses:** my recommendation the same session that Bridger was "done enough
+to sit", on the grounds that it needs two companies both running AI sessions
+against a shared integration and is therefore a narrow buy.
+
+**Why I was wrong, and it is worth writing down because it is a reasoning error
+rather than a taste difference.** I evaluated Bridger as a product for an
+external market and never asked who its *first* customer is. It is Erik. He
+already runs concurrent Claude sessions and coordinates them by hand through
+`session-bridge.md`; he already runs Claude alongside Antigravity; he already
+has a live partner integration in JudgeMySite. The "narrow, sophisticated buyer"
+objection dissolves the moment the buyer is the operator — that user exists,
+uses it daily, and currently has a manual workaround.
+
+The S#271 note already said this and I did not weigh it: *"once Bridger works
+between two of HIS sessions, `session-bridge.md` becomes redundant — and that
+migration is the most honest end-to-end test available, because both sides would
+be ours."* That is a real internal use case and a real end-to-end test in one.
+
+**What this changes:**
+
+1. **Bridger gets build time.** It is not parked.
+2. **The first integration target is Erik's own multi-session workflow**, not an
+   external partner. Both sides being ours removes every coordination excuse
+   from the test.
+3. **`session-bridge.md` becoming redundant is the success condition** worth
+   aiming at — a concrete, checkable one, unlike "a partner likes it".
+4. **The "run it once" recommendation survives the reversal**, for a different
+   reason than I gave. Not "validate before investing further" — rather, the
+   internal use case is available *now* and would settle four open unknowns at
+   zero build cost. The argument was right; my justification for it was not.
+
+**Scope note.** Nothing about the build is downgraded by the earlier
+recommendation, and nothing about it was built on the assumption that Bridger
+would be parked.
+
+---
+
 ## 2026-08-15 — S#274 — THE FAR-SIDE COST LANE, AND WHAT I DECIDED ALONE
 
 Erik asked for "a Ping, no probing — it burns tokens on Antigravity", chose

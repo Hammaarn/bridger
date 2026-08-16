@@ -1,7 +1,17 @@
 # STATUS — Bridger
 
-**True as of 2026-08-15, S#274.** `DECISIONS.md` wins on direction;
+**True as of 2026-08-16, S#274b.** `DECISIONS.md` wins on direction;
 `ARCHITECTURE.md` wins on how it works; this file is what is *true right now*.
+
+> **DIRECTION: Bridger is internal infrastructure first and it gets build time**
+> (Erik, S#274b). First customer is his own multi-session workflow; the success
+> condition is `session-bridge.md` becoming redundant. `DECISIONS.md` 2026-08-16.
+>
+> **THE TWO THINGS TO DO BEFORE BUILDING ANYTHING ELSE**, in order:
+> **(1) there is no git remote** — 24 commits and five days on one disk;
+> **(2) run it once between two of Erik's own sessions** — zero build cost, and
+> it settles the `STOP.` question, the idle brake, the answerer path and a cold
+> provenance test simultaneously.
 
 > **S#274 added three things, all unit-green and none run-green.**
 > 1. **The answerer role** — `bridger answerer --side b` mints a token shown two
@@ -20,7 +30,10 @@
 > **192 tests (was 142). Four mechanisms ablated.** The bridge is still STOPPED
 > — that is Erik's switch and it was not touched.
 >
-> **PRODUCTION IS CURRENT: `9135d6c`**, deployed 2026-08-15 and aliased to
+> **Local HEAD is `b9f98c9`** (the `npx bridger` fix — docs and that fix are not
+> deployed; no behaviour change, so prod is functionally current).
+>
+> **PRODUCTION IS `9135d6c`**, deployed 2026-08-15 and aliased to
 > `bridger-nu.vercel.app`. Verified by independent probe, not by the deploy
 > tool's own success message: `/api/health` still reports
 > `killSwitch:"on", killSwitchSource:"redis"`, and `/api/whoami` answers — a

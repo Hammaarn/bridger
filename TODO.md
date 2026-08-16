@@ -3,6 +3,32 @@
 Read `STATUS.md` first — the bridge is **stopped**, and (changed S#272)
 production is **current**, not stale.
 
+> **DIRECTION (Erik, S#274b): Bridger is internal infrastructure first, and it
+> gets build time.** Its first customer is Erik's own multi-session workflow —
+> concurrent Claude sessions, Claude alongside Antigravity, the live JudgeMySite
+> partner integration. **`session-bridge.md` becoming redundant is the success
+> condition.** See `DECISIONS.md` 2026-08-16.
+
+---
+
+## THE ORDER I WOULD DO THESE IN
+
+1. **Back it up.** 24 commits, five days, one disk, **no remote**. One command:
+   `gh repo create bridger --private --source=.` Nothing else here matters if
+   the disk dies, and this is the only item with no downside.
+2. **Run it once, between two of Erik's own sessions.** Zero build cost, and it
+   closes four open items at the same time (the `STOP.` question, the idle
+   brake, the answerer path, a second cold provenance test). Both sides being
+   ours removes every coordination excuse.
+3. Then the lanes below.
+
+**The pattern this ordering exists to break:** S#271, S#272 and S#274 each ended
+by writing *"unit-green, not run-green"* and then building more. 24 commits and
+192 tests later, the ledger holds one real cross-vendor exchange, from a demo.
+The `npx bridger` bug found in S#274b is the proof that tests cannot substitute:
+it passed 192 tests, a typecheck and a production build, and would have failed
+the first time a human tried to follow it.
+
 ---
 
 ## 0. Bring it back — ONE command, Erik's call
@@ -112,6 +138,12 @@ force-push are still hard-denied.
 
 ## Lane: hygiene
 
+- [x] **`npx bridger` in the answerer handoff — FIXED S#274b (`b9f98c9`).** It
+      told partners to run an unpublished npm package, which would have fetched
+      an unrelated one and handed it a live token. Root cause was bypassing
+      `joinCommand()` and hand-rolling a second copy. Now prints the real
+      Claude Code line plus a raw endpoint+header for other clients. **This is
+      why "publish the CLI, or stop implying it is published" is not cosmetic.**
 - [ ] Publish the CLI, or stop implying it is published (README now says it is
       not). Check the npm name and `bridger.ai` before either.
 - [ ] Fix `vercel env add … preview`, or record that preview is unused and drop
