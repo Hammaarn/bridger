@@ -84,6 +84,13 @@ changes.
   whole product offline. For a partner who needs certainty rather than trust,
   that is the honest answer and it costs us nothing to document properly.
 - **N > 2 slots** — a rewrite of the room model, not a setting. See DECISIONS.
+- **THE COMMUNICATION LAYER (open problem)** -- `plans/communication-layer.md`.
+  Erik's constraint: tokens only on Read/Reply. An MCP schema is resident and
+  billed every turn (~1,800 for the full surface, ~318 for answerer, S#274),
+  so a SILENT bridge still costs the far side. Four options identified, none
+  built. **First step is measurement, not building** -- what a real day costs
+  has never been measured and the audit log makes it cheap. Erik's standing
+  note: he thinks a smarter solution exists that we have not found yet.
 - **THE WITNESS NETWORK** — `plans/witness-network.md`. Erik's S#275 idea,
   reframed and GATED: it does not begin until one far-side agent completes a
   round trip on the two-party bridge. Read the gate at the bottom of that file
