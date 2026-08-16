@@ -44,6 +44,7 @@ import {
   touchRoom,
 } from "./store";
 import type { RoomRecord, SideId, TokenRecord } from "./room-registry";
+import { entryHash, type ChainedEntry } from "./chain";
 import { otherSide, resetIdleStreak } from "./room-registry";
 import { scanForSecrets, secretRefusal } from "./secrets";
 import { openQuestionIds, wasReopened } from "./question-state";
@@ -161,7 +162,27 @@ export function parseEntry(raw: unknown): Entry | null {
     answers: typeof e.answers === "string" ? e.answers : null,
     why: typeof e.why === "string" ? e.why : null,
     checkedAgainst: typeof e.checkedAgainst === "string" ? e.checkedAgainst : null,
-  };
+    /**
+     * The chain fields must survive the round trip or the whole mechanism is
+     * decorative: this function rebuilds the entry field by field, so anything
+     * not named here is silently dropped on every read. Written and then erased
+     * before anyone could check it is worse than never written, because the
+     * verifier would report "unchained" and look correct doing it.
+     *
+     * Copied verbatim, never re-derived. A parser that recomputed the hash
+     * would agree with itself no matter what the stored bytes said, which is
+     * precisely the tampering this is supposed to expose.
+     */
+    ...(typeof (e as ChainedEntry).hash === "string"
+      ? {
+          hash: (e as ChainedEntry).hash,
+          prevHash:
+            typeof (e as ChainedEntry).prevHash === "string"
+              ? (e as ChainedEntry).prevHash
+              : null,
+        }
+      : {}),
+  } as Entry;
 }
 
 // ── writing ──────────────────────────────────────────────────────
@@ -216,10 +237,27 @@ export async function appendEntry(
     checkedAgainst: input.checkedAgainst ?? null,
   };
 
-  await store.rpush(ENTRIES_KEY(room.id), JSON.stringify(entry));
+  /**
+   * Chain this entry to the one before it. See `lib/chain.ts` for what this
+   * does and — more importantly — what it does not.
+   *
+   * The head is read from the LAST STORED ENTRY rather than from a counter
+   * kept alongside. A counter is a second source of truth that can drift out of
+   * step with the list it describes (a trim, a partial write, a restore from
+   * backup), and a chain anchored to a drifted counter reports tampering that
+   * never happened. Reading the tail costs one `lrange` of a single element and
+   * cannot disagree with the data.
+   */
+  const tail = await store.lrange(ENTRIES_KEY(room.id), -1, -1);
+  const previous = tail.length ? ((coerceJson(tail[0]) as ChainedEntry | null) ?? null) : null;
+  const prevHash = previous?.hash ?? null;
+  const chained: ChainedEntry = { ...entry, prevHash, hash: "" };
+  chained.hash = entryHash(prevHash, entry);
+
+  await store.rpush(ENTRIES_KEY(room.id), JSON.stringify(chained));
   await store.ltrim(ENTRIES_KEY(room.id), -MAX_ENTRIES, -1);
   await touchRoom(store, room.id);
-  return entry;
+  return chained;
 }
 
 // ── reading ──────────────────────────────────────────────────────

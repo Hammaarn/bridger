@@ -69,6 +69,31 @@ export async function GET(req: Request) {
         note: "Read the server that is asking you to trust it. Everything below is checkable there.",
       },
 
+      /**
+       * WHICH COMMIT IS ANSWERING YOU.
+       *
+       * Linking to a repository only says "the source exists somewhere". This
+       * says which revision of it produced the response you are reading, so the
+       * claim stops being self-assertion: take the sha, open the commit URL,
+       * read the exact code that just replied.
+       *
+       * It does not make tampering impossible — a dishonest operator could
+       * report any string here. What it does is remove the AMBIGUITY: an honest
+       * deployment is now checkable against public code, and a mismatch between
+       * this sha and the behaviour you observe is evidence rather than a
+       * suspicion you cannot act on.
+       */
+      build: {
+        commit: process.env.VERCEL_GIT_COMMIT_SHA ?? null,
+        branch: process.env.VERCEL_GIT_COMMIT_REF ?? null,
+        commitUrl: process.env.VERCEL_GIT_COMMIT_SHA
+          ? `${REPO}/commit/${process.env.VERCEL_GIT_COMMIT_SHA}`
+          : null,
+        deploymentId: process.env.VERCEL_DEPLOYMENT_ID ?? null,
+        region: process.env.VERCEL_REGION ?? null,
+        note: "The revision that produced this response. Open commitUrl and read exactly what is running. Null means it is running outside a Vercel build — a local clone, for instance, which is the strongest verification of all.",
+      },
+
       // The single most important field on this endpoint. Most MCP servers ask
       // for a scope — Drive, Slack, a filesystem. This one asks for a room.
       permissions: {
