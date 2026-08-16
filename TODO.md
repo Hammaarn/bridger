@@ -84,6 +84,10 @@ changes.
   whole product offline. For a partner who needs certainty rather than trust,
   that is the honest answer and it costs us nothing to document properly.
 - **N > 2 slots** — a rewrite of the room model, not a setting. See DECISIONS.
+- **THE WITNESS NETWORK** — `plans/witness-network.md`. Erik's S#275 idea,
+  reframed and GATED: it does not begin until one far-side agent completes a
+  round trip on the two-party bridge. Read the gate at the bottom of that file
+  before touching it.
 
 ---
 
