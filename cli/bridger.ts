@@ -457,9 +457,16 @@ async function cmdAnswerer() {
   Answerer token for ${room!.sides[side].label} on "${room!.topic}".
   Two tools only: bridger_ping (one call, everything) and bridger_answer.
 
-  Send your partner this ONE line:
+  ── IF THEY RUN CLAUDE CODE ───────────────────────────────────────
+  ${joinCommand(server, token)}
 
-      npx bridger join ${token} --server ${server.replace(/\/$/, "")}
+  ── ANY OTHER MCP CLIENT (Antigravity, Gemini CLI, Cursor) ────────
+  endpoint:  ${server.replace(/\/$/, "")}/api/mcp
+  header:    Authorization: Bearer ${token}
+
+  Antigravity names the endpoint \`serverUrl\` and REJECTS \`url\`/\`httpUrl\`,
+  and it has three mcp_config.json files on disk of which two are empty.
+  The client matrix in README.md has the exact shape per client.
 
   Then tell their agent: "call bridger_ping, answer what is waiting, then stop."
 
