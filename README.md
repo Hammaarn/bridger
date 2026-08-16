@@ -167,12 +167,29 @@ Tokens are shown **once**. Only `sha256(token)` is stored, so a dump of the
 registry cannot call the bridge — and we genuinely cannot recover a lost token.
 Use `bridger rotate --side a|b` instead.
 
-## Two kinds of token
+## Three kinds of token
 
 | Role | Can | Mint with |
 |---|---|---|
 | `participant` | read and write; speaks as its side | `bridger open` / `bridger rotate` |
 | `viewer` | read only — every write tool refuses it | `bridger viewer --side a\|b` |
+| `answerer` | read and write, but sees only **two tools** | `bridger answerer --side a\|b` |
+
+**`answerer` is a cost role, not a permission role — the distinction matters.**
+Bridger calls no LLM, so every tool schema it publishes is billed to the
+*caller* on every one of their turns, whether or not they use it. Measured: the
+full surface is **~1,800 tokens of standing context per turn**; an answerer's is
+**~318**. It is shown `bridger_ping` and `bridger_answer` and given nothing to
+probe with, which is the point — the drain was never one expensive call, it was
+three cheap ones plus nine schemas held forever.
+
+It **writes**. A smaller surface, not a weaker one. If you want to restrict
+somebody, use `viewer`.
+
+> ⚠️ **Hiding a tool is not gating it.** The narrowed list saves the caller
+> tokens and nothing else: every refusal still lives in `lib/operations.ts`, so
+> an answerer reaching a hidden tool by other means is refused there on the same
+> rule as anyone else. Never move a guard into the tool list.
 
 **Use a viewer token for the web view.** Watching a bridge should not require
 handing out the ability to speak as one of its sides — and a browser tab is
@@ -190,6 +207,7 @@ partner mid-integration.
 
 | Tool | Use |
 |---|---|
+| `bridger_ping` | **One call, everything**: questions awaiting you, new entries, sign-off. Replaces status+read+wait. Answer, or stop. |
 | `bridger_status` | What's new, open questions, whose turn. Call it at session start. |
 | `bridger_read` | Fetch entries by cursor, type or id; advance your cursor. |
 | `bridger_ask` | Open a question for the other side. |
@@ -204,6 +222,55 @@ partner mid-integration.
 
 `skill/SKILL.md` ships the usage discipline, so the agent learns the protocol
 from the tool rather than from you explaining it each time.
+
+## How specific is the receipt?
+
+`checkedAgainst` is the point of this product, so it is not treated as an opaque
+string. Every citation is classified and its **span** displayed:
+
+| Citation | Reads as |
+|---|---|
+| `lib/store.ts:41` | exact line |
+| `plans/05-ux.md:925-994` | **70 lines** |
+| `lib/store.ts` | whole file |
+| `GET /api/health` | command output |
+| `the codebase` | **no locator** |
+| *(omitted)* | unchecked |
+
+You see it in three places: `checkedSpan` on the agent wire, a badge plus a
+**thin citations** count in the web view, and `✓` / `◐` / `?` in `bridger log`.
+
+**Thin citations are counted separately from unchecked ones**, deliberately. An
+answer with no citation is honestly unchecked. An answer citing "the codebase"
+*reads as verified and is not* — collapsing the two would hide the worse case
+behind the better-behaved one.
+
+> **It grades the citation, never the claim.** A one-line citation can point at
+> the wrong line; a 400-line one can be honest for a claim about a module. The
+> span is a fact about the string, and that is the whole promise — the moment
+> this became a quality score it would be a confident number produced by a
+> regex, which is worse than no signal, because a number gets trusted.
+
+This exists because it already happened by hand: a partner's two citations were
+audited manually and one turned out to cover 70 lines while only glancingly
+touching the claim — over-broad, not fabricated. Nothing in the product could
+show the difference. Now it can.
+
+## Checking a token works
+
+```bash
+curl -H "Authorization: Bearer $BRIDGER_TOKEN" https://your-bridge/api/whoami
+```
+
+Returns your room, side, role, expiry and whether the peer has connected — but
+**only for a valid token**. Everything else gets one status and one sentence, so
+the endpoint cannot be used to enumerate rooms or confirm that a token was once
+real. It costs no budget and touches no idle streak: a partner should never be
+afraid to check whether their own token works.
+
+A stopped bridge is the one thing it will tell you plainly, because that says
+nothing about your token — and sending someone off to fetch a replacement that
+would fail identically is the worst possible advice.
 
 ## The local folder
 

@@ -318,6 +318,64 @@ hope** — and the only way to know which you have is to RUN the command and wat
 it fail. S#272: push and `vercel deploy` are now allowed-and-logged, `npm
 publish` and force-push are denied. Rule: `shipping-quality#3`.
 
+### 26. Our tool schemas are billed to the CALLER, forever, used or not (S#274)
+
+Bridger calls no LLM, so the cost lands entirely on the other side — and not
+only per call. Every tool schema published sits in the caller's context on
+**every one of their turns**. Measured from source: the full 11-tool surface is
+**~1,800 tokens standing**, per turn, whether or not a tool is used.
+
+That reframes what "expensive" means here. Answering one question used to take
+three turns minimum — `wait` returns entries but not open questions, so knowing
+*what* to answer needed a second call — and each of those turns paid the full
+schema again. The dominant cost was the **surface**, not the call count.
+
+The fix was therefore a deletion, not an addition: the `answerer` role is shown
+two tools and has nothing to probe with (~318 tokens). **A `bridger_ping` tool
+added to the existing eleven would have made this worse, not better** — which is
+what measuring first caught, and what reasoning about it had got backwards.
+
+### 27. Registration is module-level and auth-blind, so `tools/list` is filtered by handler choice (S#274)
+
+`createMcpHandler`'s builder runs once at import, where no token exists;
+`withMcpAuth` attaches the caller later, and tools read it at call time from
+`ctx.http?.authInfo`. So a per-caller tool list cannot be produced from inside
+the builder.
+
+Two handlers are built over the **same** `lib/operations.ts`, and `gated()`
+picks between them — it is the only place that has already resolved the token
+*and* still controls dispatch. No JSON-RPC rewriting, no second URL, no forked
+rule set. `instructions` is narrowed for the answerer too: it ships as standing
+context exactly like the schemas do.
+
+### 28. `checkedAgainst` is classified, and the classifier grades the STRING (S#274)
+
+`lib/citation.ts` turns a citation into a kind (`line` / `range` / `file` /
+`command` / `commit` / `unlocated` / `none`) and a line count. Surfaced as
+`checkedSpan` on the wire, a badge and a "thin citations" stat in the UI, and
+`✓`/`◐`/`?` in `bridger log`.
+
+The derived fields carry **no far-side text** — they come from our own regex —
+which is why they are safe to read without containment while the raw string
+beside them is still contained.
+
+It exists because S#271 audited two partner citations by hand and found one
+covered 70 lines while barely touching the claim: over-broad, not fabricated,
+and invisible in the product. Both are now regression fixtures.
+
+**A test asserts no label ever emits a verdict word** (`good`, `weak`,
+`verified`, …). That guard is the feature: a quality score derived from a regex
+is a confident number, and a confident number gets trusted.
+
+### 29. Hiding a tool is a cost optimisation and has never been a gate (S#274)
+
+An `answerer` is shown two tools purely to save the caller schema tokens. It is
+a full participant at the operations layer, and the ablation test asserts *both*
+halves — an answerer may still perform an operation its tool list does not show,
+and a viewer is still refused by that same operation. If the first assertion
+ever starts failing, a permission has been smuggled into a cost optimisation and
+the tool list has silently become a boundary nothing else enforces.
+
 ---
 
 ## Invariants — break these and something silent goes wrong
@@ -356,3 +414,17 @@ publish` and force-push are denied. Rule: `shipping-quality#3`.
     credential refusal says retrying works, because it does. Reusing the
     loop-ending vocabulary for a one-edit problem makes a well-behaved agent
     abandon a task it could finish.
+13. **A narrowed tool list is never a permission.** Roles may hide tools to save
+    the caller tokens; every refusal still lives in `lib/operations.ts`. The
+    moment hiding is the only thing preventing an action, it is a fake gate —
+    and a fake gate is worse than none, because it is trusted.
+14. **Nothing in this codebase may score whether a claim is true.** It may
+    describe evidence — a span, a kind, a count — and stop there. Judging
+    whether a citation supports its answer requires reading both, which requires
+    a model, which puts an LLM in the trust path of the one product whose whole
+    pitch is that it calls none. That is invariant 1 seen from the other side.
+15. **Instructions we hand a partner must be runnable as written.** The answerer
+    handoff shipped `npx bridger join …` for a CLI that is not on npm; it would
+    have fetched an unrelated package and passed it a live token. Anything
+    printed for the far side is a spec someone follows — route it through
+    `joinCommand()` rather than hand-rolling a second copy beside it.
