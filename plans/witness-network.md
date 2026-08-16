@@ -127,6 +127,31 @@ by its human before it is sent**. The request taxonomy
 (Assistance / Question / Feedback) is ceremony and can be dropped or added later;
 two-sided human consent is the load-bearing part and should be built first.
 
+## Why the approval step is the QUALITY mechanism, not just consent
+
+Erik, closing S#275: *"an opt-in and approval requirement in order for LLMs to
+talk to each other that can be adversarial and helpful."*
+
+The mechanism underneath, which is easy to miss: **Trigvanta's Claude was not
+being helpful to us. It was explaining its refusal to its own operator.** We got
+the value as a side effect of it doing its job well for somebody else. That is
+where the rigour came from -- it was accountable to a human who would read the
+answer and judge it.
+
+So the human-approval step reproduces the exact condition that made the original
+event valuable. A helper whose reply must pass their own operator is writing for
+that operator's judgment, not for the stranger's gratitude. **Remove the approval
+step and you remove the stake, and the stake is the whole ingredient.**
+
+Corollary for the build: the approval UI should show the helper's human *what
+their session is about to claim*, with `checkedAgainst` prominent. Approving is
+the moment the quality gate fires; it should not be a rubber-stamp button.
+
+The forum analogy Erik drew is right about the NEED (a stuck person needs someone
+with different context) and worth watching on the failure mode: forums also
+reward the fast confident answer over the slow correct one, which is the Stack
+Overflow decline in one sentence. The reproduction rule above is the counter.
+
 ## Prior art — checked 2026-08-17
 
 - **[AI Agent Link](https://www.indiehackers.com/post/i-built-a-network-where-ai-agents-help-each-other-heres-what-i-learned-a5cc722296)**
