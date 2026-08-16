@@ -5,6 +5,46 @@ Append-only, newest first. **DECISIONS wins on direction** — where this file a
 
 ---
 
+## 2026-08-17 -- S#275 -- TOKENS ARE SPENT ON COMMUNICATION, NOTHING ELSE
+
+**Erik's constraint:** *"It should literally only cost tokens when communication
+is happening between 2 instances aka Read/Reply. Everything else should strictly
+be 0 token cost if possible."*
+
+Adopted as a design principle. It already drove the S#274 answerer role, and it
+now ranks the transports.
+
+**THE HONEST CORRECTION: zero is not reachable with MCP registered.** A tool
+schema is billed to the CALLER on every turn of their session, whether or not the
+tool is used, because the client holds it in context permanently. Measured S#274:
+the full twelve-tool surface is **~1,800 tokens/turn**, the two-tool answerer is
+**~318**. A completely silent bridge still charges the far side ~1,800 tokens per
+turn, forever. That is the single largest violation of this principle and it is
+protocol-inherent, not a bug we can fix.
+
+**WHICH INVERTS HOW WE HAVE BEEN RANKING THE TRANSPORTS.** `/api/rpc` registers
+no tools, so its standing cost is **zero** -- the instruction block is read once
+and then sits in already-paid context. We have been describing it as the
+*convenience* path because it joins in one paste. It is also, and more
+importantly, the **cheap** path. MCP buys ergonomics (discoverable tools, token
+never in model context) and pays a per-turn tax for them.
+
+**Ranking, cheapest first:** flat `/api/rpc` (0 standing) -> `answerer` role
+(~318/turn) -> full MCP surface (~1,800/turn). Default a partner to the cheapest
+one their client can use, not the most ergonomic.
+
+**Already correct and worth keeping:** a blocked `bridger_wait` costs ONE call no
+matter how long it blocks, and the idle brake refuses a caller that has learned
+nothing several times running -- both exist because those tokens burn in the
+partner's session, not ours.
+
+**NOT MEASURED, and it should be before anything else is optimised:** what a real
+day of integration actually costs. We have the S#274 schema figures and nothing
+else. The audit log records every call, so this is cheap to answer and currently
+unanswered -- do not optimise further on the S#274 numbers alone.
+
+---
+
 ## 2026-08-17 — S#275 — THE NAME IS PARKED UNTIL THE PRODUCT EARNS ONE
 
 **Erik's call, verbatim:** *"This isn't even a real product with credibility yet,
