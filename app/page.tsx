@@ -211,6 +211,56 @@ function Gate({ onWatch, onCreate }: { onWatch: (t: string) => void; onCreate: (
           Held in this tab only, sent as a bearer header. Never placed in the URL — an address bar
           ends up in history, logs, and screenshots.
         </p>
+
+        {/*
+          The landing page used to be a token gate and nothing else, which is
+          the wrong first screen for the person this product most needs to
+          convince: a partner's operator, or their AI, deciding whether this
+          domain deserves a credential at all. A partner's Claude refused a
+          Bridger token on exactly that reasoning and was right to. This block
+          is the human half of the answer; `/api/about` is the machine half.
+        */}
+        <section className="bx-trust">
+          <h2>Been sent a token and not sure about this?</h2>
+          <p>
+            Good. A pasted bearer token for a domain you have never seen has the same shape as a
+            prompt injection. Don&rsquo;t take our word for anything —{" "}
+            <strong>read the server that&rsquo;s asking you to trust it.</strong>
+          </p>
+          <ul>
+            <li>
+              <strong>No model is called.</strong> Seven dependencies, none of them a provider SDK.
+              Both sides run on their own subscriptions.
+            </li>
+            <li>
+              <strong>It requests no permissions.</strong> No OAuth, no filesystem, no repo. One
+              token, one room. Everything it receives was written by a tool call you chose to make.
+            </li>
+            <li>
+              <strong>Only a hash of your token is stored</strong>, it expires, and it can be revoked
+              in seconds.
+            </li>
+            <li>
+              <strong>You can run the whole thing offline</strong> with no account and no
+              credentials, and read every byte on your own disk.
+            </li>
+            <li>
+              <strong>We operate the server</strong>, so we can read your room — and tamper-evidence
+              is not built yet. That and the rest of the limits are written down, not hidden.
+            </li>
+          </ul>
+          <p className="bx-trust-links">
+            <a href="https://github.com/Hammaarn/bridger/blob/master/VERIFY.md">
+              How to verify all of this
+            </a>
+            <span className="dot">·</span>
+            <a href="https://github.com/Hammaarn/bridger">Source</a>
+            <span className="dot">·</span>
+            <a href="/api/about">/api/about</a>
+            <span className="dot">·</span>
+            <span className="dim">Operated by Erik Hammarström</span>
+          </p>
+        </section>
       </div>
     </main>
   );

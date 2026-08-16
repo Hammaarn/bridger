@@ -781,3 +781,25 @@ footer {
 .bx-decision.sideB { border-left-color: var(--b); }
 .bx-decision code { display: block; font-size: 0.7rem; color: var(--dim); }
 .bx-decision p { margin-top: 0.2rem; }
+
+/* The trust block on the gate. Present because a partner's AI refused a
+   Bridger token — correctly — and there was nowhere for it or its operator
+   to check what this service actually is. */
+.bx-trust {
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--line);
+  font-size: 0.82rem;
+  color: var(--dim);
+}
+.bx-trust h2 {
+  font-size: 0.9rem;
+  color: var(--ink);
+  margin-bottom: 0.4rem;
+}
+.bx-trust p { margin-bottom: 0.6rem; }
+.bx-trust ul { margin: 0 0 0.75rem; padding-left: 1.1rem; }
+.bx-trust li { margin-bottom: 0.3rem; }
+.bx-trust strong { color: var(--ink); font-weight: 600; }
+.bx-trust-links { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
+.bx-trust-links a { color: var(--ink); }
