@@ -80,7 +80,30 @@ interface Minted {
   note: string;
 }
 
-const POLL_MS = 3000;
+/**
+ * How often the room view asks the server what changed.
+ *
+ * WAS 3000, WHICH IS EXACTLY THE LIMIT. A 3-second poll is 20 requests a
+ * minute, and `RATE_LIMIT_PER_MINUTE` is 20 — so the UI ran permanently on the
+ * ceiling and the first extra call (the `whoami` on mount, a second tab, a
+ * clock hiccup) tipped it into `429: rate-limited`. A customer's first screen
+ * said so out loud.
+ *
+ * 4 seconds is 15/minute against a viewer ceiling of 60. The gap is the point:
+ * a poll interval that only just fits is one that fails the moment anything
+ * else shares the budget.
+ */
+const POLL_MS = 4000;
+/**
+ * And when it does fail, back off instead of leaning on the door.
+ *
+ * The old loop kept firing at the same rate after an error, so a rate-limited
+ * tab re-earned its rate limit every single minute and could never recover on
+ * its own — "stalled" was permanent until someone reloaded. Doubling to a cap
+ * lets a tab that hit any transient failure heal itself, and stops a hundred
+ * open tabs from turning one outage into a stampede.
+ */
+const POLL_MAX_MS = 30000;
 const STORAGE_KEY = "bridger.token";
 const TREE_KEY = (roomId: string) => `bridger.tree.${roomId}`;
 
@@ -418,7 +441,7 @@ function RoomView({ token, onForget }: { token: string; onForget: () => void }) 
   const lastSeq = useRef(0);
   const [flash, setFlash] = useState<number | null>(null);
 
-  const load = useCallback(async (tok: string) => {
+  const load = useCallback(async (tok: string): Promise<boolean> => {
     try {
       const res = await fetch("/api/export", { headers: { Authorization: `Bearer ${tok}` } });
       if (!res.ok) {
@@ -428,12 +451,14 @@ function RoomView({ token, onForget }: { token: string; onForget: () => void }) 
             ? `Token rejected (${body.error ?? "unknown"}). It may have been revoked, rotated, or expired.`
             : res.status === 410
               ? "This room has been closed."
+              : res.status === 429
+              ? "Polling too fast — backing off and retrying automatically."
               : res.status === 503
                 ? "The registry is unreachable — the server cannot read its own token store."
                 : `Server said ${res.status}: ${body.error ?? ""}`,
         );
         setLive(false);
-        return;
+        return false;
       }
       const payload = (await res.json()) as ExportPayload;
       const newest = payload.entries.at(-1)?.seq ?? 0;
@@ -442,9 +467,11 @@ function RoomView({ token, onForget }: { token: string; onForget: () => void }) 
       setData(payload);
       setError(null);
       setLive(true);
+      return true;
     } catch {
       setError("Cannot reach the bridge server. Is it running?");
       setLive(false);
+      return false;
     }
   }, []);
 
@@ -468,10 +495,27 @@ function RoomView({ token, onForget }: { token: string; onForget: () => void }) 
     };
   }, [token]);
 
+  // A self-rescheduling timeout rather than setInterval, so the delay can grow
+  // on failure and snap back on the first success. setInterval cannot do that —
+  // its period is fixed at creation, which is precisely why the rate-limited
+  // state was unrecoverable.
   useEffect(() => {
-    void load(token);
-    const t = setInterval(() => void load(token), POLL_MS);
-    return () => clearInterval(t);
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout>;
+    let delay = POLL_MS;
+
+    const tick = async () => {
+      const ok = await load(token);
+      if (stopped) return;
+      delay = ok ? POLL_MS : Math.min(delay * 2, POLL_MAX_MS);
+      timer = setTimeout(tick, delay);
+    };
+
+    void tick();
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+    };
   }, [token, load]);
 
   useEffect(() => {
