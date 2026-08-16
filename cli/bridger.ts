@@ -157,8 +157,43 @@ const arg = (flag: string, fallback?: string): string => {
   return process.argv[i + 1];
 };
 
+/**
+ * Where the bridge actually lives.
+ *
+ * This was `https://bridger.vercel.app` in six hard-coded places until S#275,
+ * and that host is SOMEBODY ELSE'S Vercel project — it answers, 308s to a
+ * trailing slash and 404s. So every token minted without an explicit
+ * `--server` printed a join line that would have sent `Authorization: Bearer
+ * br_live_…` to a third party. The name was aspirational; Vercel assigned
+ * `bridger-nu` because `bridger` was taken, and the literal never caught up.
+ *
+ * One constant, one env override. A default that appears six times is a
+ * default that will be wrong in five of them.
+ */
+const DEFAULT_SERVER = (process.env.BRIDGER_SERVER ?? "https://bridger-nu.vercel.app").replace(
+  /\/$/,
+  "",
+);
+
 const joinCommand = (server: string, token: string) =>
   `claude mcp add --transport http bridger ${server.replace(/\/$/, "")}/api/mcp --header "Authorization: Bearer ${token}"`;
+
+/**
+ * The client-agnostic form of the same two facts.
+ *
+ * `joinCommand` is Claude Code's shape. Every other MCP client wants the same
+ * endpoint and the same header, and differs only in what it calls the endpoint
+ * key — which is exactly the detail that costs a far side twenty minutes.
+ * Antigravity rejects both `url` and `httpUrl`; it wants `serverUrl`.
+ */
+const joinFacts = (server: string, token: string) => {
+  const endpoint = `${server.replace(/\/$/, "")}/api/mcp`;
+  return `Not Claude Code? Any MCP client needs exactly two facts:
+    endpoint   ${endpoint}
+    header     Authorization: Bearer ${token}
+  The endpoint's JSON key differs by client — Antigravity: "serverUrl"
+  (it rejects "url" and "httpUrl") · Gemini CLI: "httpUrl". README has the matrix.`;
+};
 
 // ── operator commands ────────────────────────────────────────────
 
@@ -167,7 +202,7 @@ async function cmdOpen() {
   const topic = arg("--topic");
   const mine = arg("--me");
   const theirs = arg("--them");
-  const server = arg("--server", "https://bridger.vercel.app");
+  const server = arg("--server", DEFAULT_SERVER);
 
   const { room, ownerToken, peerToken } = await createRoom(store, {
     topic,
@@ -203,6 +238,8 @@ async function cmdOpen() {
   ── SEND THIS TO ${theirs.toUpperCase()} ${"─".repeat(Math.max(0, 44 - theirs.length))}
   ${joinCommand(server, peerToken)}
 
+  ${joinFacts(server, peerToken)}
+
   Both tokens are shown ONCE. Only their hashes are stored — we cannot
   recover them. Lost one? \`bridger rotate --side a|b\`.
   Wrote ${ROOM_FILE} (contains no secret; safe to commit).
@@ -217,7 +254,7 @@ async function cmdRotate() {
   if (!room) die(`No such room: ${roomId}`);
 
   const fresh = await rotateSide(store, room!, side, new Date());
-  const server = readLocalRoomSafe()?.server ?? "https://bridger.vercel.app";
+  const server = readLocalRoomSafe()?.server ?? DEFAULT_SERVER;
   console.log(`
   Rotated side ${side} (${room!.sides[side].label}). The previous token now answers "revoked".
 
@@ -250,7 +287,7 @@ async function cmdInvite() {
 
   const minutes = Number(arg("--ttl-minutes", "30"));
   const days = Number(arg("--token-days", "7"));
-  const server = (local?.server ?? "https://bridger.vercel.app").replace(/\/$/, "");
+  const server = (local?.server ?? DEFAULT_SERVER).replace(/\/$/, "");
 
   const { code, expiresAt } = await mintInvite(store, room!, side, new Date(), {
     ttlSeconds: Math.max(1, minutes) * 60,
@@ -419,7 +456,7 @@ async function cmdViewer() {
   if (!room) die(`No such room: ${roomId}`);
 
   const token = await issueToken(store, room!, side, new Date(), null, "viewer");
-  const server = local?.server ?? "https://bridger.vercel.app";
+  const server = local?.server ?? DEFAULT_SERVER;
   console.log(`
   Read-only token for ${room!.sides[side].label}'s view of "${room!.topic}".
   It can read the record and nothing else — every write tool refuses it.
@@ -452,7 +489,7 @@ async function cmdAnswerer() {
   if (!room) die(`No such room: ${roomId}`);
 
   const token = await issueToken(store, room!, side, new Date(), null, "answerer");
-  const server = local?.server ?? "https://bridger.vercel.app";
+  const server = local?.server ?? DEFAULT_SERVER;
   console.log(`
   Answerer token for ${room!.sides[side].label} on "${room!.topic}".
   Two tools only: bridger_ping (one call, everything) and bridger_answer.
@@ -557,7 +594,7 @@ async function fetchExport(server: string, token: string) {
 async function cmdJoin() {
   const token = process.argv[3];
   if (!token?.startsWith("br_live_")) die("Usage: bridger join br_live_... --server <url>");
-  const server = arg("--server", "https://bridger.vercel.app");
+  const server = arg("--server", DEFAULT_SERVER);
 
   const data = await fetchExport(server, token);
   writeFile(
