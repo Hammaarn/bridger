@@ -201,6 +201,29 @@ export const DEFAULT_DAILY_CAP = 400;
 export const DEFAULT_ROOM_DAILY_CAP = 600;
 
 /**
+ * How long a freshly minted token lives, in days.
+ *
+ * Every token minted before S#275 had `expiresAt: null` — valid forever. That
+ * was never a decision: `null` was positional filler passed to reach the `role`
+ * argument, in five call sites, and it read as intent. The cost showed up on
+ * 2026-08-16, when a live, write-capable, never-expiring token labelled for a
+ * named business partner was found sitting in a plaintext editor config on this
+ * machine. Nothing had gone wrong; nothing could tell us it had, either.
+ *
+ * 90 days rather than 30. The room's own TTL is 30 days IDLE and is refreshed
+ * on every write, so an active integration's room never expires — a 30-day
+ * token would therefore die in the middle of a healthy conversation, which
+ * converts a security default into an outage. 90 days outlives any integration
+ * sprint and still means an abandoned token in a config file stops working
+ * within a quarter.
+ *
+ * The failure is legible when it comes: `/api/whoami` reports `expiresAt`
+ * before a token dies, and the refusal for an expired token is terminal and
+ * says to ask for a fresh one rather than retrying.
+ */
+export const DEFAULT_TOKEN_TTL_DAYS = 90;
+
+/**
  * Daily cap for a token minted through the PASTE path. Half the MCP default.
  *
  * Erik's call was "whatever is best for the project", and the asymmetry is the

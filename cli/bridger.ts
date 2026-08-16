@@ -455,7 +455,7 @@ async function cmdViewer() {
   const room = parseRoom(await store.get(ROOM_KEY(roomId)));
   if (!room) die(`No such room: ${roomId}`);
 
-  const token = await issueToken(store, room!, side, new Date(), null, "viewer");
+  const token = await issueToken(store, room!, side, new Date(), undefined, "viewer");
   const server = local?.server ?? DEFAULT_SERVER;
   console.log(`
   Read-only token for ${room!.sides[side].label}'s view of "${room!.topic}".
@@ -488,7 +488,7 @@ async function cmdAnswerer() {
   const room = parseRoom(await store.get(ROOM_KEY(roomId)));
   if (!room) die(`No such room: ${roomId}`);
 
-  const token = await issueToken(store, room!, side, new Date(), null, "answerer");
+  const token = await issueToken(store, room!, side, new Date(), undefined, "answerer");
   const server = local?.server ?? DEFAULT_SERVER;
   console.log(`
   Answerer token for ${room!.sides[side].label} on "${room!.topic}".

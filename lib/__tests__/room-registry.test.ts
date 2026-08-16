@@ -309,7 +309,7 @@ describe("rotation", () => {
 describe("viewer role", () => {
   it("a viewer authenticates and reads, but cannot write", async () => {
     const { store, room } = await freshRoom();
-    const viewerToken = await issueToken(store, room, "a", T0, null, "viewer");
+    const viewerToken = await issueToken(store, room, "a", T0, undefined, "viewer");
 
     const out = await authorize(store, { presentedToken: viewerToken, now: T0 });
     assert.equal(out.ok, true, "a viewer must still authenticate — it is allowed to read");
@@ -341,7 +341,7 @@ describe("viewer role", () => {
 
   it("rotating a side does NOT blind its viewer", async () => {
     const { store, room } = await freshRoom();
-    const viewerToken = await issueToken(store, room, "b", T0, null, "viewer");
+    const viewerToken = await issueToken(store, room, "b", T0, undefined, "viewer");
     await rotateSide(store, room, "b", plus(T0, 1000));
 
     const viewer = await authorize(store, { presentedToken: viewerToken, now: plus(T0, 2000) });
@@ -354,7 +354,7 @@ describe("viewer role", () => {
 
   it("revoking a side with no role filter kills the viewer too", async () => {
     const { store, room } = await freshRoom();
-    const viewerToken = await issueToken(store, room, "b", T0, null, "viewer");
+    const viewerToken = await issueToken(store, room, "b", T0, undefined, "viewer");
     await revokeSide(store, room, "b");
 
     const viewer = await authorize(store, { presentedToken: viewerToken, now: plus(T0, 1) });
