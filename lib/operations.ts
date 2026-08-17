@@ -365,7 +365,7 @@ export async function opAnswer(
 
 export async function opDecide(
   ctx: OpContext,
-  args: { title: string; decision: string; why: string },
+  args: { title: string; decision: string; why: string; checkedAgainst?: string },
 ) {
   requireWrite(ctx.token);
   await noteProductive(ctx);
@@ -373,7 +373,24 @@ export async function opDecide(
     ctx.store,
     ctx.room,
     ctx.token,
-    { type: "decision", title: args.title, body: args.decision, why: args.why },
+    {
+      type: "decision",
+      title: args.title,
+      body: args.decision,
+      why: args.why,
+      // A DECISION WAS THE ONLY ENTRY TYPE THAT COULD NOT CITE ANYTHING (S#276).
+      // `ask` has no citation and should not -- a question makes no claim. But a
+      // decision is the most consequential thing in the record: it is what both
+      // sides then build against, it survives into both repositories, and nobody
+      // revisits it. An answer that is wrong gets corrected next round; a
+      // decision becomes the ground.
+      //
+      // The evidence was on the bridge itself: A's decision fixing the lanes,
+      // the ranking and the brake mechanism recorded `checked: unchecked` -- not
+      // because nothing had been checked, but because there was nowhere to say
+      // so, while ordinary notes binding nobody carried citations.
+      checkedAgainst: args.checkedAgainst,
+    },
     ctx.now,
   );
   return { posted: wire(entry) };

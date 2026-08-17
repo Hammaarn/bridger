@@ -360,6 +360,27 @@ export const BLOCKED_CALL_DISCOUNT = 0.1;
 /** A call must block at least this long to earn the discount. */
 export const BLOCKED_CALL_MS = 5_000;
 
+/**
+ * Ceiling on `checkedAgainst`, the field that carries the entire product claim.
+ *
+ * WAS 500 AGAINST A 20,000-CHARACTER BODY -- the receipt capped at 2.5% of the
+ * claim it is a receipt FOR (S#276, measured by side B after hitting it).
+ * Concretely: a five-source citation that labelled which sources were summaries
+ * and which were unread abstracts came to ~900 chars, was refused, and had to be
+ * compressed to 474 by DELETING the per-claim depth labelling. The cap's only
+ * effect was to make an honest citation less honest -- the one place in the
+ * schema where being thorough is a validation error.
+ *
+ * 4,000 rather than 20,000 on purpose: still 5x tighter than the body, so the
+ * shape stays "a receipt, not an essay".
+ *
+ * The counter-argument -- that a bigger field invites pasting evidence IN rather
+ * than citing it -- is real but weaker, because that misuse is VISIBLE:
+ * `classifyCitation` grades a wall of prose as unlocated and the UI shows it.
+ * Truncating an honest citation is invisible. Prefer the failure you can see.
+ */
+export const CITATION_MAX = 4_000;
+
 /** Rolling sum of uninformative response bytes for one token. */
 export const WASTE_KEY = (tokenId: string) => `${NS}:waste:${tokenId}`;
 
