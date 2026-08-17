@@ -188,10 +188,29 @@ backend. Both fixed and ablated.
 were DROPPED on the evidence — see `plans/DECISIONS-FOR-ERIK-s272.md`. D3
 (`/api/whoami`) is greenlit and **not yet built**.
 
-**The one question the tests cannot answer:** whether a real looping client
-*stops* when a tool throws, or treats a tool error as retryable and spins on it.
-That decides whether the brake is a brake. It is the first thing to watch when
-the bridge comes back.
+**The one question the tests cannot answer — HALF ANSWERED S#276, and the half
+that was answered was our own bug.** The question is whether a looping client
+*stops* when the brake fires. On the flat transport it structurally could not:
+the `STOP.` refusal is `terminal: true`, and terminal refusals were being sent
+as **HTTP 429** — the canonical "come back shortly", retried automatically by
+client libraries and SDK retry middleware, which act on the status long before
+the model reads the sentence explaining why. Fixed and verified on production:
+
+```
+viewer write (terminal)      403 Forbidden          <- was 429
+STOP. idle brake (terminal)  403 Forbidden          <- was 429, fired at call 7
+per-minute limiter           429 + Retry-After: 5   <- correct, and now says when
+```
+
+The `Retry-After: 5` is computed from the minute bucket, not a constant — the
+probe ran 55s into the minute. `daily-cap` / `room-daily-cap` also moved 429 ->
+403. An invariant test now enforces that no terminal refusal is ever 429, with
+two negative controls so it cannot pass vacuously.
+
+**What is STILL unanswered:** the MCP transport throws a JSON-RPC tool error,
+and what a given client does with that is unknown. `terminal` now travels in
+that error's text (it was dropped entirely before), but no real client has been
+watched receiving it. That remains a live-run question.
 
 ### Proven by running it, not by reasoning
 - **Full round trip on a real bridge:** side A asked, side B answered with
