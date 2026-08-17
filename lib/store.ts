@@ -42,10 +42,11 @@ export interface Store {
   /**
    * Delete keys. **Returns the number ACTUALLY REMOVED, not the number asked
    * for** — Redis semantics, and load-bearing: `redeemInvite` uses the count as
-   * a lock so exactly one of two concurrent redemptions can win. An
-   * implementation that returns `keys.length` turns a single-use join code into
-   * a reusable one, silently. Both local implementations did precisely that
-   * until S#272.
+   * its MINT lock so exactly one of two concurrent redemptions can win. An
+   * implementation that returns `keys.length` silently lets one join code mint
+   * TWO tokens. Both local implementations did precisely that until S#272, and
+   * this stayed load-bearing through S#276: the code became re-readable, but
+   * "mints exactly once" is still guaranteed by nothing but this count.
    */
   del(...keys: string[]): Promise<number>;
   incr(key: string): Promise<number>;
@@ -74,19 +75,33 @@ export const CURSOR_KEY = (roomId: string, side: string) => `${NS}:room:${roomId
 export const CONTRACT_KEY = (roomId: string) => `${NS}:room:${roomId}:contract`;
 export const ROOM_TOKENS_KEY = (roomId: string) => `${NS}:room:${roomId}:tokens`;
 /**
- * A one-time join code. Burns on first successful redemption.
+ * A join code. Single-MINT, and re-READABLE for a short window after the first
+ * read — which is not the same thing, and the difference cost us a live demo.
  *
  * This is what gets pasted into a chat, NOT a token: a chat message is durable
  * — it sits in Discord, in an email, in a transcript, in someone's screenshot —
- * and a token pasted there stays valid for as long as the bridge does. A code
- * that dies the moment it is used means a leaked message is worthless by the
- * time anyone else reads it.
+ * and a token pasted there stays valid for as long as the bridge does.
  *
- * It does NOT protect the redeemed token from the context it lands in. That is
- * inherent to paste-and-go and is written down rather than implied away; see
- * `lib/invites.ts`.
+ * Between S#272 and S#276 this key was deleted on first read, so the SECOND
+ * read of a link got a 404. That assumed one careful human clicking once. The
+ * real population of readers is wider: an agent that retries or makes a
+ * confirming call, a human previewing the link before forwarding it, and
+ * anything that fetches a URL because it appeared in a message. During the
+ * window this record carries the minted token in PLAINTEXT so every one of them
+ * gets the same answer; see `lib/invites.ts` for what that trades away.
  */
 export const INVITE_KEY = (code: string) => `${NS}:invite:${code.toUpperCase()}`;
+/**
+ * Tombstone for a code whose re-read window has closed. Carries NO token — its
+ * whole job is to keep `already-used` distinguishable from `unknown` after the
+ * record above has expired.
+ *
+ * Without it the two collapse, and the message a partner sees is "check you
+ * copied the whole line" — which sends them hunting a typo that does not exist,
+ * and is one of the two things that convinced Northwind's agent the service was
+ * broken.
+ */
+export const INVITE_SPENT_KEY = (code: string) => `${NS}:invite:spent:${code.toUpperCase()}`;
 /** One side's standing consent to purge the room. Expires; see `lib/purge.ts`. */
 export const PURGE_KEY = (roomId: string, side: string) => `${NS}:room:${roomId}:purge:${side}`;
 export const RATE_KEY = (tokenId: string, minute: string) => `${NS}:rl:${tokenId}:${minute}`;

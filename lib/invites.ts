@@ -18,18 +18,50 @@
  * -----------------------------------
  * A chat message is durable. It sits in Discord, in an inbox, in a transcript,
  * in a screenshot on a shared screen — and a token pasted there stays valid as
- * long as the bridge does. A code that burns on first use makes that message
- * worthless to anyone who reads it second.
+ * long as the bridge does. A code that stops working shortly after it is sent
+ * makes that message worthless to anyone who finds it later.
  *
- * WHAT THIS DOES NOT PROTECT AGAINST, stated plainly rather than discovered
- * later: once redeemed, the token is in the far side's model context. Anything
- * that can read that context can read the token — a prompt injection arriving
- * over this very bridge included (see `lib/untrusted.ts`). That is INHERENT to
- * paste-and-go, not an oversight: an agent that calls an HTTP API needs the
- * credential in reach. The mitigations are therefore blast-radius ones, not
- * prevention:
+ * SINGLE-MINT, NOT BURN-ON-READ — and the distinction is the whole of S#276.
+ * -------------------------------------------------------------------------
+ * The original design deleted the code on first read. Exactly one token could
+ * ever exist, which was right, but it was bought by making the SECOND read a
+ * 404 — and that is what killed the first live customer demo. Northwind's agent
+ * fetched the join document, got its token, fetched again (agents retry, and
+ * they make confirming calls), got `not recognised`, concluded the service was
+ * broken, and never used the credential it was already holding.
  *
- *   - the code is single-use and short-lived, so the durable artefact is inert
+ * Burn-on-read assumed one careful human clicking once. The real readers are
+ * wider: an agent that retries, a human previewing a link before forwarding it,
+ * and anything that fetches a URL merely because it appeared in a message.
+ *
+ * So the code now mints ONCE and stays READABLE for `INVITE_REREAD_SECONDS`.
+ * Every reader in that window gets the same document and the same token. The
+ * mint lock is unchanged and still the `del` return count.
+ *
+ * WHAT THAT COSTS, stated rather than discovered later. For the length of the
+ * window the invite record holds the token in PLAINTEXT — the only live
+ * credential at rest anywhere in this store, which otherwise keeps SHA hashes
+ * (`hashToken`). It is a real weakening and it is bounded on purpose:
+ *
+ *   - the window is MINUTES, not the code's full TTL, and Redis enforces it by
+ *     key expiry rather than by anything remembering to clean up
+ *   - the token it exposes is scoped to one room and one side, capped at
+ *     PASTE_PATH_DAILY_CAP, expiring, and revocable
+ *   - an attacker who can read this store can already read every entry of every
+ *     room in plaintext, so the marginal gain to them is small
+ *
+ * The alternative considered and rejected was deriving the token from the code
+ * by HMAC, which stores no secret but adds one that breaks every join if lost
+ * and forges every token if leaked. Erik's call, S#276.
+ *
+ * WHAT NONE OF THIS PROTECTS AGAINST: once redeemed, the token is in the far
+ * side's model context. Anything that can read that context can read the token
+ * — a prompt injection arriving over this very bridge included (see
+ * `lib/untrusted.ts`). That is INHERENT to paste-and-go, not an oversight: an
+ * agent that calls an HTTP API needs the credential in reach. The mitigations
+ * are therefore blast-radius ones, not prevention:
+ *
+ *   - the code is short-lived, so the durable artefact goes inert quickly
  *   - the minted token EXPIRES (default 7 days), unlike an MCP-path token
  *   - it is scoped to one room and one side, and cannot speak as the other
  *   - `bridger stop` and `bridger revoke` both kill it immediately
@@ -42,10 +74,34 @@
 import { randomBytes } from "node:crypto";
 
 import { issueToken, type RoomRecord, type SideId } from "./room-registry";
-import { INVITE_KEY, PASTE_PATH_DAILY_CAP, coerceJson, type Store } from "./store";
+import {
+  INVITE_KEY,
+  INVITE_SPENT_KEY,
+  PASTE_PATH_DAILY_CAP,
+  coerceJson,
+  type Store,
+} from "./store";
 
 /** Default life of a join code. Long enough to send, short enough to matter. */
 export const INVITE_TTL_SECONDS = 30 * 60;
+
+/**
+ * How long a code keeps returning the SAME token after its first read.
+ *
+ * Deliberately much shorter than `INVITE_TTL_SECONDS`, because this is the
+ * window in which a plaintext credential sits in the store. It only has to
+ * cover the readers that arrive in a burst: an unfurler fetches in
+ * milliseconds, an agent retries in seconds, a human previews a link and pastes
+ * it to their AI in a minute or two. Ten minutes covers all of them with room
+ * to spare, and nothing needs the full thirty.
+ */
+export const INVITE_REREAD_SECONDS = 10 * 60;
+
+/**
+ * How long the no-token tombstone outlives the record, so that a spent code
+ * still says `already-used` instead of collapsing back into `unknown`.
+ */
+export const INVITE_SPENT_TTL_SECONDS = 24 * 60 * 60;
 
 /** Default life of the token a code redeems into. */
 export const PASTE_TOKEN_TTL_SECONDS = 7 * 24 * 60 * 60;
@@ -64,6 +120,19 @@ export interface InviteRecord {
   expiresAt: string;
   /** Life of the token this redeems into, in seconds. */
   tokenTtlSeconds: number;
+  /**
+   * The minted token, in PLAINTEXT, present only between the first read and the
+   * end of the re-read window. Absent means "not yet redeemed" — the two states
+   * are distinguished by this field and nothing else.
+   */
+  token?: string;
+  redeemedAt?: string;
+  /**
+   * When re-reading stops. Belt and braces with the key's own TTL: a store that
+   * loses the expiry must still refuse, so the record carries its own deadline
+   * and `redeemInvite` checks it. Same pattern as `mintInvite`.
+   */
+  reReadableUntil?: string;
 }
 
 /**
@@ -98,6 +167,13 @@ export function parseInvite(raw: unknown): InviteRecord | null {
     tokenTtlSeconds: Number.isFinite(r.tokenTtlSeconds)
       ? Number(r.tokenTtlSeconds)
       : PASTE_TOKEN_TTL_SECONDS,
+    // A record written before S#276 has none of these, and reads as
+    // not-yet-redeemed — which is exactly what it is.
+    ...(typeof r.token === "string" && r.token ? { token: r.token } : {}),
+    ...(typeof r.redeemedAt === "string" ? { redeemedAt: r.redeemedAt } : {}),
+    ...(typeof r.reReadableUntil === "string"
+      ? { reReadableUntil: r.reReadableUntil }
+      : {}),
   };
 }
 
@@ -126,21 +202,55 @@ export async function mintInvite(
 }
 
 export type RedeemResult =
-  | { ok: true; token: string; invite: InviteRecord }
-  | { ok: false; reason: "unknown" | "expired" | "already-used" | "room-missing" };
+  | {
+      ok: true;
+      token: string;
+      invite: InviteRecord;
+      /**
+       * True when this read did NOT mint — the token already existed and is
+       * being handed back inside the re-read window. The join document says
+       * something different in that case, because telling a reader "here is
+       * your new token" twice would be a lie about which credential is live.
+       */
+      reused: boolean;
+    }
+  | {
+      ok: false;
+      reason:
+        | "unknown"
+        | "expired"
+        | "already-used"
+        | "room-missing"
+        | "mint-in-progress";
+    };
+
+/** Record the code as spent, WITHOUT the token. Outlives the re-read window. */
+async function markSpent(store: Store, code: string, now: Date): Promise<void> {
+  const key = INVITE_SPENT_KEY(code);
+  await store.set(key, JSON.stringify({ redeemedAt: now.toISOString() }));
+  await store.expire(key, INVITE_SPENT_TTL_SECONDS);
+}
 
 /**
- * Redeem a code for a fresh token, burning the code.
+ * Redeem a code for a token — minting at most once, and returning the SAME
+ * token to every reader inside the re-read window.
  *
- * THE BURN IS THE DELETE, AND ITS RETURN VALUE IS THE LOCK. Two requests can
- * arrive with the same code; both may read the record, but `del` reports how
- * many keys it actually removed, so exactly one sees `1` and wins. Checking
- * "does the key still exist" before deleting would be the classic
- * time-of-check/time-of-use race — both would see it, both would proceed.
+ * THE MINT LOCK IS THE DELETE, AND ITS RETURN VALUE IS THE LOCK. Unchanged from
+ * S#272 and deliberately so: two requests can arrive with the same code, both
+ * may read the record, but `del` reports how many keys it actually removed, so
+ * exactly one sees `1` and wins the right to mint. Checking "does the key still
+ * exist" before deleting would be the classic time-of-check/time-of-use race —
+ * both would see it, both would proceed, two tokens for one invite.
  *
- * The token is minted AFTER the burn is won. A failure between the two costs
- * the partner a code and no access, which is the safe direction: the other
- * ordering can hand out two tokens for one invite.
+ * WHAT CHANGED IN S#276 is only what happens AFTER the win: the winner puts the
+ * record back with the token on it and a short TTL, instead of leaving a hole.
+ * The loser of the race re-reads and finds that record — so a concurrent second
+ * caller now gets the token rather than a refusal, which is the behaviour an
+ * agent's retry actually needs.
+ *
+ * The token is still minted AFTER the lock is won. A failure between the two
+ * costs the partner a code and no access, which is the safe direction: the
+ * other ordering can hand out two tokens for one invite.
  */
 export async function redeemInvite(
   store: Store,
@@ -148,20 +258,64 @@ export async function redeemInvite(
   now: Date,
   loadRoom: (roomId: string) => Promise<RoomRecord | null>,
 ): Promise<RedeemResult> {
-  const key = INVITE_KEY(code.trim());
+  const trimmed = code.trim();
+  const key = INVITE_KEY(trimmed);
   const invite = parseInvite(await store.get(key));
-  if (!invite) return { ok: false, reason: "unknown" };
 
+  if (!invite) {
+    // Nothing live. The tombstone is the only thing that can separate "you
+    // already used this" from "that is not a code", and separating them is the
+    // difference between asking for a fresh link and hunting a typo that does
+    // not exist.
+    const spent = await store.get(INVITE_SPENT_KEY(trimmed));
+    return { ok: false, reason: spent ? "already-used" : "unknown" };
+  }
+
+  // ── Already redeemed, inside the window: hand back the same token ──────────
+  if (invite.token) {
+    const until = invite.reReadableUntil
+      ? new Date(invite.reReadableUntil).getTime()
+      : 0;
+    if (until <= now.getTime()) {
+      // The key's TTL should have removed this already; if we can still read
+      // it, the store lost the expiry. Refuse on the record's own deadline and
+      // clear the plaintext now rather than trusting the next reader to.
+      await store.del(key);
+      await markSpent(store, trimmed, now);
+      return { ok: false, reason: "already-used" };
+    }
+    const room = await loadRoom(invite.roomId);
+    if (!room) return { ok: false, reason: "room-missing" };
+    return { ok: true, token: invite.token, invite, reused: true };
+  }
+
+  // ── Not yet redeemed ──────────────────────────────────────────────────────
   if (invite.expiresAt && new Date(invite.expiresAt).getTime() <= now.getTime()) {
     await store.del(key);
     return { ok: false, reason: "expired" };
   }
 
   const removed = Number(await store.del(key));
-  if (removed < 1) return { ok: false, reason: "already-used" };
+  if (removed < 1) {
+    // Someone else won the mint and is writing the record back with the token
+    // on it. That is a millisecond of flight time, not a failure — re-read
+    // before deciding anything.
+    const again = parseInvite(await store.get(key));
+    if (again?.token) {
+      const room = await loadRoom(again.roomId);
+      if (!room) return { ok: false, reason: "room-missing" };
+      return { ok: true, token: again.token, invite: again, reused: true };
+    }
+    // Genuinely mid-flight. This is the one place a retry is the right advice,
+    // so it gets its own reason rather than borrowing a terminal one.
+    return { ok: false, reason: "mint-in-progress" };
+  }
 
   const room = await loadRoom(invite.roomId);
-  if (!room) return { ok: false, reason: "room-missing" };
+  if (!room) {
+    await markSpent(store, trimmed, now);
+    return { ok: false, reason: "room-missing" };
+  }
 
   const expiresAt = new Date(now.getTime() + invite.tokenTtlSeconds * 1000).toISOString();
   // Half the MCP daily cap: this token reaches a model's context, so it is the
@@ -175,5 +329,16 @@ export async function redeemInvite(
     "participant",
     PASTE_PATH_DAILY_CAP,
   );
-  return { ok: true, token, invite };
+
+  const redeemed: InviteRecord = {
+    ...invite,
+    token,
+    redeemedAt: now.toISOString(),
+    reReadableUntil: new Date(now.getTime() + INVITE_REREAD_SECONDS * 1000).toISOString(),
+  };
+  await store.set(key, JSON.stringify(redeemed));
+  await store.expire(key, INVITE_REREAD_SECONDS);
+  await markSpent(store, trimmed, now);
+
+  return { ok: true, token, invite: redeemed, reused: false };
 }

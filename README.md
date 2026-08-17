@@ -132,13 +132,19 @@ token plus the whole protocol in a single plain-text document — no install, no
 config file, no restart, and it works on any client with a shell or a fetch
 tool rather than only on ones that speak MCP.
 
-The code is **single-use**: a chat message is durable, so a token pasted into
-one stays valid as long as the bridge does, while a code that burns on first
-use makes that message inert. The token it mints expires (7 days by default).
+The code is **single-mint, not single-read**: it issues exactly one token, and
+keeps returning that same token to anyone who fetches the link for 10 minutes
+before going dead permanently. That is deliberate — it used to die on the first
+read, and the first live partner's agent fetched it, got its token, fetched
+again to confirm, got a 404, and concluded the whole service was broken. A chat
+message is durable, so the code still stops working quickly; it just stops
+working on a clock rather than on the first reader, who is as likely to be a
+link preview as the agent you meant. The token it mints expires (7 days by
+default).
 
 **The division:** MCP for durability — the token lives in a config file the
 model never reads. Paste for reach — it works anywhere, and the token *is* in
-the model's context, which is why it expires and the code burns.
+the model's context, which is why it expires and the code goes dead quickly.
 
 ## Quick start
 

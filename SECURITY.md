@@ -49,7 +49,11 @@ us nothing new:
   head. Full statement: `VERIFY.md` §7.
 - Sending information to the other company is the product.
 - No third party has audited this.
-- A one-time join link puts a token into a model's context. Prefer MCP config.
+- A join link puts a token into a model's context. Prefer MCP config.
+- A join code holds its minted token in PLAINTEXT for 10 minutes after first
+  read, so that a retry or a link preview cannot destroy an invitation. It is
+  the only credential stored in the clear; everything else is `sha256`.
+  `VERIFY.md` §7 states the trade in full.
 - The "data, not instructions" banner is advisory, not a boundary.
 
 ## What we will not do

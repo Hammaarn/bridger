@@ -198,7 +198,7 @@ export class FileStore implements Store {
   async del(...keys: string[]) {
     // Count what was REMOVED, not what was requested. See the `Store` contract:
     // `redeemInvite` treats this number as a lock, so returning `keys.length`
-    // would let two callers both "win" a single-use join code.
+    // would let two callers both "win" the mint lock on a join code.
     this.refresh();
     let removed = 0;
     for (const k of keys) {

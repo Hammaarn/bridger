@@ -23,7 +23,7 @@ app/
   globals.css           ALL styling lives here — see trap #1
   api/mcp/route.ts      MCP transport — a THIN ADAPTER over lib/operations.ts
   api/rpc/route.ts      flat HTTP transport, same operations (BRIDGER_PASTE_PATH=1)
-  j/[code]/route.ts     the join document; burns a one-time code, mints a token
+  j/[code]/route.ts     the join document; single-MINT code, re-readable 10 min
   api/export/route.ts   bearer-authed JSON dump; feeds the UI and `bridger pull`
   api/health/route.ts   is the bridge configured, reachable, and switched on
 lib/
@@ -37,7 +37,7 @@ lib/
   secrets.ts            credential refusal on the write path
   question-state.ts     is a question still open — shared with the UI, no imports
   audit-call.ts         names a JSON-RPC call for the audit row
-  invites.ts            one-time join codes
+  invites.ts            join codes: mint once, stay readable briefly
   purge.ts              two-sided deletion
 cli/bridger.ts          operator + partner commands
 scripts/seed-demo.ts    seeds a local bridge so the UI can be LOOKED at

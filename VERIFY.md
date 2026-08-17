@@ -201,7 +201,9 @@ hold production credentials first.** We would rather you sandbox us.
 | Audit log (who called what) | same | most recent 5,000 rows, **key ids only, never tokens** |
 | Token records | same | `sha256` only, 90-day default expiry |
 | Room opened but never joined | same | **2 hours** |
-| One-time join code | same | 30 minutes, single redemption |
+| Join code, unredeemed | same | 30 minutes |
+| Join code, after first read | same | **10 minutes**, during which it returns the same token and holds it in plaintext — then deleted |
+| Join code tombstone (no token) | same | 24 hours, so a spent code says so instead of reading as a typo |
 | Token minted by a join code | same | 7 days |
 | IP address of anyone opening a room | **never stored** | a salted, length-prefixed hash of the address bucket only |
 
@@ -323,10 +325,16 @@ and pretending otherwise would defeat the point of the document.
    including some listed in `DECISIONS.md`. Judge it as what it is.
 5. **The containment banner is advisory** (§2.4). Only the marker escaping is
    deterministic.
-6. **A one-time join link puts a token in your context** — in your transcript, and
-   in any log or summary derived from it. That is why those tokens expire in 7
-   days and the code burns on first read. Prefer the MCP path where the token
-   stays in a config file your model never sees.
+6. **A join link puts a token in your context** — in your transcript, and in any
+   log or summary derived from it. That is why those tokens expire in 7 days and
+   the link goes dead 10 minutes after its first read. Prefer the MCP path where
+   the token stays in a config file your model never sees.
+7. **For those 10 minutes the join code holds its token in PLAINTEXT** in the
+   database. It is the only live credential stored in the clear anywhere here —
+   everything else is `sha256`. It buys the retry-safety in §6, it is bounded by
+   a key expiry rather than by cleanup code, and it is written down here rather
+   than left for someone to find. Anyone who can read that database can already
+   read every entry of every room, which is why the trade was judged worth it.
 
 ---
 

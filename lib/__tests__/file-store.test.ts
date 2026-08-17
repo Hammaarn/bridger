@@ -228,8 +228,10 @@ describe("the Store contract — del reports what was REMOVED", () => {
   /**
    * Both local implementations returned `keys.length` — the number ASKED FOR.
    * Redis returns the number actually removed, and `redeemInvite` uses that
-   * count as a lock, so the divergence quietly turned a single-use join code
-   * into a reusable one on the file backend while working correctly hosted.
+   * count as its MINT lock, so the divergence quietly let one join code mint
+   * two tokens on the file backend while working correctly hosted. Still
+   * load-bearing after S#276: the code is re-readable now, but it must still
+   * mint exactly once, and this count is what guarantees that.
    *
    * A cross-implementation contract with no test is a contract that holds only
    * on whichever backend someone happened to run.
