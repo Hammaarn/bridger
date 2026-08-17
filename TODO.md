@@ -28,8 +28,15 @@ switched back, green.
 record holds the minted token in PLAINTEXT — the only credential in the clear in
 this store. Erik's call, S#276; alternatives and reasoning in `DECISIONS.md`.
 
-**Still NOT verified:** no agent has redeemed a code under the new behaviour.
-That is item 2, and it is the same run.
+**Verified ON PRODUCTION, not just in tests** (prod `26dacec`): three fetches of
+one live join URL returned `200 / 200 / 200` with the same token and the same
+expiry, where fetch 2 used to be `404 not recognised`. The token then worked
+against `/api/rpc`. Negative controls: bogus token 401s, never-issued code still
+404s. Probe room purged and the purge independently confirmed.
+
+**Still NOT verified:** no FAR-SIDE AGENT has redeemed a code. The transport is
+proven; the thing this was built for — an agent handed a link completing a round
+trip — is still item 2.
 
 The original problem statement follows, because it is the evidence for why the
 security property was traded.

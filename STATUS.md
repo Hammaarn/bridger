@@ -99,8 +99,26 @@ the poll is 4s, and the loop is a self-rescheduling timeout.
    a retry can help. **Cost: the token sits in PLAINTEXT in the invite record for
    those 10 minutes** — the only credential in the clear in this store, bounded
    by key expiry, Erik's call. `VERIFY.md` §7 states it publicly.
-   **Unit-green and ablation-proven; NO agent has redeemed a code under the new
-   behaviour, so the thing it was built to fix is still unobserved.**
+   **RUN-GREEN on production**, which is a first for this project — the fix was
+   not merely deployed, it was exercised. A throwaway room was opened against
+   the live bridge, a code minted, and the URL fetched three times:
+
+   | Fetch | Before S#276 | Now |
+   |---|---|---|
+   | 1 | 200 + token | 200 + token, "spent but not instantly dead" |
+   | 2 | **404 not recognised** | **200, same token**, "you have read this before" |
+   | 3 | **404 not recognised** | **200, same token** |
+
+   Identical token expiry across all three proves it is the same credential and
+   not a re-mint. The re-read token was then used successfully against
+   `/api/rpc`. Two negative controls ran alongside: a bogus token 401s, and a
+   never-issued code still answers "not recognised" + 404 — so neither result is
+   "everything succeeds". Probe room purged; purge confirmed by an independent
+   read (its token now 401s), not by the CLI's own success message.
+
+   **STILL NOT VERIFIED, and it is the one that counts:** no FAR-SIDE AGENT has
+   redeemed a code. What is proven is that the HTTP path behaves; what is not is
+   that an agent handed this link completes a round trip. That is item 2.
 3. **The gate page's trust block has never been looked at.** The three-panel room
    view has (Erik's screenshot). agent-browser exceeds a 280s cold start on this
    machine — a known dead end since S#272, retried and reaped again in S#275.
