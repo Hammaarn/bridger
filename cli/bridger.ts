@@ -43,7 +43,7 @@ import {
 import type { Entry } from "../lib/entries";
 import { classifyCitation, describeCitation, isUnlocated, isWideRange } from "../lib/citation";
 import { verifyChain, type ChainedEntry } from "../lib/chain";
-import { mintInvite } from "../lib/invites";
+import { INVITE_REREAD_SECONDS, mintInvite } from "../lib/invites";
 import { executePurge, purgeState, recordPurgeConsent } from "../lib/purge";
 import type { AuditEntry } from "../lib/room-registry";
 
@@ -272,11 +272,17 @@ async function cmdRotate() {
  * bridge meant pasting a participant token somewhere visible.
  */
 /**
- * Mint a one-time join code — the paste-and-go onboarding.
+ * Mint a join code — the paste-and-go onboarding.
  *
  * Prints ONE line to send. The code, not a token: a chat message is durable and
  * a token pasted into one stays valid as long as the bridge does, whereas a
- * code that burns on first use makes the message inert the moment it is used.
+ * code goes dead on a short clock.
+ *
+ * SINGLE-MINT, NOT SINGLE-READ. The link issues exactly one token and then
+ * returns that same token to every fetch for 10 minutes. Tell the recipient
+ * that: the previous behaviour died on the first read, which meant an agent's
+ * retry — or a chat client's link preview — could destroy the invitation before
+ * the intended reader ever saw it.
  */
 async function cmdInvite() {
   const store = operatorStore();
@@ -297,7 +303,9 @@ async function cmdInvite() {
 
   console.log(`
   Join code for ${room!.sides[side].label} on "${room!.topic}".
-  Valid for ${minutes} minutes, and it works EXACTLY ONCE.
+  Unredeemed it lasts ${minutes} minutes. It mints EXACTLY ONE token, and then
+  keeps handing that same token to anyone who fetches the link for
+  ${Math.round(INVITE_REREAD_SECONDS / 60)} minutes before going dead for good.
 
   Send them this line:
 
@@ -305,6 +313,11 @@ async function cmdInvite() {
 
   Their AI fetches that URL and gets a working token plus the whole protocol
   in one document. No install, no config file, no restart.
+
+  Why it is not one-read-only: the first version died on the first fetch, so an
+  agent's retry -- or a chat client previewing the link -- destroyed the
+  invitation before the intended reader saw it. That is not hypothetical; it is
+  how the first live partner demo failed.
 
   The token it mints expires in ${days} days. Requires BRIDGER_PASTE_PATH=1
   on the server. Code expires ${expiresAt}.
@@ -822,7 +835,8 @@ const USAGE = `
                                          For a far side that pays per turn: ~1,800
                                          tokens/turn of tool schema becomes ~320.
     invite [--side a|b] [--ttl-minutes N] [--token-days N]
-                                         ONE-TIME join code -- the paste-and-go path
+                                         join code -- paste-and-go. Mints ONE token,
+                                         re-readable for 10 min, then dead
     revoke --side a|b [--room <id>]      kill a side's access
     close  [--room <id>]                 end the bridge
     purge  --room <id> [--side a|b]      DELETE it -- needs BOTH sides' consent

@@ -159,7 +159,8 @@ export async function GET(req: Request) {
         "Sending information to the other company is the product. No design removes that; it is only bounded, visible and revocable.",
         "No third party has audited this. There is no central review for arbitrary MCP servers — the protocol is open, not a curated store.",
         "It is young: written in August 2026, one live integration. Judge it as what it is.",
-        "A one-time join link puts a token into the model's context and therefore into transcripts and logs. Prefer the MCP config path, where the token stays in a file the model never reads.",
+        "A join link puts a token into the model's context and therefore into transcripts and logs. Prefer the MCP config path, where the token stays in a file the model never reads.",
+        "A join code mints one token and then keeps returning it for 10 minutes, holding it in PLAINTEXT in the database for that window — the only credential stored in the clear here; everything else is sha256. It exists so that a retry, a preview or a link unfurler cannot destroy an invitation, and it is bounded by a key expiry rather than by cleanup code.",
       ],
 
       recommendedBeforeTrusting: [

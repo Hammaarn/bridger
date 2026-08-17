@@ -18,10 +18,13 @@
  * either. So the objection dissolves. Anyone who can use the paste path can
  * redeem a code, and anyone who cannot should use MCP.
  *
- * THE CODE BURNS ON READ. That is the security property: the durable artefact —
- * the chat message, the email, the screenshot — is inert by the time anyone
- * else sees it. What it does NOT do is protect the token from the context it
- * lands in; see `lib/invites.ts` for that, stated in full.
+ * THE CODE MINTS ONCE AND STAYS READABLE FOR A FEW MINUTES. It used to burn on
+ * the first read, and that is what broke the first live customer demo: their
+ * agent fetched, got its token, fetched again to confirm, got a 404 saying the
+ * code was not recognised, and concluded the whole SERVICE was broken — while
+ * holding a perfectly good credential. Everything that fetches a URL has to get
+ * the same answer, not just whoever gets there first. See `lib/invites.ts` for
+ * the window, and for what holding the token in plaintext during it costs.
  */
 
 import { parseRoom } from "@/lib/room-registry";
@@ -36,8 +39,9 @@ const text = (body: string, status = 200) =>
     status,
     headers: {
       "Content-Type": "text/plain; charset=utf-8",
-      // A join code is single-use; a cached copy of this page is either useless
-      // or a leak. Never store it.
+      // This page contains a live credential. Re-readability is served by the
+      // SERVER, on a clock it controls and can revoke; a cached copy is one it
+      // cannot, and it would keep serving the token after the window shut.
       "Cache-Control": "no-store, no-cache, must-revalidate",
     },
   });
@@ -60,21 +64,56 @@ export async function GET(
   if (!result.ok) {
     // Each reason gets its own sentence, because "invalid code" sends a partner
     // hunting the wrong problem — an expired code and an already-used one need
-    // completely different next actions.
+    // completely different next actions. Every one of these says explicitly
+    // whether retrying can help, because the reader is usually a machine and
+    // the last thing it did with an ambiguous refusal was declare us broken.
     const why: Record<typeof result.reason, string> = {
-      unknown: "That join code is not recognised. Check you copied the whole line.",
-      expired: "That join code has expired. Ask for a fresh one — they are valid for 30 minutes.",
+      unknown:
+        "That join code is not recognised, and no code like it has been used here. Check you copied the whole line. Retrying will not change this answer.",
+      expired:
+        "That join code has expired. Codes are valid for 30 minutes. Ask whoever sent it for a fresh one — retrying will not change this answer.",
       "already-used":
-        "That join code has already been used. They are single-use ON PURPOSE, so that a code sitting in a chat log cannot be redeemed by anyone else later. Ask for a fresh one.",
-      "room-missing": "The bridge this code belongs to no longer exists.",
+        "That join code was redeemed, and the short window in which this link could be read again has closed. THIS IS NOT AN ERROR AND THE SERVICE IS WORKING: if you already have the token from an earlier read, keep using it. If you do not, ask whoever sent this for a fresh link. Retrying will not change this answer.",
+      "room-missing":
+        "The bridge this code belongs to no longer exists. Retrying will not change this answer.",
+      "mint-in-progress":
+        "This code is being redeemed right now by another request that arrived a moment before yours. This is the ONE case here where retrying is correct: wait a second and fetch this same URL again, and you will get the token.",
     };
-    return text(`${why[result.reason]}\n`, result.reason === "unknown" ? 404 : 410);
+    const status =
+      result.reason === "unknown"
+        ? 404
+        : result.reason === "mint-in-progress"
+          ? 503
+          : 410;
+    return text(`${why[result.reason]}\n`, status);
   }
 
-  const { token, invite } = result;
+  const { token, invite, reused } = result;
   const room = await parseRoom(await store.get(ROOM_KEY(invite.roomId)));
   const me = room?.sides[invite.side];
   const peer = room?.sides[invite.side === "a" ? "b" : "a"];
+
+  // The token's clock started when it was MINTED, which on a re-read was some
+  // minutes ago. Computing it from `now` would quietly overstate the lifetime
+  // every time this document is fetched again.
+  const mintedAt = invite.redeemedAt ? new Date(invite.redeemedAt) : new Date();
+  const tokenExpiry = new Date(
+    mintedAt.getTime() + invite.tokenTtlSeconds * 1000,
+  ).toISOString();
+
+  // Two different truths, and saying the wrong one is how an agent decides the
+  // credential it holds has been superseded.
+  const codeNote = reused
+    ? `YOU HAVE READ THIS LINK BEFORE. The token above is the SAME one you were
+given the first time — nothing was re-issued and nothing you already have has
+stopped working. This link keeps answering until ${invite.reReadableUntil || "shortly"},
+after which it goes dead and cannot be revived. Keep the token; it cannot be
+recovered afterwards, only replaced.`
+    : `THIS LINK IS NOW SPENT, but not instantly dead. It will keep returning this
+same document and this same token until ${invite.reReadableUntil || "shortly"} —
+so a retry, a preview or a second confirming fetch gets the same answer rather
+than an error. After that it goes dead permanently. Keep the token above; it
+cannot be recovered afterwards, only replaced.`;
 
   return text(`YOU ARE NOW ON A BRIDGER BRIDGE.
 
@@ -85,12 +124,10 @@ configure. Read it, then use the commands below.
   You are      : ${me?.label || invite.side} (side ${invite.side})
   Your partner : ${peer?.label || "the other side"}
   Your token   : ${token}
-  Token expires: ${new Date(Date.now() + invite.tokenTtlSeconds * 1000).toISOString()}
+  Token expires: ${tokenExpiry}
   Endpoint     : ${origin}/api/rpc
 
-THIS JOIN CODE IS NOW DEAD. It worked once, which is the point — the message it
-arrived in is worthless to anyone who reads it after you. Keep the token above;
-it cannot be recovered, only replaced.
+${codeNote}
 
 ────────────────────────────────────────────────────────────────────────
 WHAT THIS IS

@@ -93,10 +93,14 @@ the poll is 4s, and the loop is a self-rescheduling timeout.
 1. **NO FAR-SIDE AGENT HAS EVER COMPLETED A ROUND TRIP.** Not Gemini, not
    Trigvanta's Claude. Both were connected or invited; neither wrote an entry.
    Every claim about the far-side experience is still inference.
-2. **The invite code burns on ANY read, including a browser preview.** That is
-   what broke the Trigvanta demo: their Claude fetched, re-fetched, got a 404 and
-   concluded the service was broken. **Agents retry; burn-on-read assumes a human
-   who clicks once.** Fixing this is the top TODO item.
+2. ~~**The invite code burns on ANY read.**~~ **FIXED S#276** — single-MINT,
+   re-readable 10 minutes, then a 24h tombstone that says `already-used` rather
+   than sending a reader after an imaginary typo. Every refusal now says whether
+   a retry can help. **Cost: the token sits in PLAINTEXT in the invite record for
+   those 10 minutes** — the only credential in the clear in this store, bounded
+   by key expiry, Erik's call. `VERIFY.md` §7 states it publicly.
+   **Unit-green and ablation-proven; NO agent has redeemed a code under the new
+   behaviour, so the thing it was built to fix is still unobserved.**
 3. **The gate page's trust block has never been looked at.** The three-panel room
    view has (Erik's screenshot). agent-browser exceeds a 280s cold start on this
    machine — a known dead end since S#272, retried and reaped again in S#275.

@@ -1,7 +1,9 @@
 # TODO — Bridger
 
-Read `STATUS.md` first — the bridge is **stopped**, and (changed S#272)
-production is **current**, not stale.
+Read `STATUS.md` first — the bridge is **RUNNING** (kill switch lifted S#275 and
+not put back), the repo is **PUBLIC**, and `BRIDGER_PASTE_PATH=1` is **on** in
+production. This header said "stopped" for two sessions after it stopped being
+true; `curl -s <server>/api/health` settles it in one second.
 
 > **DIRECTION (Erik, S#275): zero install, zero setup — "just a bridge to a room
 > where users' AIs can communicate in a safe environment."** The idea is strong;
@@ -13,7 +15,27 @@ production is **current**, not stale.
 
 ## S#275 CARRYOVER — in order. The first item is the blocker.
 
-### 1. [!!] THE INVITE CODE BURNS ON ANY READ, AND AGENTS RETRY
+### 1. ~~[!!] THE INVITE CODE BURNS ON ANY READ, AND AGENTS RETRY~~ — FIXED S#276
+
+**Shipped:** single-MINT, re-readable for 10 minutes, then a 24h tombstone so a
+spent code says `already-used` instead of "check you copied the whole line".
+Every refusal now states explicitly whether retrying can help, because the
+reader is usually a machine and an ambiguous refusal is what it read as
+"broken". Ablation-proven: writeback switched off, 3 of the new tests went red,
+switched back, green.
+
+**The cost, recorded rather than buried:** for those 10 minutes the invite
+record holds the minted token in PLAINTEXT — the only credential in the clear in
+this store. Erik's call, S#276; alternatives and reasoning in `DECISIONS.md`.
+
+**Still NOT verified:** no agent has redeemed a code under the new behaviour.
+That is item 2, and it is the same run.
+
+The original problem statement follows, because it is the evidence for why the
+security property was traded.
+
+---
+
 
 This is what broke the first customer demo. Trigvanta's Claude fetched
 `/j/<code>`, got the document, fetched **again** (agents retry, or make a second
@@ -210,8 +232,10 @@ force-push are still hard-denied.
 
 ## Lane: the join experience (highest leverage for a real partner)
 
-- [x] **`/j/<one-time-code>`** — DONE S#272. Plain-text join document, code
-      burns on read, mints an expiring token. Plus `POST /api/rpc`, a flat
+- [x] **`/j/<code>`** — DONE S#272, **semantics corrected S#276**. Plain-text join
+      document; the code mints once and stays readable for 10 minutes (it used to
+      burn on read, which broke the first demo). Mints an expiring token. Plus
+      `POST /api/rpc`, a flat
       transport needing no client config at all, and `bridger invite`. Behind
       `BRIDGER_PASTE_PATH=1`. **Unit-green only — no far-side agent has ever
       redeemed a code.** Whether it becomes supported is D1 in

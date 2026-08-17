@@ -5,6 +5,65 @@ Append-only, newest first. **DECISIONS wins on direction** — where this file a
 
 ---
 
+## 2026-08-17 -- S#276 -- JOIN CODES ARE SINGLE-MINT, NOT BURN-ON-READ
+
+**Decision (Erik):** a join code mints exactly one token and then returns that
+same token to every reader for **10 minutes** before dying permanently. The
+minted token is held in **plaintext** in the invite record for that window.
+
+**Reverses:** the S#272 burn-on-read design, and the security property stated in
+its docstring (*"a code that burns on first use makes that message worthless to
+anyone who reads it second"*).
+
+**Why.** Burn-on-read cost us the first live customer demo. Trigvanta's agent
+fetched `/j/<code>`, received a working token, fetched again to confirm, got
+`404 not recognised`, concluded the SERVICE was broken, and never used the
+credential it was already holding. The audit log proves that token never called
+us. The design assumed one careful human clicking once; the actual population of
+readers is an agent that retries, a human previewing a link before forwarding
+it, and anything that fetches a URL because it appeared in a message.
+
+**Two failure modes were separated, and only one needed a security change.**
+(a) The agent read it first and retried — CONFIRMED from the audit log, and
+fixable purely by not answering `404 not recognised`. (b) Something else read it
+first, so the agent never got a token at all — INFERRED, not tested here, but
+the route redeems on *any* GET and cannot tell a reader from a crawler. (b) is
+what required re-readability.
+
+**What it costs, and why the trade was taken.** For 10 minutes the invite record
+holds a live credential in the clear — the only one in a store that otherwise
+keeps `sha256` hashes. Bounded by: a Redis key expiry rather than cleanup code;
+a window far shorter than the code's own 30-minute TTL; and a token scoped to
+one room and one side, capped at `PASTE_PATH_DAILY_CAP`, expiring and revocable.
+The judgement is that an attacker who can read this store can already read every
+entry of every room in plaintext, so the marginal gain to them is small.
+
+**Rejected: derive the token by `HMAC(secret, code)`.** Stores nothing secret
+and is perfectly idempotent, but adds a secret that breaks every join if lost
+and forges every token if leaked. Not worth a new key-management surface for a
+10-minute exposure on an already-readable store.
+
+**Also fixed, and it was half the original bug:** a spent code reported
+`unknown` — *"check you copied the whole line"* — which sends a reader hunting a
+typo that does not exist. A 24-hour tombstone carrying no token now keeps
+`already-used` distinguishable from `unknown`, and every refusal states outright
+whether retrying can help.
+
+**Scope:** `lib/invites.ts`, `lib/store.ts` (`INVITE_SPENT_KEY`),
+`app/j/[code]/route.ts`, `cli/bridger.ts` (the `invite` output said *"it works
+EXACTLY ONCE"*).
+**Doc impact:** `VERIFY.md` (retention table + new §7 naming the plaintext),
+`SECURITY.md`, `README.md`, `ARCHITECTURE.md`, `/api/about` `cannotVerify`,
+`STATUS.md`, `TODO.md`.
+**Verification:** tsc 0, 258/258 (was 254), build 0. Ablation: writeback removed,
+marker grepped to prove the patch applied, 3 new tests went red, restored
+byte-identical. One test was RENAMED because it survived the ablation — it had
+been named for a property it did not assert.
+**NOT verified:** no agent has redeemed a code under the new behaviour. The
+whole point of the change remains unobserved until TODO item 2 runs.
+
+---
+
 ## 2026-08-17 -- S#275 -- TOKENS ARE SPENT ON COMMUNICATION, NOTHING ELSE
 
 **Erik's constraint:** *"It should literally only cost tokens when communication
