@@ -17,7 +17,7 @@
 import assert from "node:assert/strict";
 import { beforeEach, describe, it } from "node:test";
 
-import { discountedCost, opAsk, opRead, opWait, opStatus } from "../operations";
+import { discountedCost, opAsk, opDecide, opRead, opWait, opStatus } from "../operations";
 import {
   bumpIdleStreak,
   clearRegistryCache,
@@ -255,6 +255,32 @@ describe("[!!] the brake is denominated in WASTED BYTES, not in call count", () 
       assert.equal(await peekIdleStreak(store, "tok-x"), 1);
       assert.equal(await peekWaste(store, "tok-x"), 100);
     }
+  });
+});
+
+describe("[!!] a DECISION can cite its evidence", () => {
+  it("carries checkedAgainst through to the wire", async () => {
+    // The most consequential entry type was the only one that structurally
+    // could not say what it was checked against (S#276, found by side B).
+    const { store, room } = await bridge();
+    const a = await ctxFor(store, room, "a", T0);
+    const res = await opDecide(a, {
+      title: "brake is denominated in bytes",
+      decision: "charge wasted bytes, not call count",
+      why: "the old brake fired on the cheapest op and never on the dearest",
+      checkedAgainst: "measured on production: wait ~155B, status ~1220B, answer ~8400B",
+    });
+    assert.match(res.posted.checked, /checked-against:/, "a decision must be able to cite");
+    assert.match(res.posted.checked, /155B/);
+  });
+
+  it("and is still fine without one — citing stays optional", async () => {
+    // NEGATIVE CONTROL: making the field required would push people to invent
+    // one, which is the exact failure `checkedAgainst` exists to prevent.
+    const { store, room } = await bridge();
+    const a = await ctxFor(store, room, "a", T0);
+    const res = await opDecide(a, { title: "t", decision: "d", why: "w" });
+    assert.equal(res.posted.checked, "unchecked");
   });
 });
 
