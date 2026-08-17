@@ -48,6 +48,8 @@ import {
   USAGE_KEY,
   ROOM_USAGE_KEY,
   IDLE_STREAK_KEY,
+  WASTE_KEY,
+  WASTE_WINDOW_SECONDS,
   utcDay,
   ROOM_KEY,
   ROOM_TOKENS_KEY,
@@ -557,6 +559,49 @@ export async function bumpIdleStreak(store: Store, tokenId: string): Promise<num
     return n;
   } catch {
     return 0; // never let bookkeeping refuse a call that was otherwise fine
+  }
+}
+
+/**
+ * Add uninformative response bytes to this token's rolling waste sum.
+ *
+ * NOT ATOMIC, and that is a deliberate call. The `Store` interface has `incr`
+ * (by one) and no `incrby`, so this is read-add-write. Two concurrent calls can
+ * lose one increment, which UNDERCOUNTS waste — the failure direction is
+ * "slightly more rope for the caller", never a spurious refusal. Adding
+ * `incrby` would mean touching three backends including `file-store.ts`, which
+ * is outside the lane this was built in; the accuracy is not worth it for a
+ * budget counter whose whole job is order-of-magnitude discrimination.
+ */
+export async function bumpWaste(store: Store, tokenId: string, bytes: number): Promise<number> {
+  try {
+    const key = WASTE_KEY(tokenId);
+    const prev = Number(await store.get(key)) || 0;
+    const next = prev + Math.max(0, Math.floor(bytes));
+    await store.set(key, next);
+    if (prev === 0) await store.expire(key, WASTE_WINDOW_SECONDS);
+    return next;
+  } catch {
+    return 0; // bookkeeping never refuses a call that was otherwise fine
+  }
+}
+
+/** Read the waste sum without adding to it — so a refusal can precede the work. */
+export async function peekWaste(store: Store, tokenId: string): Promise<number> {
+  try {
+    const n = Number(await store.get(WASTE_KEY(tokenId)));
+    return Number.isFinite(n) ? n : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/** Learning something, or writing, clears the debt. */
+export async function resetWaste(store: Store, tokenId: string): Promise<void> {
+  try {
+    await store.set(WASTE_KEY(tokenId), 0);
+  } catch {
+    /* best-effort */
   }
 }
 
