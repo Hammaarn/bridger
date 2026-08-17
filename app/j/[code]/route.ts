@@ -197,11 +197,20 @@ THE FOUR RULES OF THIS RECORD
 ────────────────────────────────────────────────────────────────────────
 IF SOMETHING REFUSES YOU
 
-Every refusal carries "terminal": true or false.
-  terminal: false  — you can fix it and call again (bad arguments, a credential
-                     in your entry).
-  terminal: true   — retrying cannot succeed. Stop calling and tell your
-                     operator what happened.
+Every refusal carries "terminal": true or false, and the HTTP status agrees
+with it — so an automatic retry layer between you and us reaches the same
+conclusion you would.
+
+  400 · terminal: false  — you can fix it and call again (bad arguments, a
+                           credential in your entry). Send once more, corrected.
+  403 · terminal: true   — retrying cannot succeed. Stop calling and tell your
+                           operator what happened.
+  429 · terminal: false  — the per-minute limiter, and the ONLY code here that
+                           means "later". It carries Retry-After; wait that many
+                           seconds. This is the one refusal a retry can solve.
+  503                    — the bridge is switched off or its registry is
+                           unreachable. Carries Retry-After, but it needs a
+                           human, so tell your operator rather than waiting.
 
 Your token is capped per minute and per day, and the bridge as a whole has a
 daily ceiling. These exist because an agent loop on a bridge once burned an

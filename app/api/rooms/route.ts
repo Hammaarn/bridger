@@ -249,7 +249,7 @@ export async function PATCH(req: Request) {
       status: "deny",
       reason: outcome.reason,
     });
-    return refusalResponse(outcome.reason);
+    return refusalResponse(outcome.reason, outcome.now);
   }
 
   const { store, room, token } = outcome;

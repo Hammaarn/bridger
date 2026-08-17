@@ -35,7 +35,7 @@ import {
   type RoomRecord,
   type TokenRecord,
 } from "@/lib/room-registry";
-import { auditRequest, gate, refusalBody } from "@/lib/http-gate";
+import { auditRequest, gate, refusalBody, refusalHeaders } from "@/lib/http-gate";
 import { createStore, type Store } from "@/lib/store";
 import {
   OperationRefused,
@@ -151,12 +151,32 @@ function ctxFrom(ctx: unknown): OpContext {
   return { store: requireStore(), room, token, now: new Date() };
 }
 
-/** Operations signal caller-actionable refusals; MCP wants them thrown. */
+/**
+ * Operations signal caller-actionable refusals; MCP wants them thrown.
+ *
+ * THE `terminal` FLAG HAS TO SURVIVE THE THROW (S#276). JSON-RPC tool errors
+ * carry a message and nothing else useful here, so re-throwing bare `e.message`
+ * silently dropped the one field `SKILL.md` promises every refusal has —
+ * *"every refusal says whether retrying can work"* — on this transport only.
+ * The flat transport carried it as a body field the whole time; an agent on MCP
+ * had no way to obey an instruction we had given it.
+ *
+ * It goes into the TEXT because the text is all a tool error reliably conveys.
+ * A sentence, not a bare token, because the reader is a language model and this
+ * is the sentence it must act on.
+ */
 async function run<T>(fn: () => Promise<T>) {
   try {
     return reply(await fn());
   } catch (e) {
-    if (e instanceof OperationRefused) throw new Error(e.message);
+    if (e instanceof OperationRefused) {
+      throw new Error(
+        `${e.message}\n\n[terminal: ${e.terminal}] ` +
+          (e.terminal
+            ? "Retrying this call CANNOT succeed. Stop calling bridger tools and report to your operator."
+            : "This is recoverable: fix the arguments described above and call again once."),
+      );
+    }
     throw e;
   }
 }
@@ -441,7 +461,10 @@ async function gated(req: Request): Promise<Response> {
 
     // Same refusal, wrapped as JSON-RPC so an MCP client surfaces it as an
     // error rather than a transport failure. `terminal` is the field that
-    // matters: a looping agent reads a bare 4xx as "try again".
+    // matters MOST — but the status underneath it is read by the HTTP client
+    // before the model sees anything, so it has to agree (S#276). Both come
+    // from the shared table for exactly that reason, and `Retry-After` rides
+    // along on the statuses that invite a retry.
     const body = refusalBody(g.reason);
     return Response.json(
       {
@@ -449,7 +472,7 @@ async function gated(req: Request): Promise<Response> {
         id: null,
         error: { code: -32000, message: body.error, data: { reason: body.code, terminal: body.terminal } },
       },
-      { status: DENY_STATUS[g.reason] },
+      { status: DENY_STATUS[g.reason], headers: refusalHeaders(g.reason, g.now) },
     );
   }
 

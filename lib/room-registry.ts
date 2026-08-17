@@ -210,6 +210,28 @@ export type AuthOutcome =
   | { ok: false; reason: DenyReason };
 
 /** Human-readable reason + the HTTP status it should surface as. */
+/**
+ * HTTP status per refusal — and the ONE invariant that governs this table.
+ *
+ * **429 IS RESERVED FOR REFUSALS THAT ARE GENUINELY RETRYABLE LATER, AND EVERY
+ * 429 OR 503 MUST CARRY `Retry-After`.** `terminal` in the body must never
+ * disagree with the status.
+ *
+ * Why this is not pedantry (S#276). 429 is the canonical *come back shortly*
+ * status: HTTP clients, SDK retry middleware and agent frameworks retry it
+ * automatically with backoff. `daily-cap` and `room-daily-cap` used to return
+ * 429 while being TERMINAL, so the two refusals whose entire job is to end a
+ * runaway loop were encoded as "please try again" — and that instruction is
+ * obeyed by the transport layer, underneath the model, before a single token of
+ * our carefully-worded refusal text can be read by anything able to understand
+ * it. `refusalBody` was written knowing a looping agent reads a bare 4xx as
+ * "try again" (see `http-gate.ts`); the missing half was that the status code
+ * is read by machinery the message never reaches.
+ *
+ * `bridge-disabled` and `registry-unavailable` stay 503 because that is what is
+ * true — the service really is unavailable, and monitoring should see it — but
+ * they now carry `Retry-After` so a naive client backs off instead of hammering.
+ */
 export const DENY_STATUS: Record<DenyReason, number> = {
   "bridge-disabled": 503,
   "no-token": 401,
@@ -218,11 +240,34 @@ export const DENY_STATUS: Record<DenyReason, number> = {
   expired: 401,
   "room-missing": 404,
   "room-closed": 410,
+  // The ONLY genuinely retryable refusal here: the window really does reopen,
+  // in under a minute, and `Retry-After` says exactly when.
   "rate-limited": 429,
-  "daily-cap": 429,
-  "room-daily-cap": 429,
+  // Terminal. Was 429 until S#276, which told every conformant client to retry
+  // the cap that exists to stop it.
+  "daily-cap": 403,
+  "room-daily-cap": 403,
   "registry-unavailable": 503,
 };
+
+/**
+ * Seconds a client should wait before retrying, per reason. Absent = no
+ * `Retry-After` header, which is only correct for statuses that do not invite
+ * a retry in the first place.
+ *
+ * `rate-limited` is computed from the clock rather than fixed, because the
+ * limiter is a per-minute bucket: the honest answer is "when this minute ends".
+ */
+export function retryAfterSeconds(reason: DenyReason, now: Date): number | null {
+  if (reason === "rate-limited") {
+    // The bucket rolls at the top of the next minute. Never advertise 0.
+    return Math.max(1, 60 - now.getUTCSeconds());
+  }
+  // A stopped bridge or an unreachable registry needs a human, not a backoff.
+  // Long enough that a retry loop is not a load problem while it waits.
+  if (reason === "bridge-disabled" || reason === "registry-unavailable") return 3600;
+  return null;
+}
 
 /** Refusals a caller must never retry. Used to shape the response, not just log it. */
 export const TERMINAL_DENIALS: ReadonlySet<DenyReason> = new Set<DenyReason>([
