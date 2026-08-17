@@ -141,3 +141,83 @@ describe("citation — labels state WHAT WAS CITED, never a verdict on the answe
     assert.ok(isWideRange(atThreshold), "the threshold is inclusive");
   });
 });
+
+describe("citation — web sources, found by a real answer being graded 'whole file'", () => {
+  // THE ACTUAL REGRESSION, verbatim from entry ABF-A-002 on room ddf9433ac2fd.
+  // It cited five news and archive domains and the record rendered it as
+  // "whole file" — claiming a document in this repo. That is a false fact about
+  // the string, which is the one thing this module promises not to state.
+  const REAL = [
+    "2 web searches, result summaries only; no primary source opened.",
+    "Caernarvon 1927: 1927flood.lthp.org, 64parishes.org, smithsonianmag.com",
+    "-- agree on the deliberate dynamiting. Valencia: tribunaldelasaguas.org,",
+    "visitvalencia.com + ABSTRACT ONLY of 'Not only peasants'.",
+  ].join(" ");
+
+  it("the string that caused this is a web source, NOT 'whole file'", () => {
+    const c = classifyCitation(REAL);
+    assert.equal(c.kind, "url");
+    assert.equal(describeCitation(c), "web source");
+    assert.notEqual(describeCitation(c), "whole file", "the bug this test exists for");
+  });
+
+  it("bare hosts and full URLs both classify", () => {
+    for (const s of [
+      "example.org",
+      "1927flood.lthp.org",
+      "https://bridger-nu.vercel.app/api/about",
+      "www.example.com/a/b",
+      "see tribunaldelasaguas.org for the ordinances",
+    ]) {
+      assert.equal(classifyCitation(s).kind, "url", `${s} should read as a web source`);
+    }
+  });
+
+  it("a web source is LOCATED — you can go and look, it is just not on disk", () => {
+    assert.ok(!isUnlocated(classifyCitation("example.org")));
+  });
+
+  // The regression guard that matters more than the fix. Being wrong in this
+  // direction sends a reader to the web for something sitting on disk, and they
+  // cannot find it at all.
+  it("SOURCE FILES ARE NOT WEBSITES — .ts must never be read as Tonga", () => {
+    for (const [s, expected] of [
+      ["lib/store.ts", "file"],
+      ["app/api/mcp/route.ts", "file"],
+      ["lib/citation.ts:41", "line"],
+      ["lib/store.ts:41-58", "range"],
+      ["package.json", "file"],
+      ["app/globals.css", "file"],
+      ["skill/SKILL.md", "file"],
+    ] as const) {
+      assert.equal(classifyCitation(s).kind, expected, `${s} must stay ${expected}`);
+    }
+  });
+
+  it("precedence holds: a command stays a command, a locator stays a locator", () => {
+    assert.equal(
+      classifyCitation("curl -s https://bridger-nu.vercel.app/api/health").kind,
+      "command",
+      "a URL inside a command must not demote it to a bare web source",
+    );
+    assert.equal(
+      classifyCitation("lib/entries.ts:215 and also example.org").kind,
+      "line",
+      "the more specific on-disk locator wins over a domain later in the string",
+    );
+  });
+
+  it("does not truncate a TLD out of a longer word", () => {
+    // `example.company` must not be read as `example.com` + "pany". It lands on
+    // `file` instead, via the PRE-EXISTING FILE_RE, which accepts any 1-12 char
+    // extension — a looseness that predates this change and is deliberately not
+    // fixed here. What is asserted is only the boundary: not a web source.
+    assert.notEqual(classifyCitation("example.company").kind, "url");
+    assert.equal(classifyCitation("the network").kind, "unlocated", "no dot, no locator");
+  });
+
+  it("the new label is not a verdict either", () => {
+    const verdicts = /\b(good|bad|weak|strong|poor|verified|trusted|reliable|accurate|correct|proven)\b/i;
+    assert.ok(!verdicts.test(describeCitation(classifyCitation("example.org"))));
+  });
+});
