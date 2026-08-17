@@ -17,7 +17,7 @@
 import assert from "node:assert/strict";
 import { beforeEach, describe, it } from "node:test";
 
-import { opAsk, opRead, opWait, opStatus } from "../operations";
+import { discountedCost, opAsk, opRead, opWait, opStatus } from "../operations";
 import {
   bumpIdleStreak,
   clearRegistryCache,
@@ -29,10 +29,12 @@ import {
   peekWaste,
   type RoomRecord,
 } from "../room-registry";
-import { ROOM_KEY, WASTE_BUDGET_BYTES } from "../store";
+import { BLOCKED_CALL_DISCOUNT, BLOCKED_CALL_MS, ROOM_KEY, WASTE_BUDGET_BYTES } from "../store";
 import { FakeStore, T0, plus } from "./fake-store";
 
 beforeEach(() => clearRegistryCache());
+
+
 
 async function bridge() {
   const store = new FakeStore();
@@ -180,6 +182,67 @@ describe("[!!] the brake is denominated in WASTED BYTES, not in call count", () 
 
     assert.equal(await peekWaste(store, a.token.id), 0, "a write must clear wasted bytes");
     assert.equal(await peekIdleStreak(store, a.token.id), 0, "and the streak the docstring promised");
+  });
+
+  it("[!!] a STUCK CURSOR loop is charged, not reset — the hole the cursor fix opened", async () => {
+    // Found by side B, S#276, and it is a regression THIS session introduced:
+    // defaulting `wait` to the caller's cursor fixed a deadlock and, in the same
+    // stroke, made a client that never calls markRead get the same entries back
+    // instantly, forever. `learned = count > 0` then reset the budget on every
+    // one of those ~2 kB responses, so the brake was blind to the most expensive
+    // loop in the product.
+    const { store, room } = await bridge();
+    const writer = await ctxFor(store, room, "a", T0);
+    await opAsk(writer, { title: "something worth reading once", body: "x".repeat(400) });
+
+    const stuck = await ctxFor(store, room, "b", T0);
+    const first = await opWait(stuck, { timeoutSeconds: 0 });
+    assert.equal(first.count, 1, "the first delivery is genuinely informative");
+    assert.equal(await peekWaste(store, stuck.token.id), 0, "and must reset the budget");
+
+    // Same call again. Cursor never advanced, so the same entry comes back.
+    let last = 0;
+    for (let i = 0; i < 3; i++) {
+      const again = await opWait(stuck, { timeoutSeconds: 0 });
+      assert.equal(again.count, 1, "the stuck client is served the same entry again");
+      last = await peekWaste(store, stuck.token.id);
+    }
+    assert.ok(last > 0, "re-serving what it already had must COST, not reset");
+  });
+
+  it("a blocked call is charged far less than an instant one", async () => {
+    // The unit is the caller's CONTEXT, spent per turn. A call that blocked 45s
+    // consumed wall clock and cannot be part of a tight loop; a call returning
+    // in 0.15s can. Without this discount one budget has to be generous enough
+    // for an 8-hour listener and tight enough to stop a spinner, which is
+    // impossible when the payloads are only ~8x apart.
+    const { store, room } = await bridge();
+    const blocked = await ctxFor(store, room, "a", T0);
+    const instant = await ctxFor(store, room, "b", T0);
+    instant.token.id = "tok-instant";
+
+    // The REAL rule, imported -- not re-implemented here. A local copy would
+    // agree with itself under any ablation, which is what the first version of
+    // this test did.
+    const cheap = discountedCost(1000, BLOCKED_CALL_MS + 1);
+    const dear = discountedCost(1000, 0);
+    assert.ok(cheap > 0 && dear > 0, "control: both charged something");
+    assert.ok(dear > cheap * 5, `instant (${dear}) must cost far more than blocked (${cheap})`);
+  });
+
+  it("the budget actually covers the overnight listener we now recommend", async () => {
+    // B's arithmetic, turned into an assertion so the constant cannot drift away
+    // from the use case the join document tells partners to run: 8 hours of
+    // 45-second empty waits at ~155 B each, discounted for blocking.
+    const waitsIn8Hours = (8 * 60 * 60) / 45;
+    const cost = waitsIn8Hours * Math.ceil(155 * BLOCKED_CALL_DISCOUNT);
+    assert.ok(
+      cost < WASTE_BUDGET_BYTES,
+      `an 8h listener costs ${cost} B against a ${WASTE_BUDGET_BYTES} B budget — it must fit`,
+    );
+    // NEGATIVE CONTROL: the budget must still be tight on the expensive path,
+    // or "it fits" would just mean "the budget is infinite".
+    assert.ok(WASTE_BUDGET_BYTES / 1220 < 20, "a status spinner must still trip inside ~20 calls");
   });
 
   it("peeking advances neither counter", async () => {
