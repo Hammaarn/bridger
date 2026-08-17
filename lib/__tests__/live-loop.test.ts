@@ -17,7 +17,7 @@
 import assert from "node:assert/strict";
 import { beforeEach, describe, it } from "node:test";
 
-import { opAsk, opWait, opStatus } from "../operations";
+import { opAsk, opRead, opWait, opStatus } from "../operations";
 import {
   bumpIdleStreak,
   clearRegistryCache,
@@ -25,9 +25,11 @@ import {
   markJoined,
   parseRoom,
   peekIdleStreak,
+  bumpWaste,
+  peekWaste,
   type RoomRecord,
 } from "../room-registry";
-import { ROOM_KEY } from "../store";
+import { ROOM_KEY, WASTE_BUDGET_BYTES } from "../store";
 import { FakeStore, T0, plus } from "./fake-store";
 
 beforeEach(() => clearRegistryCache());
@@ -111,34 +113,85 @@ describe("[!!] wait must never block while the caller has something unread", () 
   });
 });
 
-describe("[!!] a caller already over the brake is refused BEFORE the wait", () => {
-  it("does not burn the timeout to repeat a refusal it already gave", async () => {
+describe("[!!] the brake is denominated in WASTED BYTES, not in call count", () => {
+  it("a long run of empty waits does NOT terminate the caller", async () => {
+    // THE PROPERTY THE WHOLE REWORK EXISTS FOR. A listener is by construction a
+    // run of empty waits. Under the old consecutive-count brake it died on the
+    // 4th one -- i.e. exactly when the partner was slow, i.e. the case a
+    // listener exists for. An empty wait is ~155B, so the budget must absorb
+    // dozens of them.
     const { store, room } = await bridge();
     const a = await ctxFor(store, room, "a", T0);
-    // Drive the streak past the limit the way real empty waits would.
-    for (let i = 0; i < 6; i++) await bumpIdleStreak(store, a.token.id);
+    for (let i = 0; i < 20; i++) {
+      const res = await opWait(a, { timeoutSeconds: 0 });
+      assert.equal(res.timedOut, true, `wait ${i + 1} should time out, not refuse`);
+    }
+    assert.ok(
+      (await peekWaste(store, a.token.id)) < WASTE_BUDGET_BYTES,
+      "20 empty waits must be nowhere near the budget",
+    );
+  });
+
+  it("an expensive spinner trips far sooner than a cheap one", async () => {
+    // The cost asymmetry must do the weighting with no per-operation ceilings:
+    // status is ~8x the bytes of an empty wait, so it must burn budget ~8x
+    // faster. This is the anti-correlation fix stated as a measurement.
+    // The room must be POPULATED for this to mean anything: status carries open
+    // questions and cursors, so on an empty fixture it is nearly as small as a
+    // wait and the test would pass or fail on nothing. Measured on the real
+    // bridge S#276: status ~1,220 B vs empty wait ~155 B.
+    const { store, room } = await bridge();
+    const pricey = await ctxFor(store, room, "a", T0);
+    for (let i = 0; i < 3; i++) {
+      await opAsk(pricey, { title: `open question number ${i} on this bridge`, body: "context here" });
+    }
+
+    const cheap = await ctxFor(store, room, "b", T0);
+    await opRead(cheap, { since: 0, markRead: true }); // B catches up, so its waits are genuinely empty
+
+    for (let i = 0; i < 5; i++) await opWait(cheap, { timeoutSeconds: 0 });
+    for (let i = 0; i < 5; i++) await opStatus(pricey);
+
+    const waited = await peekWaste(store, cheap.token.id);
+    const spun = await peekWaste(store, pricey.token.id);
+    assert.ok(waited > 0 && spun > 0, "control: both must actually be charged something");
+    assert.ok(spun > waited * 2, `status (${spun}B) must outspend wait (${waited}B) by a wide margin`);
+  });
+
+  it("refuses over-budget BEFORE waiting, not after", async () => {
+    const { store, room } = await bridge();
+    const a = await ctxFor(store, room, "a", T0);
+    await bumpWaste(store, a.token.id, WASTE_BUDGET_BYTES + 1);
 
     const started = Date.now();
-    await assert.rejects(
-      () => opWait(a, { timeoutSeconds: 30 }),
-      /STOP\./,
-      "an over-limit caller must be refused",
-    );
+    await assert.rejects(() => opWait(a, { timeoutSeconds: 30 }), /STOP\./);
     const elapsed = Date.now() - started;
-
-    // The bug was 44s of real waiting before the refusal. Anything near the
-    // timeout means the check went back behind the wait.
+    // The bug was 44s of real waiting before repeating a refusal already given.
     assert.ok(elapsed < 2000, `refusal took ${elapsed}ms -- it must not wait first`);
   });
 
-  it("peeking does not advance the streak", async () => {
-    // If peek bumped, the first refusal would arrive one call early and the
-    // escalation the far side actually relies on would silently change.
+  it("a WRITE clears the debt — which the old docstring claimed and the code did not do", async () => {
+    const { store, room } = await bridge();
+    const a = await ctxFor(store, room, "a", T0);
+    await bumpWaste(store, a.token.id, 5_000);
+    await bumpIdleStreak(store, a.token.id);
+
+    await opAsk(a, { title: "doing work, not spinning", body: "..." });
+
+    assert.equal(await peekWaste(store, a.token.id), 0, "a write must clear wasted bytes");
+    assert.equal(await peekIdleStreak(store, a.token.id), 0, "and the streak the docstring promised");
+  });
+
+  it("peeking advances neither counter", async () => {
+    // NEGATIVE CONTROL: if peek bumped, the refusal would arrive early and the
+    // escalation the far side relies on would silently change.
     const { store } = await bridge();
     await bumpIdleStreak(store, "tok-x");
-    assert.equal(await peekIdleStreak(store, "tok-x"), 1);
-    assert.equal(await peekIdleStreak(store, "tok-x"), 1);
-    assert.equal(await peekIdleStreak(store, "tok-x"), 1);
+    await bumpWaste(store, "tok-x", 100);
+    for (let i = 0; i < 3; i++) {
+      assert.equal(await peekIdleStreak(store, "tok-x"), 1);
+      assert.equal(await peekWaste(store, "tok-x"), 100);
+    }
   });
 });
 

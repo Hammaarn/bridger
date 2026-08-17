@@ -35,14 +35,16 @@ import {
 } from "./entries";
 import {
   bumpIdleStreak,
-  peekIdleStreak,
+  bumpWaste,
+  peekWaste,
+  resetWaste,
   canWrite,
   resetIdleStreak,
   VIEWER_REFUSAL,
   type RoomRecord,
   type TokenRecord,
 } from "./room-registry";
-import { MAX_EMPTY_WAIT_STREAK, MAX_IDLE_STREAK, type Store } from "./store";
+import { MAX_EMPTY_WAIT_STREAK, MAX_IDLE_STREAK, WASTE_BUDGET_BYTES, type Store } from "./store";
 import { classifyCitation, describeCitation } from "./citation";
 import { contain, CONTAINMENT_NOTE } from "./untrusted";
 import { recordPurgeConsent, withdrawPurgeConsent } from "./purge";
@@ -133,6 +135,7 @@ async function brakeIfIdle(opts: {
 }): Promise<number> {
   if (opts.learned) {
     await resetIdleStreak(opts.store, opts.tokenId);
+    await resetWaste(opts.store, opts.tokenId);
     return 0;
   }
   const streak = await bumpIdleStreak(opts.store, opts.tokenId);
@@ -148,6 +151,77 @@ async function brakeIfIdle(opts: {
   return streak;
 }
 
+/**
+ * A WRITE CLEARS THE DEBT — both counters.
+ *
+ * `bumpIdleStreak`'s own docstring has always claimed the streak "is reset by
+ * ACQUIRING INFORMATION ... or by WRITING, because an agent that posts is doing
+ * work rather than spinning." It was not: no write path reset anything, so the
+ * documented behaviour and the real behaviour disagreed (S#276).
+ *
+ * It is not cosmetic. It contributed to the deadlock on the first live two-agent
+ * run: side A posted the working contract while carrying a streak dirtied by
+ * earlier empty waits, so its very next wait was already most of the way to a
+ * refusal despite having just done the most productive thing available.
+ */
+async function noteProductive(ctx: OpContext): Promise<void> {
+  await resetIdleStreak(ctx.store, ctx.token.id);
+  await resetWaste(ctx.store, ctx.token.id);
+}
+
+/** What a braked reader should do instead. MUST NOT name another polling tool. */
+const READ_INSTEAD =
+  "Report to your operator what you are waiting on, and let THEM decide when to check again.";
+
+/** What a braked waiter should do instead. MUST NOT name another polling tool. */
+const WAIT_INSTEAD =
+  "Report to your operator what you are waiting on and stop. You will see their reply when you next resume work on this integration.";
+
+/**
+ * THE BRAKE, in the unit the harm is denominated in: bytes we are about to
+ * return that teach the caller nothing.
+ *
+ * See `WASTE_BUDGET_BYTES` for the full argument. The short version: the old
+ * consecutive-count brake fired on the CHEAPEST operation after three calls and
+ * never on the most expensive one, and its refusal pushed callers from `wait`
+ * (~155 B) onto `status` (~1,220 B), so it actively increased far-side spend.
+ * Charging bytes makes the cost asymmetry do the weighting for free.
+ *
+ * Called with the payload ALREADY BUILT, because the thing being charged for is
+ * the response about to be sent, and guessing its size would reintroduce exactly
+ * the estimation gap this replaces.
+ */
+async function chargeWaste(
+  ctx: OpContext,
+  payload: unknown,
+  instead: string,
+): Promise<number> {
+  const bytes = JSON.stringify(payload ?? {}).length;
+  const spent = await bumpWaste(ctx.store, ctx.token.id, bytes);
+  if (spent > WASTE_BUDGET_BYTES) {
+    throw new OperationRefused(
+      `STOP. You have now spent ${spent} bytes of your own context on calls to this bridge that ` +
+        `returned you nothing new, which is over the ${WASTE_BUDGET_BYTES}-byte budget for learning ` +
+        `nothing. The other side is a human-paced team, not a service. Do NOT call any bridger tool ` +
+        `again in this session — every further call spends YOUR context and cannot make them answer ` +
+        `faster. ${instead}`,
+      true,
+    );
+  }
+  return spent;
+}
+
+/** Refuse an over-budget caller BEFORE doing the expensive part. */
+async function refuseIfOverBudget(ctx: OpContext, instead: string): Promise<void> {
+  if ((await peekWaste(ctx.store, ctx.token.id)) > WASTE_BUDGET_BYTES) {
+    throw new OperationRefused(
+      `STOP. You are over the ${WASTE_BUDGET_BYTES}-byte budget for calls that return nothing new, ` +
+        `and this call would have returned nothing new either. Retrying cannot succeed. ${instead}`,
+      true,
+    );
+  }
+}
+
 // ── the eight operations ─────────────────────────────────────────
 
 export async function opStatus(ctx: OpContext) {
@@ -159,7 +233,7 @@ export async function opStatus(ctx: OpContext) {
     limit: MAX_IDLE_STREAK,
     instead: "Report to your operator what you are waiting on, and let THEM decide when to check again.",
   });
-  return {
+  const payload = {
     ...status,
     // `openQuestions[].title` is the SECOND path far-side text takes into our
     // context, and the easier one to miss because status reads like metadata.
@@ -174,6 +248,15 @@ export async function opStatus(ctx: OpContext) {
         }
       : {}),
   };
+  // Status is the EXPENSIVE way to learn nothing -- ~1,220 B against a wait's
+  // ~155 B, measured S#276. Charging it by weight is what removes the perverse
+  // incentive the old brake created, where being refused on `wait` pushed a
+  // caller onto the operation that costs it 8x more.
+  if (status.unread === 0) {
+    const spent = await chargeWaste(ctx, payload, READ_INSTEAD);
+    return { ...payload, wastedBytes: spent, wasteBudget: WASTE_BUDGET_BYTES };
+  }
+  return payload;
 }
 
 export async function opRead(
@@ -197,16 +280,22 @@ export async function opRead(
     limit: MAX_IDLE_STREAK,
     instead: "Report to your operator what you are waiting on, and stop.",
   });
-  return {
+  const payload = {
     count: entries.length,
     entries: entries.map(wire),
     ...(cursor ? { cursor } : {}),
     ...(entries.length ? { _note: CONTAINMENT_NOTE } : {}),
   };
+  if (entries.length === 0) {
+    const spent = await chargeWaste(ctx, payload, READ_INSTEAD);
+    return { ...payload, wastedBytes: spent, wasteBudget: WASTE_BUDGET_BYTES };
+  }
+  return payload;
 }
 
 export async function opAsk(ctx: OpContext, args: { title: string; body?: string }) {
   requireWrite(ctx.token);
+  await noteProductive(ctx);
   const entry = await appendEntry(
     ctx.store,
     ctx.room,
@@ -222,6 +311,7 @@ export async function opAnswer(
   args: { questionId: string; answer: string; checkedAgainst?: string },
 ) {
   requireWrite(ctx.token);
+  await noteProductive(ctx);
   const entry = await appendEntry(
     ctx.store,
     ctx.room,
@@ -243,6 +333,7 @@ export async function opDecide(
   args: { title: string; decision: string; why: string },
 ) {
   requireWrite(ctx.token);
+  await noteProductive(ctx);
   const entry = await appendEntry(
     ctx.store,
     ctx.room,
@@ -258,6 +349,7 @@ export async function opPost(
   args: { title: string; body?: string; checkedAgainst?: string },
 ) {
   requireWrite(ctx.token);
+  await noteProductive(ctx);
   const entry = await appendEntry(
     ctx.store,
     ctx.room,
@@ -290,6 +382,7 @@ export async function opContract(ctx: OpContext, args: { body?: string; note?: s
     };
   }
   requireWrite(ctx.token);
+  await noteProductive(ctx);
   const entry = await setContract(ctx.store, ctx.room, ctx.token, args.body, args.note ?? "", ctx.now);
   return { updated: true, logged: wire(entry) };
 }
@@ -303,6 +396,7 @@ export async function opContract(ctx: OpContext, args: { body?: string; note?: s
  */
 export async function opReopen(ctx: OpContext, args: { questionId: string; why: string }) {
   requireWrite(ctx.token);
+  await noteProductive(ctx);
   const entries = await readEntries(ctx.store, ctx.room.id, { ids: [args.questionId] });
   const question = entries.find((e) => e.id === args.questionId && e.type === "question");
   if (!question) {
@@ -341,6 +435,7 @@ export async function opReopen(ctx: OpContext, args: { questionId: string; why: 
  */
 export async function opSignoff(ctx: OpContext, args: { note?: string }) {
   requireWrite(ctx.token);
+  await noteProductive(ctx);
   const text = args.note?.trim() || "Signing off for now.";
   const entry = await appendEntry(
     ctx.store,
@@ -364,6 +459,7 @@ export async function opSignoff(ctx: OpContext, args: { note?: string }) {
  */
 export async function opPurge(ctx: OpContext, args: { consent: boolean }) {
   requireWrite(ctx.token);
+  await noteProductive(ctx);
   const state = args.consent
     ? await recordPurgeConsent(ctx.store, ctx.room, ctx.token.side, ctx.now)
     : await withdrawPurgeConsent(ctx.store, ctx.room, ctx.token.side);
@@ -426,16 +522,7 @@ export async function opWait(ctx: OpContext, args: { since?: number; timeoutSeco
    * first refusal still lands after MAX_EMPTY_WAIT_STREAK empty waits. Only the
    * repeats get faster, which is the point.
    */
-  if ((await peekIdleStreak(ctx.store, ctx.token.id)) > MAX_EMPTY_WAIT_STREAK) {
-    await brakeIfIdle({
-      store: ctx.store,
-      tokenId: ctx.token.id,
-      learned: false,
-      limit: MAX_EMPTY_WAIT_STREAK,
-      instead:
-        "Report to your operator what you are waiting on and stop. You will see their reply when you next resume work on this integration.",
-    });
-  }
+  await refuseIfOverBudget(ctx, WAIT_INSTEAD);
 
   const result = await waitForNew(ctx.store, ctx.room, ctx.token, {
     sinceSeq: since,
@@ -445,6 +532,7 @@ export async function opWait(ctx: OpContext, args: { since?: number; timeoutSeco
 
   if (result.entries.length > 0) {
     await resetIdleStreak(ctx.store, ctx.token.id);
+    await resetWaste(ctx.store, ctx.token.id);
     return {
       timedOut: false,
       waitedMs: result.waitedMs,
@@ -454,17 +542,19 @@ export async function opWait(ctx: OpContext, args: { since?: number; timeoutSeco
     };
   }
 
-  // Stricter than the read operations on the same counter: a wait says "I
-  // expect something right now", so three empty ones is already the answer.
-  const streak = await brakeIfIdle({
-    store: ctx.store,
-    tokenId: ctx.token.id,
-    learned: false,
-    limit: MAX_EMPTY_WAIT_STREAK,
-    instead:
-      "Report to your operator what you are waiting on and stop. You will see their reply when you next resume work on this integration.",
-  });
-  return {
+  /**
+   * COUNT, GUIDE, BUT DO NOT TERMINATE ON THE COUNT (S#276).
+   *
+   * The streak still drives the graduated wording below, because that wording
+   * demonstrably works — a real far-side agent stopped on the advisory without
+   * ever reaching a refusal. What it no longer does is END the session, because
+   * a listener is BY CONSTRUCTION a run of empty waits and a consecutive-count
+   * brake kills it exactly when the partner is slow. The refusal now comes from
+   * the byte budget instead, which is the unit the cost is actually in.
+   */
+  const streak = await bumpIdleStreak(ctx.store, ctx.token.id);
+
+  const payload = {
     timedOut: true,
     waitedMs: result.waitedMs,
     count: 0,
@@ -472,9 +562,12 @@ export async function opWait(ctx: OpContext, args: { since?: number; timeoutSeco
     emptyWaitsInARow: streak,
     guidance:
       streak >= MAX_EMPTY_WAIT_STREAK
-        ? "Nothing is arriving. Do not wait again — stop and report."
+        ? "Nothing is arriving. Stop and report to your operator — but if you are waiting from a SHELL loop rather than from your own turns, blocking here is cheap and correct; keep going."
         : "Nothing yet. If the next wait is also empty, stop rather than polling.",
   };
+
+  const spent = await chargeWaste(ctx, payload, WAIT_INSTEAD);
+  return { ...payload, wastedBytes: spent, wasteBudget: WASTE_BUDGET_BYTES };
 }
 
 /**
