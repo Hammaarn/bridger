@@ -33,6 +33,11 @@ export type CitationKind =
   | "range"
   /** A file, no line: `lib/store.ts`. Locates the document, not the claim. */
   | "file"
+  /**
+   * A web source: `https://example.com/a`, or a bare host like `example.org`.
+   * Locates a page, not a span — and unlike a file, it can change under you.
+   */
+  | "url"
   /** An endpoint, command or query actually run: `GET /api/health`, `npm test`. */
   | "command"
   /** A commit-ish hex sha: `4956820`, `e1619d4f...`. */
@@ -56,7 +61,16 @@ export interface Citation {
  * Ordered widest-last. Used only for sorting and display grouping — NOT as a
  * score. Two citations of the same kind are not thereby equally good.
  */
-export const KIND_ORDER: CitationKind[] = ["line", "range", "commit", "command", "file", "unlocated", "none"];
+export const KIND_ORDER: CitationKind[] = [
+  "line",
+  "range",
+  "commit",
+  "command",
+  "file",
+  "url",
+  "unlocated",
+  "none",
+];
 
 /** Reads as a shell command, HTTP call, or endpoint someone actually ran. */
 const COMMAND_RE =
@@ -75,6 +89,33 @@ const LOCATOR_RE = /([\w./\\@-]+\.[A-Za-z0-9]{1,12}):(\d+)(?:\s*[-–]\s*(\d+))?
 
 /** A bare file path with an extension and no line number. */
 const FILE_RE = /(^|\s)([\w./\\@-]*[\w@-]\.[A-Za-z0-9]{1,12})(\s|$|,|;)/;
+
+/**
+ * WEB SOURCES, AND WHY THIS MUST RUN BEFORE `FILE_RE`.
+ *
+ * A bare domain has the exact shape of a file path with an extension, so
+ * `1927flood.lthp.org` matched `FILE_RE` and rendered as **"whole file"** — the
+ * record telling a reader that a citation pointed at a document in this
+ * repository when it pointed at a news archive. Found by hitting it: a real
+ * answer citing five news and archive domains was graded "whole file", and
+ * under this module's own doctrine that is not a cosmetic label but a false
+ * fact about the string.
+ *
+ * THE TLD LIST IS AN ALLOWLIST ON PURPOSE. `.ts`, `.sh`, `.rs`, `.io` and `.me`
+ * are simultaneously real country TLDs and real source extensions. A general
+ * "dot followed by letters" pattern would reclassify `lib/store.ts` as a
+ * website, which is the worse direction to be wrong in — a reader sent to the
+ * web for something that is on disk cannot find it at all. So this contains
+ * only TLDs that are not plausible source extensions in this codebase, and
+ * `.ts` is deliberately absent even though Tonga exists.
+ *
+ * The trailing `(?![\w-])` stops `example.company` from matching `example.com`.
+ */
+const WEB_TLDS = "com|org|net|edu|gov|mil|int|info|io|dev|app|ai|xyz|eu|uk|nl|se|de|fr";
+const URL_RE = new RegExp(
+  `(?:https?://|www\\.)[^\\s,;]+|(?:[a-z0-9-]+\\.)+(?:${WEB_TLDS})(?![\\w-])`,
+  "i",
+);
 
 /**
  * Classify a `checkedAgainst` string.
@@ -106,6 +147,12 @@ export function classifyCitation(raw: string | null | undefined): Citation {
     return { kind: "range", raw, path: loc[1], lines: Math.max(1, Math.abs(end - start) + 1) };
   }
 
+  // AFTER the locator, BEFORE the file. After, so `lib/store.ts:41` stays the
+  // more specific `line` rather than being read as a host. Before, so a bare
+  // domain is not claimed by `FILE_RE` and mislabelled "whole file".
+  const url = URL_RE.exec(text);
+  if (url) return { kind: "url", raw, path: url[0] };
+
   const file = FILE_RE.exec(text);
   if (file) return { kind: "file", raw, path: file[2] };
 
@@ -126,6 +173,11 @@ export function describeCitation(c: Citation): string {
       return `${c.lines} lines`;
     case "file":
       return "whole file";
+    case "url":
+      // Not "whole page": the point of the label is that it is OFF DISK, which
+      // is the thing a reader of this record most needs to know before going
+      // to look — the page can have changed since it was cited.
+      return "web source";
     case "command":
       return "command output";
     case "commit":
