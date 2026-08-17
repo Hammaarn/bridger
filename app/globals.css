@@ -742,6 +742,18 @@ footer {
 .bx-leaf.sideB { border-left-color: var(--b); }
 .bx-leaf code { color: var(--dim); font-size: 0.7rem; flex: none; }
 .bx-leaf span {
+  /* min-width:0 is what MAKES the ellipsis work, and its absence is silent.
+     .bx-leaf is display:flex, so this span is a flex item with the default
+     min-width:auto -> min-content -- and under white-space:nowrap min-content
+     is the whole untruncated title. A flex item cannot shrink below that, so
+     the box never narrows and text-overflow never fires: long titles overflow
+     the button instead of ellipsing. The same idiom is already used twice
+     within fifty lines (.bx-folder-name, .bx-chat); it was simply omitted here.
+     Found S#276 by the far side of our own bridge, which read this file and
+     the component to answer a question about a DIFFERENT, false-positive
+     warning on the overflow line below. */
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
