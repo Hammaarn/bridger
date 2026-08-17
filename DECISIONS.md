@@ -5,6 +5,81 @@ Append-only, newest first. **DECISIONS wins on direction** — where this file a
 
 ---
 
+## 2026-08-17 -- S#276 -- THE STATUS CODE MUST AGREE WITH `terminal`
+
+**The defect:** every terminal refusal returned a status that instructs clients
+to retry, and the one recoverable refusal returned a status that means "never".
+
+- `app/api/rpc/route.ts` mapped `terminal ? 429 : 403` — **inverted**. 429 is
+  the canonical *come back shortly*; client libraries and SDK retry middleware
+  retry it automatically. 403 is canonically permanent.
+- `daily-cap` and `room-daily-cap` were **429 while being in `TERMINAL_DENIALS`**.
+- `rate-limited` (429, correctly non-terminal) carried **no `Retry-After`**, and
+  neither did the 503s. The only `Retry-After` in the repo was on room minting.
+
+**Why it matters more than a status-code nit.** The `STOP.` idle brake is
+`terminal: true`. On the flat transport it therefore returned 429 — so the one
+refusal whose entire purpose is to END a runaway agent loop was telling the
+transport to continue it. **`terminal` is read by the model; the status code is
+read by the machinery underneath the model**, which acts first and never
+forwards the sentence explaining why. `http-gate.ts` already reasoned that "a
+looping agent reads any 4xx as 'try again'" and answered it with the body field;
+the missing half was that the body is not what a retry layer consults.
+
+This partially answers what `STATUS.md` calls *"the one question the tests
+cannot answer"* — whether a looping client stops on `STOP.`. For any client with
+conventional HTTP retry behaviour on the paste path, it structurally could not,
+and that was our bug rather than the model's. **The MCP path remains untested:**
+it throws a JSON-RPC tool error, and what a given client does with that is still
+unknown.
+
+**The rule now, and it is enforced by tests rather than by prose:**
+1. A terminal refusal never returns 429.
+2. Any status that invites a retry (429, 503) must carry `Retry-After`.
+3. A recoverable refusal never returns 403.
+4. 429 is reserved for the per-minute limiter — the single refusal here that a
+   retry can actually solve — and its `Retry-After` is computed from the minute
+   bucket, not a constant.
+
+**Also fixed:** the MCP transport dropped `terminal` entirely for operation-level
+refusals (`throw new Error(e.message)`), so `SKILL.md`'s promise that *"every
+refusal says whether retrying can work"* was unfulfillable there. It is now in
+the error text, which is what a tool error reliably carries.
+
+**Structural change:** the route's inline `terminal ? x : y` moved to
+`operationRefusalStatus()` in `http-gate.ts`. It was wrong for the life of the
+project because **a rule living inside a route handler is a rule no test can
+reach** — the same shape as the `question-state.ts` duplication.
+
+**Scope:** `lib/room-registry.ts` (`DENY_STATUS`, new `retryAfterSeconds`),
+`lib/http-gate.ts` (`refusalHeaders`, `operationRefusalStatus`),
+`app/api/rpc/route.ts`, `app/api/mcp/route.ts`, `app/api/rooms/route.ts`.
+**Doc impact:** `skill/SKILL.md`, the join document.
+**Verification:** tsc 0, 269/269 (was 258), build 0. Ablation: both mappings
+reverted to the original bug with grep-verified markers, **7 tests went red**
+including both `[!!]` guards, restored byte-identical. The new file carries two
+negative controls — exactly one reason may be 429, and terminal/recoverable must
+map to *different* statuses — so the rules cannot pass vacuously.
+
+---
+
+## 2026-08-17 -- S#276 -- A QUESTION CLOSES WHEN IT IS ANSWERED (doc corrected)
+
+`skill/SKILL.md` told agents *"A question is open until you say otherwise, not
+until someone replies."* `question-state.ts` does the opposite: an `answer`
+closes the question immediately, and the asker's only lever is `reopen`.
+
+An agent trusting the doc would not reopen a bad answer, because it believes the
+question is still on its list. It is not.
+
+**Decision: fix the DOC, not the code.** Explicit asker-acceptance would leave
+questions open forever whenever an asker forgets, and this protocol has not been
+run end-to-end by a far-side agent even once — changing the state machine on
+speculation is the pattern this project keeps paying for. Revisit only if a real
+integration shows answers being treated as resolutions when they were not.
+
+---
+
 ## 2026-08-17 -- S#276 -- JOIN CODES ARE SINGLE-MINT, NOT BURN-ON-READ
 
 **Decision (Erik):** a join code mints exactly one token and then returns that

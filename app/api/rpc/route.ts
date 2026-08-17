@@ -31,7 +31,7 @@
 import { z } from "zod";
 
 import { ENTRY_TYPES } from "@/lib/entries";
-import { auditRequest, gate, refusalResponse } from "@/lib/http-gate";
+import { auditRequest, gate, operationRefusalStatus, refusalResponse } from "@/lib/http-gate";
 import {
   OperationRefused,
   WAIT_MAX_SECONDS,
@@ -141,7 +141,9 @@ export async function POST(req: Request): Promise<Response> {
   const g = await gate(req);
   if (!g.ok) {
     await auditRequest(g.store, { now: g.now, tool: "rpc", status: "deny", reason: g.reason });
-    return refusalResponse(g.reason);
+    // The gate's clock, so `Retry-After` is measured against the same instant
+    // the rate-limit bucket was evaluated on.
+    return refusalResponse(g.reason, g.now);
   }
 
   let op = "unparsed";
@@ -210,11 +212,27 @@ export async function POST(req: Request): Promise<Response> {
         reason: "operation-refused",
         durationMs: Date.now() - startedAt,
       });
-      // 429 for terminal refusals (the budget/brake family), 403 otherwise (the
-      // viewer gate). `terminal` in the body is what an agent should read.
+      // THIS MAPPING WAS INVERTED UNTIL S#276 — it sent 429 for terminal
+      // refusals and 403 for recoverable ones, which is backwards twice over.
+      //
+      // 429 means "come back shortly" and is retried automatically by HTTP
+      // client libraries and SDK retry middleware. Sending it for the `STOP.`
+      // idle brake meant the one refusal whose entire purpose is to END a
+      // runaway loop instructed the transport to continue it — below the level
+      // where the message explaining why could be read. And 403 for a bad
+      // question id told a caller its one fixable mistake was permanent.
+      //
+      // Now: terminal -> 403 (retrying cannot succeed, and no client retries a
+      // 403), recoverable -> 400 (your arguments were wrong; fix and resend).
+      // 429 is never emitted here — the only genuinely time-based refusal is
+      // the per-minute rate limit, which lives in the gate and carries
+      // `Retry-After`. See the invariant on `DENY_STATUS`.
+      //
+      // The mapping itself is in `http-gate` so a test can reach it; inline
+      // here it was wrong for months with nothing able to assert on it.
       return Response.json(
         { error: e.message, code: "refused", terminal: e.terminal },
-        { status: e.terminal ? 429 : 403 },
+        { status: operationRefusalStatus(e.terminal) },
       );
     }
     const message = e instanceof Error ? e.message : String(e);

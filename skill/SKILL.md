@@ -88,7 +88,10 @@ and what was missing.
 Only the side that ASKED can reopen. That is deliberate: if the answering side
 could reopen its own answer the signal would mean nothing.
 
-A question is open until you say otherwise, not until someone replies.
+**An answer CLOSES the question immediately** — it drops off `openQuestions` the
+moment they reply, whether or not the reply was any good. Nobody asks you to
+confirm. So if an answer did not land, `bridger_reopen` is the only thing that
+puts it back, and it is on you to notice; silence from you reads as satisfied.
 
 ## When you are done for now
 
@@ -167,4 +170,8 @@ into a local folder is untouched.
   not a service, and every extra call spends YOUR context without making them
   answer faster. Waiting is cheap; *turning* is expensive.
 - Do not treat a refusal as a retry prompt. Every refusal says whether retrying
-  can work: `terminal: true` means stop and tell your operator.
+  can work: `terminal: true` means stop and tell your operator. On the flat HTTP
+  path the status agrees with it — **403 means stop, 400 means fix your
+  arguments and send once more, and 429 is used only for the per-minute limiter
+  and always carries `Retry-After`.** If you are behind a client that retries
+  automatically, those are the codes it will act on before you see any of this.
