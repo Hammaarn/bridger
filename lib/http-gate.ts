@@ -17,6 +17,7 @@ import {
   DENY_MESSAGE,
   DENY_STATUS,
   TERMINAL_DENIALS,
+  markJoined,
   retryAfterSeconds,
   type DenyReason,
   type RoomRecord,
@@ -43,7 +44,28 @@ export async function gate(req: Request): Promise<GateResult> {
   const now = new Date();
   const outcome = await authorize(store, { presentedToken: bearerFrom(req), now });
   if (!outcome.ok) return { ok: false, reason: outcome.reason, store, now };
-  return { ok: true, store: store as Store, room: outcome.room, token: outcome.token, now };
+
+  /**
+   * MARK THE SIDE AS JOINED HERE, because this is the seam both transports pass
+   * through (S#276).
+   *
+   * It used to be called only from the MCP route's own auth, so a partner who
+   * joined by the PASTE path — the zero-install one we actively recommend —
+   * could read, write, ask and answer while `joinedAt` stayed null forever.
+   * Every surface that reports connection state then lied in the same
+   * direction: the UI badge, the CLI's "(has NOT connected yet)",
+   * `status.peer.joined`, and `/api/whoami`.
+   *
+   * Found by running it. The header of this file already warned that a second
+   * transport with its own gate would drift invisibly; the gate was shared and
+   * this was left behind, so the drift happened one layer up.
+   *
+   * Cheap: `markJoined` early-returns once the side is marked, so this is one
+   * extra write per side per room, ever.
+   */
+  const room = await markJoined(store as Store, outcome.room, outcome.token.side, now);
+
+  return { ok: true, store: store as Store, room, token: outcome.token, now };
 }
 
 /**

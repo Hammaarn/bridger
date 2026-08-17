@@ -35,6 +35,7 @@ import {
 } from "./entries";
 import {
   bumpIdleStreak,
+  peekIdleStreak,
   canWrite,
   resetIdleStreak,
   VIEWER_REFUSAL,
@@ -384,7 +385,58 @@ export async function opPurge(ctx: OpContext, args: { consent: boolean }) {
 }
 
 export async function opWait(ctx: OpContext, args: { since?: number; timeoutSeconds?: number }) {
-  const since = args.since ?? (await getStatus(ctx.store, ctx.room, ctx.token)).latestSeq;
+  const status = await getStatus(ctx.store, ctx.room, ctx.token);
+
+  /**
+   * NEVER BLOCK WHILE THE CALLER HAS SOMETHING UNREAD (S#276).
+   *
+   * This defaulted to `latestSeq`, which means "tell me about things written
+   * after this instant" — so an entry already sitting unread was invisible to
+   * `wait`, permanently. That is not a corner case, it is what happens whenever
+   * the other side answers BEFORE you start waiting, which is the normal shape
+   * of an async bridge.
+   *
+   * It deadlocked two live agents on this bridge the first night both were up.
+   * B answered, then waited. A started waiting afterwards, so A's `since` was
+   * already past B's answer, and both blocked for a sequence number neither
+   * would ever write. The answer sat unread in the ledger the whole time while
+   * the idle brake told A "they are not there right now".
+   *
+   * Same failure this codebase keeps producing: "nothing NEW since you started
+   * waiting" rendered identically to "nothing for you". Defaulting to the
+   * caller's CURSOR makes the deadlock structurally impossible rather than
+   * something both sides have to remember to avoid — whoever holds unread
+   * entries gets them immediately, which is also just what waiting should mean.
+   *
+   * An explicit `since` is still honoured exactly as before.
+   */
+  const since = args.since ?? status.cursor;
+
+  /**
+   * REFUSE BEFORE WAITING, NOT AFTER (S#276).
+   *
+   * The brake was only evaluated once `waitForNew` returned, so a caller that
+   * had ALREADY been told to stop was made to sit through the full 45 seconds
+   * before being told again. Measured: three consecutive braked waits at 44.37s
+   * each. That is 45s of the caller's wall clock and 45s of billed serverless
+   * duration, per ignored refusal — the worst possible answer to a client that
+   * is looping, since the cost of refusing scaled with the misbehaviour.
+   *
+   * Reading the streak without bumping it keeps the escalation identical: the
+   * first refusal still lands after MAX_EMPTY_WAIT_STREAK empty waits. Only the
+   * repeats get faster, which is the point.
+   */
+  if ((await peekIdleStreak(ctx.store, ctx.token.id)) > MAX_EMPTY_WAIT_STREAK) {
+    await brakeIfIdle({
+      store: ctx.store,
+      tokenId: ctx.token.id,
+      learned: false,
+      limit: MAX_EMPTY_WAIT_STREAK,
+      instead:
+        "Report to your operator what you are waiting on and stop. You will see their reply when you next resume work on this integration.",
+    });
+  }
+
   const result = await waitForNew(ctx.store, ctx.room, ctx.token, {
     sinceSeq: since,
     timeoutMs: (args.timeoutSeconds ?? WAIT_DEFAULT_SECONDS) * 1000,

@@ -560,6 +560,24 @@ export async function bumpIdleStreak(store: Store, tokenId: string): Promise<num
   }
 }
 
+/**
+ * Read the streak WITHOUT advancing it.
+ *
+ * Exists so a caller already over the limit can be refused before doing the
+ * expensive thing, rather than after. Bumping here would double-count every
+ * call and bring the refusal forward by one, changing the escalation; this
+ * deliberately only looks.
+ */
+export async function peekIdleStreak(store: Store, tokenId: string): Promise<number> {
+  try {
+    const raw = await store.get(IDLE_STREAK_KEY(tokenId));
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : 0;
+  } catch {
+    return 0; // same posture as bumpIdleStreak: bookkeeping never refuses a good call
+  }
+}
+
 export async function resetIdleStreak(store: Store, tokenId: string): Promise<void> {
   try {
     await store.set(IDLE_STREAK_KEY(tokenId), 0);
