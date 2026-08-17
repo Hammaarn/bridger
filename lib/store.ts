@@ -332,6 +332,34 @@ export const MAX_EMPTY_WAIT_STREAK = 3;
  */
 export const WASTE_BUDGET_BYTES = 12_000;
 
+/**
+ * Highest entry seq ever HANDED to one token. Server-side, because the caller's
+ * own cursor is precisely what is stuck in the loop this exists to catch.
+ */
+export const SERVED_KEY = (tokenId: string) => `${NS}:served:${tokenId}`;
+
+/**
+ * A call that BLOCKED is charged at this fraction of its bytes.
+ *
+ * The unit the brake protects is the caller's CONTEXT, and context is spent per
+ * TURN, not per second. A wait that blocked ~45s and came back empty consumed
+ * wall clock instead of turns — by construction it cannot be part of a tight
+ * loop. A call that returns in 0.15s can.
+ *
+ * Without this, one budget has to be simultaneously generous enough for an
+ * eight-hour listener (~640 empty waits) and tight enough to stop a spinner
+ * (~10 status polls). It cannot be: the payloads are ~8x apart and the
+ * behaviours are ~600x apart in cost to the caller. Discounting by blocking is
+ * what separates them, and it uses `waitedMs`, which we already record.
+ *
+ * At 0.1: an 8-hour listener spends ~9,900 B of the 12,000 budget; a stuck-
+ * cursor hot loop spends full freight and trips in about six calls.
+ */
+export const BLOCKED_CALL_DISCOUNT = 0.1;
+
+/** A call must block at least this long to earn the discount. */
+export const BLOCKED_CALL_MS = 5_000;
+
 /** Rolling sum of uninformative response bytes for one token. */
 export const WASTE_KEY = (tokenId: string) => `${NS}:waste:${tokenId}`;
 

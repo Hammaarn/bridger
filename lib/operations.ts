@@ -37,6 +37,7 @@ import {
   bumpIdleStreak,
   bumpWaste,
   peekWaste,
+  noteServed,
   resetWaste,
   canWrite,
   resetIdleStreak,
@@ -44,7 +45,14 @@ import {
   type RoomRecord,
   type TokenRecord,
 } from "./room-registry";
-import { MAX_EMPTY_WAIT_STREAK, MAX_IDLE_STREAK, WASTE_BUDGET_BYTES, type Store } from "./store";
+import {
+  BLOCKED_CALL_DISCOUNT,
+  BLOCKED_CALL_MS,
+  MAX_EMPTY_WAIT_STREAK,
+  MAX_IDLE_STREAK,
+  WASTE_BUDGET_BYTES,
+  type Store,
+} from "./store";
 import { classifyCitation, describeCitation } from "./citation";
 import { contain, CONTAINMENT_NOTE } from "./untrusted";
 import { recordPurgeConsent, withdrawPurgeConsent } from "./purge";
@@ -169,6 +177,29 @@ async function noteProductive(ctx: OpContext): Promise<void> {
   await resetWaste(ctx.store, ctx.token.id);
 }
 
+/**
+ * What a response actually costs the budget.
+ *
+ * EXPORTED SO IT CAN BE TESTED AGAINST THE REAL RULE. A test that re-implements
+ * this arithmetic locally proves only that the test agrees with itself — the
+ * first version of the discount test did exactly that and survived ablation,
+ * which is the definition of decoration. Same lesson as `operationRefusalStatus`.
+ */
+export function discountedCost(rawBytes: number, blockedMs: number): number {
+  return blockedMs >= BLOCKED_CALL_MS
+    ? Math.max(1, Math.ceil(rawBytes * BLOCKED_CALL_DISCOUNT))
+    : rawBytes;
+}
+
+/**
+ * The budget in a unit a reader can act on. "12000 bytes" means nothing to an
+ * agent; "an hour of waiting" is a quantity it can weigh against its task.
+ * Derived rather than written down twice, so it cannot drift from the constant.
+ */
+const BUDGET_IN_HUMAN =
+  `${Math.round(WASTE_BUDGET_BYTES / 155 / BLOCKED_CALL_DISCOUNT / 60)} hours of continuous waiting, ` +
+  `or about ${Math.round(WASTE_BUDGET_BYTES / 1220)} status checks`;
+
 /** What a braked reader should do instead. MUST NOT name another polling tool. */
 const READ_INSTEAD =
   "Report to your operator what you are waiting on, and let THEM decide when to check again.";
@@ -195,16 +226,18 @@ async function chargeWaste(
   ctx: OpContext,
   payload: unknown,
   instead: string,
+  /** How long this call BLOCKED. Blocking spends wall clock, not turns. */
+  blockedMs = 0,
 ): Promise<number> {
-  const bytes = JSON.stringify(payload ?? {}).length;
+  const bytes = discountedCost(JSON.stringify(payload ?? {}).length, blockedMs);
   const spent = await bumpWaste(ctx.store, ctx.token.id, bytes);
   if (spent > WASTE_BUDGET_BYTES) {
     throw new OperationRefused(
-      `STOP. You have now spent ${spent} bytes of your own context on calls to this bridge that ` +
-        `returned you nothing new, which is over the ${WASTE_BUDGET_BYTES}-byte budget for learning ` +
-        `nothing. The other side is a human-paced team, not a service. Do NOT call any bridger tool ` +
-        `again in this session — every further call spends YOUR context and cannot make them answer ` +
-        `faster. ${instead}`,
+      `STOP. You have spent about ${BUDGET_IN_HUMAN} on calls to this bridge that returned you ` +
+        `nothing new (${spent} of ${WASTE_BUDGET_BYTES} bytes). The other side is a human-paced team, ` +
+        `not a service. Do not READ or WAIT again in this session — neither can make them answer ` +
+        `faster and each one spends your context. If you have something to SAY, say it: a write is ` +
+        `always accepted and clears this. If you have nothing to say, ${instead}`,
       true,
     );
   }
@@ -215,8 +248,10 @@ async function chargeWaste(
 async function refuseIfOverBudget(ctx: OpContext, instead: string): Promise<void> {
   if ((await peekWaste(ctx.store, ctx.token.id)) > WASTE_BUDGET_BYTES) {
     throw new OperationRefused(
-      `STOP. You are over the ${WASTE_BUDGET_BYTES}-byte budget for calls that return nothing new, ` +
-        `and this call would have returned nothing new either. Retrying cannot succeed. ${instead}`,
+      `STOP. You are over the budget for calls that return nothing new — about ${BUDGET_IN_HUMAN} — ` +
+        `and this call would have returned nothing new either. Reading and waiting cannot succeed ` +
+        `from here. A write is still accepted and clears this, so if you have something to say, say ` +
+        `it. Otherwise ${instead}`,
       true,
     );
   }
@@ -531,15 +566,30 @@ export async function opWait(ctx: OpContext, args: { since?: number; timeoutSeco
   });
 
   if (result.entries.length > 0) {
-    await resetIdleStreak(ctx.store, ctx.token.id);
-    await resetWaste(ctx.store, ctx.token.id);
-    return {
+    const payload = {
       timedOut: false,
       waitedMs: result.waitedMs,
       count: result.entries.length,
       entries: result.entries.map(wire),
       _note: CONTAINMENT_NOTE,
     };
+    // A response carrying entries only counts as LEARNING if those entries are
+    // ones this token has not been handed before. A client whose cursor never
+    // advances is served the same entries instantly, forever — every response
+    // looks informative, so the budget resets every time and the brake goes
+    // blind to the most expensive loop in the product. See `noteServed`.
+    const fresh = await noteServed(
+      ctx.store,
+      ctx.token.id,
+      Math.max(...result.entries.map((e) => e.seq)),
+    );
+    if (fresh) {
+      await resetIdleStreak(ctx.store, ctx.token.id);
+      await resetWaste(ctx.store, ctx.token.id);
+      return payload;
+    }
+    const spent = await chargeWaste(ctx, payload, READ_INSTEAD, result.waitedMs);
+    return { ...payload, wastedBytes: spent, wasteBudget: WASTE_BUDGET_BYTES };
   }
 
   /**
@@ -566,7 +616,7 @@ export async function opWait(ctx: OpContext, args: { since?: number; timeoutSeco
         : "Nothing yet. If the next wait is also empty, stop rather than polling.",
   };
 
-  const spent = await chargeWaste(ctx, payload, WAIT_INSTEAD);
+  const spent = await chargeWaste(ctx, payload, WAIT_INSTEAD, result.waitedMs);
   return { ...payload, wastedBytes: spent, wasteBudget: WASTE_BUDGET_BYTES };
 }
 
