@@ -1,5 +1,41 @@
 import type { Metadata } from "next";
+import { Instrument_Sans, Azeret_Mono } from "next/font/google";
 import "./globals.css";
+
+/**
+ * TYPE, AND WHY THESE TWO.
+ *
+ * Instrument Sans for prose and interface: a grotesk with slightly narrow
+ * counters and real vertical tension, so headings hold at large sizes without
+ * needing weight 900 to look deliberate. It is not the typeface every
+ * infrastructure product currently ships, which matters — the house style of
+ * this category (one very familiar geometric sans on near-black) reads as
+ * credible and completely anonymous, and anonymous is the one thing a record
+ * nobody has heard of cannot afford.
+ *
+ * Azeret Mono for identifiers, hashes, tokens and provenance: squared terminals
+ * and a wide, engineered rhythm that makes an entry id look like a serial
+ * number rather than a word. Mono here is semantic, not stylistic — everything
+ * set in it is a thing you could copy, paste and verify.
+ *
+ * Both are variable and both are self-hosted by `next/font` at build time, so
+ * there is no runtime request to a third party. That is not a performance nicety
+ * on this product: the page can be opened by a partner's operator who is at that
+ * moment deciding whether this domain deserves a credential, and a font call to
+ * an ad-adjacent CDN is a bad answer to "what does this page talk to".
+ */
+const sans = Instrument_Sans({
+  subsets: ["latin"],
+  variable: "--font-sans",
+  display: "swap",
+});
+
+const mono = Azeret_Mono({
+  subsets: ["latin"],
+  variable: "--font-mono",
+  display: "swap",
+  weight: ["400", "500", "600"],
+});
 
 export const metadata: Metadata = {
   title: "Bridger",
@@ -10,9 +46,20 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
+/**
+ * Both schemes declared, so the browser chrome matches the surface instead of
+ * flashing a white title bar over a dark instrument.
+ */
+export const viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: dark)", color: "#07080a" },
+    { media: "(prefers-color-scheme: light)", color: "#f4f3f0" },
+  ],
+};
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${sans.variable} ${mono.variable}`}>
       <body>{children}</body>
     </html>
   );
