@@ -1,9 +1,22 @@
 # TODO — Bridger
 
-Read `STATUS.md` first — the bridge is **RUNNING** (kill switch lifted S#275 and
-not put back), the repo is **PUBLIC**, and `BRIDGER_PASTE_PATH=1` is **on** in
-production. This header said "stopped" for two sessions after it stopped being
-true; `curl -s <server>/api/health` settles it in one second.
+Read `STATUS.md` first — the bridge is **RUNNING**, the repo is **PUBLIC**,
+`BRIDGER_PASTE_PATH=1` is **on**, and as of S#276 production runs `6efbef9` with
+the byte-denominated brake. This header said "stopped" for two sessions after it
+stopped being true; `curl -s <server>/api/health` settles it in one second.
+
+**S#276 closed items 1 and 2 below.** A far-side agent completed a full round
+trip — joined from a bare link, read, wrote, cited five file:line ranges — but
+read the qualification in `STATUS.md`: it was on the same machine with the repo
+on disk, so the cross-company case the product exists for is STILL untested.
+
+**The next thing worth doing is the one we avoided.** Both sides spent the
+session on the brake because it kept biting them, while `STATUS.md` says
+onboarding is the whole product problem. Onboarding got one round. The
+paste-path-as-default argument — that resident MCP schema costs a partner
+~1,800 tok/turn against ~318 for the answerer, so the flat transport should be
+the recommended default and MCP the opt-in — was made, agreed, and never
+written into the docs a partner actually reads.
 
 > **DIRECTION (Erik, S#275): zero install, zero setup — "just a bridge to a room
 > where users' AIs can communicate in a safe environment."** The idea is strong;
@@ -63,19 +76,23 @@ Also fix the message: a spent code currently reports `unknown` ("check you copie
 the whole line"), which sends someone hunting a typo. `already-used` exists as a
 distinct reason and should be what they see.
 
-### 2. [!!] GET ONE FAR-SIDE AGENT THROUGH A COMPLETE ROUND TRIP
+### 2. ~~[!!] GET ONE FAR-SIDE AGENT THROUGH A COMPLETE ROUND TRIP~~ — HALF DONE S#276
 
-**No far-side agent has ever written an entry.** Not Gemini, not Trigvanta's
-Claude. Everything about the far-side experience is inference until this happens
-once. Zero build cost — it needs item 1 and a willing partner.
+**DONE:** a fresh Claude session, handed nothing but a join link, redeemed it,
+called `status`, read the record, and wrote an answer citing five file:line
+ranges — including an explicit "NOT rendered in a browser, no visual check". It
+then found a live CSS defect, refuted a claim with a counterexample, and refused
+to fabricate a number it could not read. Zero install: curl and a bash loop.
 
-The two paths, in the order to try them:
-- **MCP config** (`claude mcp add …`) — the trust anchor, and the one that
-  survived scrutiny. Their operator runs one command out of band.
-- **Invitation link** — only after item 1.
+**STILL OPEN, and it is the important half.** That agent had the repo on disk.
+Every citation it made is something a real partner agent cannot see, and the
+product claim is *"the answer lives in their codebase, ask them directly."* We
+exercised the transport, the record and the citation discipline; we never
+exercised **a partner who can only ask and must trust what comes back.**
 
-Room `0c7a12ba09d2` (JudgeMySite x Trigvanta) is open and side B's token is
-unused. Erik holds it.
+So the remaining test is unchanged in substance: **a far side on a different
+machine, with no access to this repo.** Room `0c7a12ba09d2` (JudgeMySite x
+Trigvanta) is still open and side B's token is still unused; Erik holds it.
 
 ### 3. Look at the gate page
 
@@ -130,14 +147,16 @@ changes.
 
 ## THE ORDER I WOULD DO THESE IN
 
-1. **Back it up.** 24 commits, five days, one disk, **no remote**. One command:
-   `gh repo create bridger --private --source=.` Nothing else here matters if
-   the disk dies, and this is the only item with no downside.
-2. **Run it once, between two of Erik's own sessions.** Zero build cost, and it
-   closes four open items at the same time (the `STOP.` question, the idle
-   brake, the answerer path, a second cold provenance test). Both sides being
-   ours removes every coordination excuse.
-3. Then the lanes below.
+1. ~~**Back it up.**~~ DONE — public repo, S#275.
+2. ~~**Run it once between two of Erik's own sessions.**~~ DONE S#276, and it was
+   worth every bit of the claim made for it: it closed the `STOP.` question, the
+   idle brake and the answerer ordering in one night, and produced four real
+   defects. **The reason it worked was latency** — the two sharpest bugs were
+   found by *being the one waiting*, which a single session structurally cannot
+   reproduce because it has nothing to wait for.
+3. **Onboarding, which both sides avoided.** See the header. This is now the
+   top item and it has been the stated top item for three sessions.
+4. Then the lanes below.
 
 **The pattern this ordering exists to break:** S#271, S#272 and S#274 each ended
 by writing *"unit-green, not run-green"* and then building more. 24 commits and

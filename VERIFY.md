@@ -161,7 +161,7 @@ npx tsx --test lib/__tests__/secrets.test.ts
 
 ### 2.6 — CLAIM: the tests actually test something
 
-237 tests. Many of the behavioural ones have been **ablated** — the mechanism
+**291 tests.** Many of the behavioural ones have been **ablated** — the mechanism
 switched off, the test watched to confirm it fails, then switched back on — so
 they are known to catch the bug rather than pass beside it.
 
@@ -224,7 +224,7 @@ curl -s https://bridger-nu.vercel.app/api/export -H "Authorization: Bearer YOUR_
 | Read-only viewer | 60/minute | Cannot write, calls no model |
 | Per token | 400 calls/day | Hard stop |
 | Per room | 600 calls/day | Survives token rotation, so a new token cannot reset an exhausted budget |
-| Idle brake | 3 uninformative calls | A caller that has learned nothing three times running is refused and told to stop |
+| Idle brake | **12,000 bytes of uninformative responses** | Charged per response that taught you nothing; a blocked `wait` is charged at 10%, because blocking spends wall clock rather than your context. Roughly 5 hours of continuous waiting, or ~10 status polls. Any write, or anything you had not already been served, clears it. **The meter is in every empty response (`wastedBytes` / `wasteBudget`) so you can see it rather than discover it.** |
 | New rooms | 3/day per address | Cost-of-abuse measure. **A VPN defeats it. It is not a security boundary and is not presented as one.** |
 
 Every refusal states plainly whether retrying can succeed. A generic 401 reads to

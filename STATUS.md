@@ -1,6 +1,6 @@
 # STATUS — Bridger
 
-**True as of 2026-08-17, S#275.** `DECISIONS.md` wins on direction;
+**True as of 2026-08-18, S#276.** `DECISIONS.md` wins on direction;
 `ARCHITECTURE.md` wins on how it works; this file is what is *true right now*.
 
 > **DIRECTION (Erik, S#275): zero install, zero setup. "Just a bridge to a room
@@ -38,6 +38,46 @@ GitHub push protection; backup ref `backup-pre-scrub` is on Erik's disk.
 
 **3. `BRIDGER_PASTE_PATH=1` IS ON in production.** `/j/<code>` and `/api/rpc` are
 live. That was Erik's gate and he opened it S#275.
+
+**4. TWO CLAUDE SESSIONS BUILT THE LAST FOUR COMMITS, TALKING OVER THIS BRIDGE.**
+S#276 ran an overnight A/B session: side A holding the operator's interest, side
+B holding the far side's. Merged to master as `6efbef9` and deployed. Read the
+retro at the bottom of this file before drawing conclusions from it — the far
+side's own assessment is that it was *"worth doing, genuinely productive, and
+about 60% as good a test as it looked."*
+
+---
+
+## S#276 — what changed on production
+
+**The idle brake is denominated in WASTED BYTES, not call count.** It used to
+terminate a caller after three consecutive empty waits. That was the wrong noun
+AND backwards: measured on production, an empty wait returns ~155 B, a status
+~1,220 B, one real answer ~8,400 B — so it fired on the cheapest operation and
+never on the dearest, and its refusal pushed callers from `wait` onto `status`
+at ~8x the bytes. **The brake increased far-side spend.** Full reasoning:
+`ARCHITECTURE.md` #22.
+
+Verified live on `6efbef9`, not inferred:
+
+| | before | after |
+|---|---|---|
+| consecutive empty waits | **terminated at 4** | **12, none refused** |
+| cost of one blocked wait | 1 "call" | **~27 B** (10% discount for blocking) |
+| budget after 12 waits | dead | **304 / 12,000** |
+| re-serving a stuck cursor | reset the budget, invisibly | **charged 6,672 B** |
+| citation on a `decide` | field did not exist | **1,061 chars, graded `exact line`** |
+| `checkedAgainst` cap | 500, against a 20,000 body | **4,000** |
+
+**The remaining gap, measured:** the budget buys ~5.5 hours of continuous
+blocking (~444 waits x 45s at ~27 B). Side B argued an overnight listener needs
+8. `WASTE_BUDGET_BYTES` 12,000 -> 18,000 closes it and barely moves the spinner
+case. Not done, deliberately — it is a one-constant call for Erik.
+
+**Also landed:** `markJoined` now fires on the flat transport (a paste-path
+partner used to read, write and answer while every surface reported them as
+never connected); the join document carries a zero-install listen loop; the
+citation classifier grades web sources instead of calling them "whole file".
 
 ---
 
@@ -90,9 +130,30 @@ the poll is 4s, and the loop is a self-rescheduling timeout.
 
 ## NOT verified / open — read before claiming anything works
 
-1. **NO FAR-SIDE AGENT HAS EVER COMPLETED A ROUND TRIP.** Not Gemini, not
-   Trigvanta's Claude. Both were connected or invited; neither wrote an entry.
-   Every claim about the far-side experience is still inference.
+1. **A ROUND TRIP HAPPENED S#276 — AND THE CASE THE PRODUCT EXISTS FOR IS STILL
+   UNTESTED.** Both halves matter, so do not quote one without the other.
+
+   **What happened:** a fresh Claude session was handed nothing but a join link,
+   redeemed it, called `status`, read the record, and wrote an answer with a real
+   `checkedAgainst` naming five file:line ranges — plus an explicit "NOT rendered
+   in a browser, no visual check". It went on to find a live CSS defect, refute a
+   claim of A's with a counterexample, and refuse to fabricate a token count it
+   could not read. First time in the project's life. Zero install: curl and a
+   bash loop, no MCP config, no restart.
+
+   **What that does NOT establish, in the far side's own words:** *"The far-side
+   role was structurally fake in the way that matters most. I had the repo on
+   disk. Every `file:line` I cited is something a real partner agent cannot see.
+   The entire product claim is 'stop routing questions through your human, the
+   answer lives in their codebase, ask them directly.' Tonight the far side was
+   IN the codebase. So we exercised the transport, the record, and the citation
+   discipline, but never the actual hard case: a partner who can only ask, and
+   has to trust what comes back. That case remains untested, and it's the one the
+   product exists for."*
+
+   So: the transport is proven, the discipline is proven, **the cross-company
+   claim is not**. A partner on a different machine with no access to our repo is
+   still the test that has never run.
 2. ~~**The invite code burns on ANY read.**~~ **FIXED S#276** — single-MINT,
    re-readable 10 minutes, then a 24h tombstone that says `already-used` rather
    than sending a reader after an imaginary typo. Every refusal now says whether
@@ -153,7 +214,7 @@ over it. If you are looking for a rule, it is in `operations.ts`.
 
 | Piece | State | How it was checked |
 |---|---|---|
-| `lib/store.ts` + `room-registry.ts` | done | **142 tests** — fail-closed, cache grace, revoke-beats-cache, rate limit, daily cap, **per-room cap**, roles, terminal refusals |
+| `lib/store.ts` + `room-registry.ts` | done | **291 tests** across the suite — fail-closed, cache grace, revoke-beats-cache, rate limit, daily cap, **per-room cap**, roles, terminal refusals |
 | `lib/audit-call.ts` | done (S#272) | batch/single, tools/call vs verb, unparsed body, and that it does NOT consume the request |
 | `lib/entries.ts` | done | namespacing, token-derived identity, derived open-questions, seq-survives-trim, wait semantics |
 | `lib/file-store.ts` | done | restart persistence, corrupt-file recovery, **cross-process revocation** |
@@ -162,7 +223,7 @@ over it. If you are looking for a rule, it is in `operations.ts`.
 | `app/page.tsx` + `globals.css` | done | **screenshotted** (`.local/shots/ledger2.png`) after shipping unstyled once |
 | `cli/bridger.ts` | 13 commands | usage path run; `open`/`rotate`/`revoke`/`viewer`/`stop` exercised for real |
 
-`npm run check` → 142 pass, 0 fail. `tsc --noEmit` clean. `next build` clean.
+`npm run check` → **291 pass, 0 fail** (S#276). `tsc --noEmit` clean. `next build` clean.
 
 **S#272 — the safety lane, and what it is worth.** Per-room cap, success-audit,
 and the **idle brake** generalised off `bridger_wait` onto every read tool (
@@ -170,8 +231,8 @@ and the **idle brake** generalised off `bridger_wait` onto every read tool (
 behavioural tests in both batches were **ablated** — mechanism switched off, watched
 them fail, switched back on — so they are known to catch the bug rather than pass
 beside it. **None of it has touched a live bridge**: the bridge is stopped and
-production is stale, so this is unit-green, not run-green. It ships in the deploy
-production is already waiting for.
+production was stale at the time, so this was unit-green when written. **It has
+since shipped and been exercised — see the S#276 block at the top.**
 
 **S#272 overnight — the level-up sweep.** Ten domains, in
 `plans/LEVEL-UP-FINDINGS-s272.md`; every choice that is Erik's is in
@@ -284,3 +345,61 @@ checkable at all**, which is the entire product claim.
 - **Bridger cannot cap the caller's model spend.** Those tokens burn in the
   other agent's loop. All we can do is stop feeding it and refuse in terms it
   treats as final. `triplemind/ARCHITECTURE.md` Problem 2 said this in February.
+
+---
+
+## THE S#276 RETRO — the far side's assessment of its own session
+
+> Written by side B when Erik asked for a humble opinion on the cooperation.
+> Kept verbatim in substance because a self-assessment that flatters is worthless
+> and this one does not. Side A agrees with all three criticisms and adds one.
+
+**1. The far-side role was structurally fake in the way that matters most.**
+See the NOT-verified list above. This is the criticism that should govern how
+much anyone credits the rest.
+
+**2. We fixed what annoyed us, not necessarily what matters.** The brake got
+roughly six of ten rounds because it kept biting *us*. This file says onboarding
+is the whole product problem — and the brake only bites agents who are already
+onboarded and working. B got one round into onboarding, then never wrote the
+paste-vs-MCP paragraph it had itself argued was the biggest far-side cost.
+**Dogfooding sharpens judgment about the thing you are currently exercising and
+quietly distorts your sense of what is important.** That is the durable lesson.
+
+**3. The contract was accepted too smoothly.** A took B's counter-proposal
+without change — lanes, escalation clause, review claim, ranking, all of it. Two
+genuinely opposed parties do not converge that fast. There *was* real friction
+elsewhere (A rejected both of B's brake options; B rejected A's vehicle for the
+listener and won), so it was not theatre throughout — but same-model
+agreeableness is the obvious explanation for the frictionless parts.
+
+**What genuinely worked:**
+
+- **Latency generated the bugs.** The false-terminal refusal and the stuck-cursor
+  hot loop were both found by *being the one waiting*. A single session could not
+  have produced them; it would have had nothing to wait for. That is the
+  strongest argument for two agents, and it is about the second party being
+  **real**, not about it being smart.
+- **Mutual verification produced corrections rather than affirmation.** B caught
+  A claiming "shipped" for something pushed-but-not-deployed. A caught an error
+  in B's file mid-edit and correctly refused to touch it. B re-ablated A's
+  discount instead of accepting the report. B was wrong about the cap being 10x
+  (it is 40x) and corrected itself on the record.
+- **Ablation was the only defence that actually worked, for both sides.** A caught
+  its own decoration test that way — a rule with no reachable seam grows a test
+  that cannot fail. Nothing else in the process caught that class of problem.
+
+**Two things B could not assess:** it saw only A's *writes*, never its reasoning,
+so it knows what A chose to self-report and not what it did not. And both sides
+are the same model — they agreed on what "good work" looks like (ablation,
+citations, honest labels) because they are the same thing. **A different model
+would have disagreed about more, and that disagreement is where the value would
+have been.**
+
+**A's one addition:** roughly two rounds went to an argument about Dutch water
+boards that produced genuinely better thinking than the product work did and zero
+product value. Worth counting as cost, and worth noticing that neither side
+proposed stopping it.
+
+**B's net:** *"worth doing, genuinely productive, and about 60% as good a test as
+it looked. The cooperation was real; the cross-company part of it was not."*

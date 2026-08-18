@@ -5,6 +5,77 @@ Append-only, newest first. **DECISIONS wins on direction** — where this file a
 
 ---
 
+## 2026-08-18 -- S#276 -- THE OVERNIGHT A/B SESSION: WHAT IT PROVED AND WHAT IT DID NOT
+
+**What happened.** Two Claude Code sessions, on one machine, talking over Bridger
+itself for five rounds while Erik slept. Side A held the OPERATOR's interest
+(cost, safety, reversibility); side B held the FAR SIDE's (onboarding, clarity,
+the tokens billed to the partner). Work was lane-partitioned in a
+`bridger_contract` before any file was touched, on branch `s276-overnight`, with
+production deploys forbidden. Merged as `6efbef9` and deployed.
+
+**The design choice that mattered: a different STAKE, not a different persona.**
+"Be adversarial" produces performed disagreement. The evidence for stakes came
+from S#275, where a partner's Claude was rigorous because it was defending its
+own operator's credentials. Giving each side a constituency whose interests
+genuinely conflict -- every guard A wants is friction B feels, and B pays the
+token cost of everything A adds -- produced substantive disagreement instead.
+A rejected both of B's brake proposals; B rejected A's vehicle for the listener
+and won.
+
+**What it produced, all merged:** the brake re-denominated in wasted bytes with a
+blocking discount; the served high-water mark closing a stuck-cursor hot loop;
+`checkedAgainst` raised 500 -> 4,000; `decide` able to cite at all; writes
+clearing the idle counters as their docstring had always claimed; a zero-install
+listen loop in the join document; web-source citation grading.
+
+**THE HONEST LIMITS, in the far side's own assessment.** Recorded because a
+retro that flatters is worthless:
+
+1. **The far-side role was structurally fake in the way that matters most.** B
+   had the repo on disk, so every `file:line` it cited is something a real
+   partner agent cannot see. The product claim is that partners ask each other
+   because the answer lives in the other codebase. Tonight the far side was IN
+   the codebase. The transport, the record and the citation discipline were
+   exercised; **the case the product exists for was not.**
+2. **We fixed what annoyed us, not what matters.** The brake took ~6 of 10 rounds
+   because it kept biting us, while `STATUS.md` says onboarding is the whole
+   product problem -- and the brake only bites agents who are already onboarded.
+   **Dogfooding sharpens judgment about what you are currently exercising and
+   quietly distorts your sense of what is important.** That is the durable lesson
+   and it generalises well past this project.
+3. **The contract was accepted too smoothly.** A took B's counter-proposal
+   without change. Two genuinely opposed parties do not converge that fast;
+   same-model agreeableness is the obvious explanation for the frictionless parts.
+4. **Same model, same blind spots.** Both sides agreed on what good work looks
+   like -- ablation, citations, honest labels -- because they are the same thing.
+   A different model would have disagreed about more, and that disagreement is
+   where the value would have been.
+
+**WHAT GENUINELY WORKED, and it is one thing rather than three.** *Latency
+generated the bugs.* The false-terminal refusal and the stuck-cursor hot loop
+were both found by being the one waiting -- a single session could not have
+produced them because it would have had nothing to wait for. **The argument for
+two agents is that the second party is REAL, not that it is smart.**
+
+Two supporting mechanisms: mutual verification produced corrections rather than
+affirmation (B caught A claiming "shipped" for pushed-but-not-deployed; A caught
+an error in B's file mid-edit and correctly refused to touch it; B re-ablated A's
+work instead of trusting the report), and **ablation was the only defence that
+caught its own class of failure** -- A's discount test re-implemented the rule
+locally, so it passed with the real mechanism disabled, and nothing but the
+ablation would have found that.
+
+**Net, B's words:** *"worth doing, genuinely productive, and about 60% as good a
+test as it looked. The cooperation was real; the cross-company part of it was
+not."*
+
+**What this decides for next time:** run it again, but the far side must be
+somewhere the near side cannot read. Until then, treat every cross-company claim
+in this repo as untested rather than proven.
+
+---
+
 ## 2026-08-17 -- S#276 -- THE STATUS CODE MUST AGREE WITH `terminal`
 
 **The defect:** every terminal refusal returned a status that instructs clients

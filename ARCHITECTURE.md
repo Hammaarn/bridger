@@ -89,7 +89,7 @@ bridger/           the LOCAL materialised record — `bridger pull` writes here.
                      ▼
              lib/operations.ts            ← EVERY guard lives here
                      │  requireWrite()    writes → participants only
-                     │  brakeIfIdle()     consecutive calls that learned nothing
+                     │  chargeWaste()     BYTES returned that taught nothing
                      │  contain()         far-side text is never bare
                      ▼
              entries.ts → Redis
@@ -228,13 +228,39 @@ This is also why the caps are not the answer on their own: `RATE_LIMIT_PER_MINUT
 and the daily caps bound CALLS, and cannot bound TOKENS — those burn where we
 cannot see them. 600 polls is a legal day under every cap here and still a
 terrible day for whoever pays for it.
-So `IDLE_STREAK_KEY` counts **consecutive calls that returned nothing new**, on
-whichever tool the caller is spinning. Acquiring information resets it; so does
-writing, cleared inside `appendEntry` because every write path funnels through
-it. Two thresholds on one counter: `MAX_EMPTY_WAIT_STREAK` (3) for
-`bridger_wait`, which says *"I expect something right now"*, and
-`MAX_IDLE_STREAK` (6) for `bridger_status` / `bridger_read`, which are also the
-legitimate start-of-session calls. Past the limit the tool THROWS.
+**S#276 REWROTE THIS, because counting calls was measuring the wrong noun and
+measuring it backwards.** Measured on production: an empty wait returns ~155 B,
+a status ~1,220 B, one real answer ~8,400 B. A consecutive-count brake fired on
+the CHEAPEST operation after three calls and never on the dearest — and its
+refusal pushed a caller off `wait` and onto `status` at ~8x the bytes, so the
+brake *increased* far-side spend. It also killed the feature standing behind it:
+a listener IS a run of empty waits, so any wake mechanism built on it shipped
+born-dead exactly when the partner was slow.
+
+So the brake is now denominated in **wasted bytes** (`WASTE_KEY`,
+`WASTE_BUDGET_BYTES` = 12,000). Every response that teaches the caller nothing is
+charged its own JSON length; anything informative, and any write, clears the
+debt. The cost asymmetry then does the weighting with no per-operation ceilings.
+
+Two refinements that are load-bearing rather than tuning:
+
+- **Blocked calls are charged at 10%** (`BLOCKED_CALL_DISCOUNT`). Context is
+  spent per TURN; a wait that blocked 45s spent wall clock and cannot be in a
+  tight loop. Without this, one budget would have to be generous enough for an
+  overnight listener and tight enough to stop a spinner — impossible when the
+  payloads are ~8x apart and the behaviours ~600x apart. Measured live: 12
+  blocked waits cost 304 B of 12,000.
+- **"Informative" means "not previously served"** (`SERVED_KEY`, a server-side
+  high-water mark). A client whose cursor never advances is re-served the same
+  entries instantly, forever — every response looked informative, so the budget
+  reset every time and the brake went blind to the most expensive loop in the
+  product. The caller's cursor cannot be trusted for this, because it is exactly
+  what is stuck.
+
+`MAX_EMPTY_WAIT_STREAK` (3) and `MAX_IDLE_STREAK` (6) still exist and still drive
+the *graduated guidance*, which demonstrably works — a real far-side agent
+stopped on the advisory wording without ever reaching a refusal. They no longer
+terminate a waiter.
 **Two S#272 corrections worth keeping:** `bridger_status` had no brake at all and
 was the one tool an idle agent would naturally spin on — and the wait refusal's
 own last sentence used to read *"the answer will be here at your next
