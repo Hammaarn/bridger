@@ -279,11 +279,113 @@ export const PASTE_PATH_DAILY_CAP = 200;
 /**
  * Consecutive empty waits before the bridge tells the caller to stop.
  *
- * `bridger_wait` returning "nothing yet" is a legitimate answer, and an agent
- * that treats it as a reason to wait again has built a poll loop. Three in a
- * row with no new entry means the other side is not there right now.
+ * NO LONGER THE BRAKE ON `wait` (S#276). It is still counted and still
+ * reported, because the graduated guidance built on it demonstrably works — a
+ * real far-side agent stopped on the advisory wording without ever reaching a
+ * refusal. What it no longer does is TERMINATE a waiter. See `WASTE_BUDGET_BYTES`
+ * for why the count was the wrong unit, and `MAX_IDLE_STREAK` for where a
+ * consecutive count is still the right guard.
  */
 export const MAX_EMPTY_WAIT_STREAK = 3;
+
+/**
+ * THE BRAKE, in the unit the harm is actually denominated in: bytes of response
+ * that taught the caller nothing.
+ *
+ * WHY THE COUNT WAS THE WRONG NOUN, measured S#276 on real traffic. An empty
+ * wait returns ~155 B. A status poll returns ~1,220 B. One real answer is
+ * ~8,400 B. The old consecutive-count brake fired on the 155-byte operation
+ * after three calls and never on the 8,400-byte one — it was not merely
+ * measuring the wrong thing, it was ANTI-CORRELATED with the cost it existed to
+ * control. Worse, its refusal pushed a caller off `wait` and onto `status`,
+ * which is roughly 7.5x more expensive per call, so the brake INCREASED
+ * far-side spend.
+ *
+ * And it broke the feature it sat in front of: a listener is by construction a
+ * sequence of empty waits, so any wake mechanism built on a consecutive-empty
+ * brake dies exactly when the partner is slow — which is the case the listener
+ * exists for. (Found by side B on the bridge, S#276, having watched side A get
+ * terminally braked while B was actively working.)
+ *
+ * SO: sum the bytes of uninformative responses per token, reset on anything
+ * informative or on a write, and refuse when the sum crosses this budget. The
+ * cost asymmetry then does the weighting for free — no per-operation ceilings.
+ * Patient blocking is nearly free; expensive spinning trips fast:
+ *
+ *     empty wait   ~155 B  ->  ~77 calls  ->  ~58 minutes of blocking
+ *     status poll ~1,220 B  ->  ~10 calls
+ *
+ * It also inverts the perverse incentive: under a byte budget, abandoning
+ * `wait` for `status` makes you trip SOONER, which is correct.
+ *
+ * ONE HONEST LIMIT: bytes are a proxy for tokens, not tokens (~4:1 and stable
+ * across our payloads). It is the only thing the server can observe — a caller
+ * cannot be asked, because a far-side agent generally cannot read its own
+ * context usage, established on the bridge S#276.
+ *
+ * AND ONE THAT ARGUES FOR GENEROSITY: bytes OVERCOUNT a call made from a shell
+ * loop, where nothing reaches a model context at all. That is the correct way
+ * to run a listener, it costs the far side zero, and this budget counts every
+ * byte of it. Hence 12 kB (~3,000 tokens) rather than something tighter — still
+ * under two turns of resident MCP tool schema, which is ~1,800 tokens EVERY
+ * turn whether the bridge is touched or not.
+ */
+export const WASTE_BUDGET_BYTES = 12_000;
+
+/**
+ * Highest entry seq ever HANDED to one token. Server-side, because the caller's
+ * own cursor is precisely what is stuck in the loop this exists to catch.
+ */
+export const SERVED_KEY = (tokenId: string) => `${NS}:served:${tokenId}`;
+
+/**
+ * A call that BLOCKED is charged at this fraction of its bytes.
+ *
+ * The unit the brake protects is the caller's CONTEXT, and context is spent per
+ * TURN, not per second. A wait that blocked ~45s and came back empty consumed
+ * wall clock instead of turns — by construction it cannot be part of a tight
+ * loop. A call that returns in 0.15s can.
+ *
+ * Without this, one budget has to be simultaneously generous enough for an
+ * eight-hour listener (~640 empty waits) and tight enough to stop a spinner
+ * (~10 status polls). It cannot be: the payloads are ~8x apart and the
+ * behaviours are ~600x apart in cost to the caller. Discounting by blocking is
+ * what separates them, and it uses `waitedMs`, which we already record.
+ *
+ * At 0.1: an 8-hour listener spends ~9,900 B of the 12,000 budget; a stuck-
+ * cursor hot loop spends full freight and trips in about six calls.
+ */
+export const BLOCKED_CALL_DISCOUNT = 0.1;
+
+/** A call must block at least this long to earn the discount. */
+export const BLOCKED_CALL_MS = 5_000;
+
+/**
+ * Ceiling on `checkedAgainst`, the field that carries the entire product claim.
+ *
+ * WAS 500 AGAINST A 20,000-CHARACTER BODY -- the receipt capped at 2.5% of the
+ * claim it is a receipt FOR (S#276, measured by side B after hitting it).
+ * Concretely: a five-source citation that labelled which sources were summaries
+ * and which were unread abstracts came to ~900 chars, was refused, and had to be
+ * compressed to 474 by DELETING the per-claim depth labelling. The cap's only
+ * effect was to make an honest citation less honest -- the one place in the
+ * schema where being thorough is a validation error.
+ *
+ * 4,000 rather than 20,000 on purpose: still 5x tighter than the body, so the
+ * shape stays "a receipt, not an essay".
+ *
+ * The counter-argument -- that a bigger field invites pasting evidence IN rather
+ * than citing it -- is real but weaker, because that misuse is VISIBLE:
+ * `classifyCitation` grades a wall of prose as unlocated and the UI shows it.
+ * Truncating an honest citation is invisible. Prefer the failure you can see.
+ */
+export const CITATION_MAX = 4_000;
+
+/** Rolling sum of uninformative response bytes for one token. */
+export const WASTE_KEY = (tokenId: string) => `${NS}:waste:${tokenId}`;
+
+/** How long the waste sum survives without being touched. */
+export const WASTE_WINDOW_SECONDS = 3600;
 
 /**
  * The same brake, looser, for the tools that merely READ.

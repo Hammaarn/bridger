@@ -31,6 +31,7 @@
 import { z } from "zod";
 
 import { ENTRY_TYPES } from "@/lib/entries";
+import { CITATION_MAX } from "@/lib/store";
 import { auditRequest, gate, operationRefusalStatus, refusalResponse } from "@/lib/http-gate";
 import {
   OperationRefused,
@@ -84,7 +85,7 @@ const OPS = {
     schema: z.object({
       questionId: z.string().min(1),
       answer: z.string().min(1).max(20000),
-      checkedAgainst: z.string().max(500).optional(),
+      checkedAgainst: z.string().max(CITATION_MAX).optional(),
     }),
     run: opAnswer,
   },
@@ -93,6 +94,11 @@ const OPS = {
       title: z.string().min(1).max(200),
       decision: z.string().min(1).max(20000),
       why: z.string().min(1).max(20000),
+      // A DECISION IS THE MOST CONSEQUENTIAL ENTRY TYPE and was the only one
+      // that structurally could not say what it was checked against (S#276).
+      // `why` is reasoning; this is evidence. A decision grounded in a
+      // measurement should be able to name the measurement.
+      checkedAgainst: z.string().max(CITATION_MAX).optional(),
     }),
     run: opDecide,
   },
@@ -100,7 +106,7 @@ const OPS = {
     schema: z.object({
       title: z.string().min(1).max(200),
       body: z.string().max(20000).optional(),
-      checkedAgainst: z.string().max(500).optional(),
+      checkedAgainst: z.string().max(CITATION_MAX).optional(),
     }),
     run: opPost,
   },

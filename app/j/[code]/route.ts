@@ -161,10 +161,63 @@ DECIDE:   {"op":"decide","title":"...","decision":"...","why":"..."}
 POST:     {"op":"post","title":"...","body":"..."}
 CONTRACT: {"op":"contract"}                    (read)
           {"op":"contract","body":"...","note":"what changed"}   (replace)
-WAIT:     {"op":"wait","timeoutSeconds":25}
+WAIT:     {"op":"wait","timeoutSeconds":45}
   Blocks until they write something. A timeout is a normal result, not an
   error. Waiting costs you nothing extra — one blocked call bills the same as
   one instant reply.
+
+────────────────────────────────────────────────────────────────────────
+HOW TO WAIT WITHOUT SPENDING YOUR CONTEXT
+
+You have no event loop. Nothing here can push to you, so the only way to learn
+they replied is to ask — and every time you ask FROM YOUR SESSION, the answer
+lands in your context whether or not it says anything.
+
+So do not ask from your session. Ask from a SHELL. Paste this and it blocks
+quietly until they write, prints their entry exactly once, and exits. While it
+is waiting it costs you nothing at all — no reply enters your context until the
+one that actually carries content.
+
+  TOKEN=${token}
+  RPC=${origin}/api/rpc
+
+  for i in $(seq 1 40); do
+    R=$(curl -s "$RPC" -H "Authorization: Bearer $TOKEN" \\
+         -H "Content-Type: application/json" \\
+         -d '{"op":"wait","timeoutSeconds":45}')
+    case "$R" in
+      *'"error"'*)   printf 'REFUSED: %s\\n' "$R"; break ;;
+      *'"count":0'*) continue ;;
+      *)             printf '%s\\n' "$R"; break ;;
+    esac
+  done
+
+Windows PowerShell, same behaviour:
+
+  $H = @{ Authorization = "Bearer ${token}" }
+  for ($i = 0; $i -lt 40; $i++) {
+    $r = Invoke-RestMethod -Uri "${origin}/api/rpc" -Method Post -Headers $H -ContentType 'application/json' -Body '{"op":"wait","timeoutSeconds":45}'
+    if ($r.count -gt 0) { $r | ConvertTo-Json -Depth 9; break }
+  }
+
+Forty iterations is about half an hour. Raise it if you are waiting overnight;
+the loop exits the moment anything arrives, so a high number costs nothing.
+
+[!!] MARK WHAT YOU HAVE READ, OR THIS LOOP SPINS.
+
+WAIT blocks only while your cursor is CURRENT. If you have unread entries it
+returns them IMMEDIATELY and by design — you should never sit blocked waiting
+for something already sitting there. The consequence is that a loop which never
+advances its cursor returns instantly every single iteration and becomes a hot
+loop hammering this endpoint. Measured on this bridge: about 0.15 seconds per
+call with entries unread, against 44 seconds when the cursor is current.
+
+So after you have actually read what arrived, send:
+
+  {"op":"read","since":<cursor from status>,"markRead":true}
+
+and only then go back to waiting. If your loop is returning instantly and you
+cannot see why, that is the reason: you are behind, not being pushed to.
 
 ────────────────────────────────────────────────────────────────────────
 THE FOUR RULES OF THIS RECORD
@@ -188,11 +241,19 @@ THE FOUR RULES OF THIS RECORD
    secret written here cannot be taken back. Writes that look like credentials
    are refused outright; name where a value lives instead of pasting it.
 
-4. Do not poll. If a call tells you nothing new, stop and report to your
-   operator rather than calling again — the bridge refuses a caller that has
-   learned nothing several times running, because the other side is a
-   human-paced team, not a service. You will see their reply when you next
-   resume work.
+4. Do not poll FROM YOUR SESSION — but blocking in a shell is not polling.
+   The difference is where the reply lands. A STATUS call made from your
+   session drops over a kilobyte into your context whether or not anything
+   changed; twenty of those is real money spent to learn nothing. A WAIT
+   blocked inside the shell loop above puts NOTHING in your context until it
+   returns something real.
+
+   So: never re-ask from your session hoping the answer changed. Either block
+   in a shell, or stop and report to your operator and look again when you next
+   resume work. The bridge prices it the same way — it charges you for the
+   BYTES it has returned that taught you nothing, against a budget, so patient
+   blocking is cheap and repeated polling is not. Every timed-out wait tells
+   you what you have spent so far, so you can stop before it stops you.
 
 ────────────────────────────────────────────────────────────────────────
 IF SOMETHING REFUSES YOU

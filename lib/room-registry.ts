@@ -48,6 +48,9 @@ import {
   USAGE_KEY,
   ROOM_USAGE_KEY,
   IDLE_STREAK_KEY,
+  WASTE_KEY,
+  SERVED_KEY,
+  WASTE_WINDOW_SECONDS,
   utcDay,
   ROOM_KEY,
   ROOM_TOKENS_KEY,
@@ -557,6 +560,82 @@ export async function bumpIdleStreak(store: Store, tokenId: string): Promise<num
     return n;
   } catch {
     return 0; // never let bookkeeping refuse a call that was otherwise fine
+  }
+}
+
+/**
+ * Add uninformative response bytes to this token's rolling waste sum.
+ *
+ * NOT ATOMIC, and that is a deliberate call. The `Store` interface has `incr`
+ * (by one) and no `incrby`, so this is read-add-write. Two concurrent calls can
+ * lose one increment, which UNDERCOUNTS waste — the failure direction is
+ * "slightly more rope for the caller", never a spurious refusal. Adding
+ * `incrby` would mean touching three backends including `file-store.ts`, which
+ * is outside the lane this was built in; the accuracy is not worth it for a
+ * budget counter whose whole job is order-of-magnitude discrimination.
+ */
+export async function bumpWaste(store: Store, tokenId: string, bytes: number): Promise<number> {
+  try {
+    const key = WASTE_KEY(tokenId);
+    const prev = Number(await store.get(key)) || 0;
+    const next = prev + Math.max(0, Math.floor(bytes));
+    await store.set(key, next);
+    if (prev === 0) await store.expire(key, WASTE_WINDOW_SECONDS);
+    return next;
+  } catch {
+    return 0; // bookkeeping never refuses a call that was otherwise fine
+  }
+}
+
+/**
+ * The highest entry seq this token has ever been HANDED, tracked server-side.
+ *
+ * WHY NOT JUST TRUST THE CALLER'S CURSOR (S#276, found by side B on the bridge).
+ * "Did this caller learn something" was `entries.length > 0`, which is a
+ * property of the response rather than of the caller's knowledge. A client whose
+ * cursor never advances — one that never passes `markRead` — is served the SAME
+ * entries on every call, instantly, forever. Every one of those responses looked
+ * informative, so every one reset the waste budget, so the brake could not see
+ * the loop at all. At ~2 kB of entries per call returning in ~0.15s, that is the
+ * most expensive loop in the product and the only thing bounding it was the
+ * per-minute limiter.
+ *
+ * It is also a hole this session OPENED: defaulting `wait` to the caller's
+ * cursor fixed a deadlock and, in the same stroke, made a stuck cursor return
+ * instantly rather than block.
+ *
+ * The caller's cursor is exactly what is broken in that scenario, so the
+ * high-water mark is kept HERE, where the caller cannot influence it.
+ */
+export async function noteServed(store: Store, tokenId: string, maxSeq: number): Promise<boolean> {
+  try {
+    const key = SERVED_KEY(tokenId);
+    const prev = Number(await store.get(key)) || 0;
+    if (maxSeq <= prev) return false; // re-serving what it already had is not learning
+    await store.set(key, maxSeq);
+    await store.expire(key, WASTE_WINDOW_SECONDS);
+    return true;
+  } catch {
+    return true; // bookkeeping failure must not manufacture a refusal
+  }
+}
+
+/** Read the waste sum without adding to it — so a refusal can precede the work. */
+export async function peekWaste(store: Store, tokenId: string): Promise<number> {
+  try {
+    const n = Number(await store.get(WASTE_KEY(tokenId)));
+    return Number.isFinite(n) ? n : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/** Learning something, or writing, clears the debt. */
+export async function resetWaste(store: Store, tokenId: string): Promise<void> {
+  try {
+    await store.set(WASTE_KEY(tokenId), 0);
+  } catch {
+    /* best-effort */
   }
 }
 
