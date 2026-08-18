@@ -1,48 +1,120 @@
 /**
- * Bridger's styles.
+ * BRIDGER — "THE WIRE".
  *
- * Plain CSS in one file rather than styled-jsx: the first version used
- * `<style jsx>` inside a client component, the build passed, and the page
- * shipped completely unstyled. Nothing failed loudly — the markup was correct
- * and every class name was there, so an HTML check for the right strings said
- * "verified" while the page looked like a 1996 form. Real stylesheets do not
- * have that failure mode.
+ * THE FEELING THIS IS BUILT FOR. You are watching two machines talk on your
+ * behalf. Not participating — watching. So the register is INSTRUMENT: an
+ * oscilloscope, a flight recorder, a seismograph. Calm, continuous, legible at a
+ * glance, and completely uninterested in delighting you. The obvious look for an
+ * "AI product" right now is a dark void with a glow and a gradient; purpose
+ * vetoes it, because this thing's actual content is hashes, citations and
+ * tamper-evidence. It is an evidence surface. It should feel like one.
  *
- * The look is a document, not a dashboard: the product IS a record. Mono for
- * ids and provenance, sans for prose, and the provenance line is the one thing
- * allowed to use colour assertively.
+ * THE ONE SIGNATURE. A still lattice of dots with a wave of LIGHT moving through
+ * it (`wire.tsx`). The dots do not move; brightness does. The medium is fixed
+ * and the signal propagates — which is what a bridge between two sessions is.
+ * It appears exactly twice: full height on the gate, and as a thin band in the
+ * room header where a real arrival on the bridge sends a packet down it.
+ *
+ * THE COLOUR RULE, AND IT IS THE WHOLE PALETTE. Everything is monochrome except
+ * PROVENANCE. `--seal` is spent only on citations and verification, so colour
+ * in this interface means exactly one thing: someone named what a claim rests
+ * on. The two sides are told apart by cool/warm luminance rather than by
+ * competing hues, and the wave's crest is `--seal` itself — the light crossing
+ * the wire is the same colour as a checked answer. Inherited from the previous
+ * stylesheet's best idea ("the provenance line is the one thing allowed to use
+ * colour assertively") and pushed until it governs the whole system.
+ *
+ * ACCESSIBILITY IS A CONSTRAINT, NOT A PASS AT THE END. Every text pair below
+ * clears WCAG AA in both schemes, the motion stops dead under
+ * `prefers-reduced-motion`, focus is always visible, targets are thumb-sized,
+ * and the three-panel room REFLOWS on a phone rather than shrinking. A record
+ * you cannot read is not a record.
  */
 
+/* ── tokens ──────────────────────────────────────────────────────── */
+
 :root {
-  --bg: #faf9f7;
-  --panel: #ffffff;
-  --ink: #1a1a19;
-  --dim: #6b6b66;
-  --line: #e4e2dd;
-  --a: #2f6f4f;
-  --b: #8a4f1c;
-  --bad: #a3341f;
-  --hot: #8a6d1f;
+  color-scheme: dark;
+
+  /* Surfaces. Cool near-black, never pure #000 — a true void has no material
+     and every hairline on it looks like a rendering artefact. */
+  --ink-900: #07080a;
+  --ink-800: #0b0d11;
+  --ink-700: #10131a;
+  --ink-600: #171b24;
+  --ink-500: #1e232e;
+
+  --line: rgba(255, 255, 255, 0.08);
+  --line-strong: rgba(255, 255, 255, 0.16);
+
+  /* Text. 16.6:1, 7.6:1 and 4.9:1 on --ink-900. */
+  --text: #e9ebef;
+  --text-dim: #99a0ad;
+  --text-faint: #767e8c;
+
+  /* The two parties. Cool and warm at matched luminance, so neither side reads
+     as more important than the other — which would be a lie about the product. */
+  --side-a: #9cc4f0;
+  --side-b: #f0c49c;
+
+  /* The reserved accent. Provenance only. */
+  --seal: #ffb86b;
+  --alarm: #ff8a7a;
+
+  /* Fed to the canvas as bare "r,g,b" so it can compose its own alpha. */
+  --wire-dot: 192, 208, 230;
+  --wire-crest: 255, 184, 107;
+
+  --font-sans-stack: var(--font-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono-stack: var(--font-mono), ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --r-sm: 5px;
+  --r-md: 9px;
+  --r-lg: 14px;
+
+  /* One shadow, used sparingly. Instruments do not float. */
+  --lift: 0 1px 0 rgba(255, 255, 255, 0.04), 0 12px 34px -18px rgba(0, 0, 0, 0.9);
+
+  --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
 }
 
-@media (prefers-color-scheme: dark) {
+@media (prefers-color-scheme: light) {
   :root {
-    --bg: #131310;
-    --panel: #1c1c18;
-    --ink: #ecebe5;
-    --dim: #918f86;
-    --line: #2e2e26;
-    --a: #83c9a0;
-    --b: #dda672;
-    --bad: #ea7a60;
-    --hot: #dcc070;
-  }
-  html {
-    color-scheme: dark;
+    color-scheme: light;
+
+    /* Warm paper rather than clinical white — carried forward deliberately from
+       the previous design, which had this part right. */
+    --ink-900: #f4f3f0;
+    --ink-800: #ffffff;
+    --ink-700: #faf9f6;
+    --ink-600: #eeece7;
+    --ink-500: #e5e2db;
+
+    --line: rgba(0, 0, 0, 0.1);
+    --line-strong: rgba(0, 0, 0, 0.2);
+
+    --text: #16181c;
+    --text-dim: #5a6070;
+    --text-faint: #646a76;
+
+    --side-a: #2b5c8f;
+    --side-b: #8a5220;
+
+    --seal: #8f5415;
+    --alarm: #b03a28;
+
+    --wire-dot: 40, 55, 80;
+    --wire-crest: 143, 84, 21;
+
+    --lift: 0 1px 0 rgba(255, 255, 255, 0.8), 0 12px 30px -20px rgba(0, 0, 0, 0.35);
   }
 }
 
-* {
+/* ── reset + base ────────────────────────────────────────────────── */
+
+*,
+*::before,
+*::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
@@ -50,768 +122,1425 @@
 
 html {
   height: 100%;
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
   min-height: 100%;
-  background: var(--bg);
-  color: var(--ink);
-  font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--ink-900);
+  color: var(--text);
+  font-family: var(--font-sans-stack);
+  font-size: 15px;
+  line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 code,
 pre,
 .mono {
-  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-family: var(--font-mono-stack);
+  font-feature-settings: "ss01";
 }
 
-/* ── the token gate ─────────────────────────────────────────── */
-
-.gate {
-  min-height: 100vh;
-  display: grid;
-  place-items: center;
-  padding: 24px;
+a {
+  color: var(--text);
+  text-decoration-color: var(--line-strong);
+  text-underline-offset: 3px;
 }
 
-.gate-card {
-  width: 100%;
-  max-width: 400px;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 30px;
+a:hover {
+  text-decoration-color: currentColor;
 }
 
-.gate-card h1 {
-  font-size: 21px;
-  letter-spacing: -0.015em;
-  margin-bottom: 5px;
+/* One focus treatment everywhere. A design that styles buttons and forgets the
+   keyboard is not finished, it is just photographed. */
+:focus-visible {
+  outline: 2px solid var(--seal);
+  outline-offset: 2px;
+  border-radius: 3px;
 }
 
-.sub {
-  color: var(--dim);
-  font-size: 14px;
-  margin-bottom: 22px;
-}
-
-.gate-card label {
-  display: block;
-  font-size: 12px;
-  color: var(--dim);
-  margin-bottom: 6px;
-}
-
-.gate-card input {
-  width: 100%;
-  padding: 10px 12px;
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  background: var(--bg);
-  color: var(--ink);
-  font-family: ui-monospace, Menlo, Consolas, monospace;
-  font-size: 13px;
-}
-
-.gate-card input:focus {
-  outline: 2px solid var(--a);
-  outline-offset: 1px;
-}
-
-.gate-card button {
-  width: 100%;
-  margin-top: 14px;
-  padding: 10px;
-  border: 0;
-  border-radius: 7px;
-  background: var(--ink);
-  color: var(--bg);
-  font: inherit;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.gate-card button:hover {
-  opacity: 0.88;
-}
-
-.fine {
-  margin-top: 18px;
-  font-size: 11.5px;
-  color: var(--dim);
-  line-height: 1.5;
-}
-
-/* ── the room ───────────────────────────────────────────────── */
-
-.wrap {
-  max-width: 880px;
-  margin: 0 auto;
-  padding: 30px 20px 80px;
-}
-
-.top {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 16px;
-  border-bottom: 1px solid var(--line);
-  padding-bottom: 16px;
-}
-
-.top h1 {
-  font-size: 20px;
-  letter-spacing: -0.015em;
-  margin-bottom: 4px;
-}
-
-.meta {
-  color: var(--dim);
-  font-size: 13px;
+::selection {
+  background: rgba(255, 184, 107, 0.26);
 }
 
 .dim {
-  color: var(--dim);
+  color: var(--text-dim);
 }
 
 .dot {
+  color: var(--text-faint);
   margin: 0 7px;
-  color: var(--line);
 }
 
-.sideA {
-  color: var(--a);
+.fine {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-dim);
 }
 
-.sideB {
-  color: var(--b);
+/* ── the wire ────────────────────────────────────────────────────── */
+
+.wire-hero,
+.wire-strip {
+  display: block;
+  width: 100%;
+  pointer-events: none;
 }
 
-.warn {
-  color: var(--hot);
+.wire-hero {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  z-index: 0;
 }
 
-.pulse {
-  display: flex;
+.wire-strip {
+  height: 46px;
+  opacity: 0.85;
+}
+
+/* ── shared controls ─────────────────────────────────────────────── */
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+.bx-primary,
+.bx-ghost {
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--dim);
-  white-space: nowrap;
-}
-
-.led {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--dim);
-}
-
-.pulse.on .led {
-  background: var(--a);
-  animation: blink 2s ease-in-out infinite;
-}
-
-.pulse.off .led {
-  background: var(--bad);
-}
-
-@keyframes blink {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.25;
-  }
-}
-
-.error {
-  margin: 16px 0;
-  padding: 12px 14px;
-  border-radius: 7px;
-  background: color-mix(in srgb, var(--bad) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--bad) 35%, transparent);
-  font-size: 14px;
-}
-
-.stats {
-  display: flex;
-  gap: 30px;
-  margin: 22px 0 6px;
-}
-
-.stats div {
-  display: flex;
-  flex-direction: column;
-}
-
-.stats strong {
-  font-size: 23px;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 20px;
+  border-radius: var(--r-md);
+  font-size: 14.5px;
   font-weight: 600;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.005em;
+  transition: background 140ms var(--ease), border-color 140ms var(--ease), transform 140ms var(--ease);
 }
 
-.stats span {
-  font-size: 12px;
-  color: var(--dim);
+.bx-primary {
+  background: var(--text);
+  color: var(--ink-900);
+  border: 1px solid var(--text);
 }
 
-.stats .hot strong {
-  color: var(--hot);
+.bx-primary:hover:not(:disabled) {
+  transform: translateY(-1px);
 }
 
-.stats .flag strong {
-  color: var(--bad);
+.bx-primary:active:not(:disabled) {
+  transform: translateY(0);
 }
 
-h2 {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--dim);
-  margin: 30px 0 10px;
-  font-weight: 600;
+.bx-primary:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
 }
 
-.openq {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  flex-wrap: wrap;
-  padding: 10px 13px;
-  border-left: 2px solid currentColor;
-  background: var(--panel);
-  border-radius: 0 6px 6px 0;
-  margin-bottom: 6px;
+.bx-ghost {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--line-strong);
 }
 
-.openq code {
-  font-size: 12px;
-}
-
-.openq .who {
-  font-size: 12px;
-  color: var(--dim);
-}
-
-.openq .qt {
-  color: var(--ink);
-  font-size: 14px;
-}
-
-.feed {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: 14px;
-}
-
-.empty {
-  color: var(--dim);
-  font-size: 14px;
-  padding: 26px 0;
-}
-
-.entry {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-left: 3px solid currentColor;
-  border-radius: 0 8px 8px 0;
-  padding: 13px 15px;
-}
-
-.entry.flash {
-  animation: land 2s ease-out;
-}
-
-@keyframes land {
-  from {
-    background: color-mix(in srgb, currentColor 18%, var(--panel));
-  }
-}
-
-.head {
-  display: flex;
-  align-items: baseline;
-  gap: 9px;
-  flex-wrap: wrap;
-  margin-bottom: 6px;
-}
-
-.id {
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.author {
-  font-size: 13px;
-  color: var(--ink);
-  font-weight: 500;
-}
-
-.verb,
-.ref {
-  font-size: 12px;
-  color: var(--dim);
-}
-
-.time {
-  font-size: 11px;
-  margin-left: auto;
-}
-
-.title {
-  color: var(--ink);
-}
-
-.body {
-  margin-top: 7px;
-  color: var(--dim);
-  font-size: 14px;
-  white-space: pre-wrap;
-}
-
-.why {
-  margin-top: 9px;
-  font-size: 13px;
-  color: var(--dim);
-}
-
-.why span {
-  text-transform: uppercase;
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  margin-right: 6px;
-  opacity: 0.7;
-}
-
-.prov {
-  margin-top: 10px;
-  font-size: 12px;
-  font-family: ui-monospace, Menlo, Consolas, monospace;
-  word-break: break-all;
-}
-
-.prov.ok {
-  color: var(--a);
-}
-
-.prov.bad {
-  color: var(--bad);
-}
-
-/*
-  Cited, but not to a place you could go and look. Deliberately NOT the same
-  colour as `.bad`: an unchecked answer is honest, a thin citation reads as
-  verified and is not. They are different failures and must not look alike.
-*/
-.prov.thin {
-  /* `--hot` rather than a literal: it is the existing amber and it is already
-     defined for both colour schemes, so this stays correct in dark mode. */
-  color: var(--hot);
-}
-
-/*
-  The span badge. States what was cited — "70 lines", "whole file" — never a
-  verdict on the answer. Muted on purpose: it is context for the citation
-  beside it, not a score competing with it for attention.
-*/
-.prov .span {
-  margin-left: 8px;
-  padding: 1px 6px;
-  border: 1px solid currentColor;
-  border-radius: 999px;
-  font-size: 10px;
-  letter-spacing: 0.02em;
-  opacity: 0.75;
-  white-space: nowrap;
-}
-
-.contract pre {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 15px;
-  overflow-x: auto;
-  font-size: 13px;
-  margin-top: 8px;
-  white-space: pre-wrap;
-}
-
-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  margin-top: 44px;
-  padding-top: 14px;
-  border-top: 1px solid var(--line);
-  font-size: 12px;
-  flex-wrap: wrap;
+.bx-ghost:hover:not(:disabled) {
+  background: var(--ink-600);
+  border-color: var(--text-faint);
 }
 
 .link {
   background: none;
-  border: 0;
-  color: var(--dim);
-  cursor: pointer;
+  border: none;
+  color: var(--text-dim);
+  font-size: 13px;
+  padding: 8px 4px;
   text-decoration: underline;
-  font: inherit;
-  padding: 0;
+  text-decoration-color: var(--line-strong);
+  text-underline-offset: 3px;
 }
 
-@media (max-width: 560px) {
-  .stats {
-    gap: 20px;
-  }
-  .time {
-    margin-left: 0;
-  }
+.link:hover {
+  color: var(--text);
 }
 
-/* S#272 — sign-off banner and the reopened badge. */
-.signoff {
-  margin: 0 0 1rem;
-  padding: 0.6rem 0.9rem;
-  border-left: 3px solid var(--dim, #6b7280);
-  background: rgba(107, 114, 128, 0.08);
-  border-radius: 4px;
-  font-size: 0.9rem;
-  color: var(--dim, #9ca3af);
-}
-.signoff strong { color: inherit; font-weight: 600; }
-
-.openq .reopened {
-  margin-left: 0.5rem;
-  padding: 0.05rem 0.4rem;
-  border-radius: 3px;
-  font-size: 0.7rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  background: rgba(220, 38, 38, 0.15);
-  color: #f87171;
-  border: 1px solid rgba(220, 38, 38, 0.35);
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   S#275 — the browser became where a room BEGINS.
-   Four views (gate / create / minted / room) and a three-panel
-   layout. All of it lives here rather than in styled-jsx: that
-   never applies inside an app-router client component, which is
-   how S#271 shipped a completely unstyled page while tsc, the
-   build, and a grep of the served HTML all passed.
-   ═══════════════════════════════════════════════════════════════ */
-
-.bx-primary {
-  width: 100%;
-  padding: 0.7rem 1rem;
-  font: inherit;
+label {
+  display: block;
+  font-size: 11px;
   font-weight: 600;
-  color: var(--bg);
-  background: var(--ink);
-  border: 1px solid var(--ink);
-  border-radius: 7px;
-  cursor: pointer;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin: 18px 0 7px;
 }
-.bx-primary:hover { opacity: 0.88; }
-.bx-primary:disabled { opacity: 0.4; cursor: not-allowed; }
 
-.bx-or {
+input[type="text"],
+input[type="password"],
+input:not([type]) {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 13px;
+  background: var(--ink-800);
+  color: var(--text);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  font: inherit;
+  transition: border-color 140ms var(--ease), background 140ms var(--ease);
+}
+
+input::placeholder {
+  color: var(--text-faint);
+}
+
+input:focus {
+  border-color: var(--seal);
+  background: var(--ink-700);
+  outline: none;
+}
+
+input.bx-bad {
+  border-color: var(--alarm);
+}
+
+.bx-copy {
+  font-family: var(--font-mono-stack);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  padding: 6px 10px;
+  min-height: 32px;
+  transition: all 140ms var(--ease);
+}
+
+.bx-copy:hover {
+  color: var(--text);
+  border-color: var(--text-faint);
+}
+
+.bx-copy.done {
+  color: var(--seal);
+  border-color: var(--seal);
+}
+
+.error {
+  margin: 16px 0;
+  padding: 11px 14px;
+  border-radius: var(--r-md);
+  border: 1px solid color-mix(in oklab, var(--alarm) 45%, transparent);
+  background: color-mix(in oklab, var(--alarm) 11%, transparent);
+  color: var(--alarm);
+  font-size: 13.5px;
+}
+
+/* ── the gate: hero ──────────────────────────────────────────────── */
+
+.gate {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.hero {
+  position: relative;
+  isolation: isolate;
+  min-height: min(78vh, 660px);
+  display: grid;
+  place-items: center;
+  padding: 72px 24px 56px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--line);
+}
+
+/* A vignette so the lattice fades out under the text block instead of the type
+   sitting on a busy field. This is the mechanism that lets the background be
+   ambitious without costing legibility.
+
+   TUNED S#277: the first version used an opaque radial at 34% centred on the
+   headline, which did protect the type — and also erased the wave, because the
+   crest travels straight through that spot. The reading protection now comes
+   from an ELLIPSE tight to the text block plus a top fade, leaving the lower
+   field open for the wave to actually be seen. */
+.hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background:
+    radial-gradient(46% 34% at 50% 38%, var(--ink-900) 0%, color-mix(in oklab, var(--ink-900) 72%, transparent) 55%, transparent 100%),
+    linear-gradient(to bottom, var(--ink-900) 0%, transparent 26%);
+  pointer-events: none;
+}
+
+.hero-inner {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 720px;
+  text-align: center;
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-family: var(--font-mono-stack);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  border: 1px solid var(--line);
+  border-radius: 100px;
+  padding: 6px 14px;
+  margin-bottom: 26px;
+}
+
+.eyebrow .led {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--seal);
+  box-shadow: 0 0 8px var(--seal);
+}
+
+.hero h1 {
+  font-size: clamp(2.3rem, 6.2vw, 4rem);
+  line-height: 1.02;
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  margin-bottom: 20px;
+  text-wrap: balance;
+}
+
+/* The mono subhead under a large sans headline: the one borrowed move, and it
+   earns its place by being semantic here — the line below is a statement about
+   machines, set in the face this product uses for machine-readable things. */
+.hero .lede {
+  font-family: var(--font-mono-stack);
+  font-size: clamp(12.5px, 1.6vw, 14.5px);
+  line-height: 1.75;
+  letter-spacing: -0.01em;
+  color: var(--text-dim);
+  max-width: 52ch;
+  margin: 0 auto 34px;
+  text-wrap: balance;
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 11px;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+
+/* ── the gate: body ──────────────────────────────────────────────── */
+
+.gate-body {
+  width: 100%;
+  max-width: 940px;
+  margin: 0 auto;
+  padding: 56px 24px 80px;
+  display: grid;
+  gap: 44px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: start;
+}
+
+.panel {
+  background: var(--ink-800);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: 26px;
+}
+
+.panel h2 {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin-bottom: 6px;
+}
+
+.panel > .sub {
+  font-size: 13.5px;
+  color: var(--text-dim);
+  margin-bottom: 18px;
+}
+
+.gate-body form button[type="submit"] {
+  width: 100%;
+  min-height: 44px;
+  margin-top: 14px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line-strong);
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 140ms var(--ease);
+}
+
+.gate-body form button[type="submit"]:hover {
+  background: var(--ink-600);
+  border-color: var(--text-faint);
+}
+
+/* ── trust block ─────────────────────────────────────────────────── */
+
+.bx-trust h2 {
+  font-size: 15px;
+  margin-bottom: 8px;
+}
+
+.bx-trust > p {
+  font-size: 13.5px;
+  color: var(--text-dim);
+  margin-bottom: 16px;
+}
+
+.bx-trust ul {
+  list-style: none;
+  display: grid;
+  gap: 11px;
+  margin-bottom: 18px;
+}
+
+.bx-trust li {
+  position: relative;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-dim);
+}
+
+/* A hairline tick rather than a bullet: the list is a set of claims, and each
+   one has a corresponding check in VERIFY.md. */
+.bx-trust li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 9px;
+  width: 8px;
+  height: 1px;
+  background: var(--text-faint);
+}
+
+.bx-trust li strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.bx-trust-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  padding-top: 15px;
+  border-top: 1px solid var(--line);
+}
+
+.bx-trust-links a {
+  color: var(--text-dim);
+}
+
+.bx-trust-links a:hover {
+  color: var(--seal);
+}
+
+/* ── create / token box ──────────────────────────────────────────── */
+
+.sheet {
+  min-height: 100dvh;
+  display: grid;
+  place-items: start center;
+  padding: 56px 24px 72px;
+}
+
+.sheet-card {
+  width: 100%;
+  max-width: 480px;
+}
+
+.sheet-card.bx-wide {
+  max-width: 760px;
+}
+
+.sheet-card h1 {
+  font-size: clamp(1.5rem, 3.4vw, 2rem);
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.15;
+}
+
+.sheet-card > .sub {
+  color: var(--text-dim);
+  font-size: 14px;
+  margin: 7px 0 26px;
+}
+
+.bx-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.bx-pair label {
+  margin-top: 18px;
+}
+
+.bx-slots {
+  display: flex;
+  gap: 8px;
+}
+
+.bx-slot {
+  width: 46px;
+  height: 44px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  font-family: var(--font-mono-stack);
+  font-size: 14px;
+  color: var(--text-dim);
+  transition: all 140ms var(--ease);
+}
+
+.bx-slot.on {
+  border-color: var(--seal);
+  color: var(--seal);
+  background: color-mix(in oklab, var(--seal) 10%, transparent);
+}
+
+.bx-slot.off {
+  opacity: 0.34;
+  cursor: not-allowed;
+}
+
+.bx-row {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  margin: 1.25rem 0 0.5rem;
-  color: var(--dim);
-  font-size: 0.8rem;
-}
-.bx-or::before, .bx-or::after {
-  content: "";
-  flex: 1;
-  height: 1px;
-  background: var(--line);
+  gap: 14px;
+  margin-top: 22px;
 }
 
-.gate-card.bx-wide { max-width: 680px; }
-.bx-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
-.bx-row { display: flex; align-items: center; gap: 1rem; margin-top: 0.75rem; }
-.bx-bad { border-color: var(--bad) !important; }
-
-.bx-slots { display: flex; gap: 0.5rem; margin: 0.25rem 0 0.5rem; }
-.bx-slot {
-  width: 3rem;
-  padding: 0.5rem 0;
-  font: inherit;
-  color: var(--ink);
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  cursor: pointer;
+.bx-tokens {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 20px;
 }
-.bx-slot.on { border-color: var(--ink); font-weight: 700; }
-.bx-slot.off { opacity: 0.35; cursor: not-allowed; text-decoration: line-through; }
 
-/* ── the token box ─────────────────────────────────────────── */
-
-.bx-tokens { display: grid; gap: 0.6rem; margin: 1rem 0; }
+/* The connector card. The 2px left edge is the side's colour and the only
+   chromatic thing on the card — you should be able to tell A from B across a
+   room without reading a word. */
 .bx-token {
-  padding: 0.7rem 0.8rem;
-  background: var(--panel);
+  background: var(--ink-800);
   border: 1px solid var(--line);
-  border-left-width: 3px;
-  border-radius: 7px;
+  border-left: 2px solid var(--line-strong);
+  border-radius: var(--r-md);
+  padding: 15px 17px;
 }
-.bx-token.sideA { border-left-color: var(--a); }
-.bx-token.sideB { border-left-color: var(--b); }
-.bx-token.viewer { border-left-color: var(--dim); }
+
+.bx-token.sideA {
+  border-left-color: var(--side-a);
+}
+
+.bx-token.sideB {
+  border-left-color: var(--side-b);
+}
+
+.bx-token.viewer {
+  border-left-color: var(--text-faint);
+  border-style: dashed;
+  border-left-style: solid;
+}
+
 .bx-token-head {
   display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
-  margin-bottom: 0.35rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 9px;
 }
-.bx-token-head code { color: var(--dim); font-size: 0.75rem; }
+
+.bx-token-head strong {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.bx-token-head code {
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
 .bx-token-val {
   display: block;
-  overflow-wrap: anywhere;
-  font-size: 0.78rem;
-  color: var(--dim);
-  margin-bottom: 0.4rem;
+  font-size: 12px;
+  line-height: 1.5;
+  word-break: break-all;
+  color: var(--text-dim);
+  background: var(--ink-700);
+  border-radius: var(--r-sm);
+  padding: 9px 11px;
+  margin-bottom: 10px;
 }
-.bx-copy {
-  font: inherit;
-  font-size: 0.78rem;
-  padding: 0.25rem 0.6rem;
-  color: var(--ink);
-  background: transparent;
-  border: 1px solid var(--line);
-  border-radius: 5px;
-  cursor: pointer;
-}
-.bx-copy.done { border-color: var(--a); color: var(--a); }
 
 .bx-warn {
-  padding: 0.6rem 0.75rem;
-  font-size: 0.82rem;
-  color: var(--ink);
-  background: color-mix(in oklab, var(--hot) 12%, transparent);
-  border: 1px solid color-mix(in oklab, var(--hot) 40%, transparent);
-  border-radius: 6px;
-  margin-bottom: 1rem;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--seal);
+  background: color-mix(in oklab, var(--seal) 9%, transparent);
+  border: 1px solid color-mix(in oklab, var(--seal) 32%, transparent);
+  border-radius: var(--r-md);
+  padding: 12px 14px;
+  margin-bottom: 20px;
 }
 
-.bx-details { margin-bottom: 1rem; }
-.bx-details summary { cursor: pointer; font-weight: 600; margin-bottom: 0.5rem; }
-.bx-snippet { margin: 0.6rem 0; }
+.bx-details {
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 15px 17px;
+  margin-bottom: 20px;
+  background: var(--ink-800);
+}
+
+.bx-details summary {
+  cursor: pointer;
+  font-size: 13.5px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.bx-snippet {
+  margin-top: 14px;
+}
+
 .bx-snippet-head {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  font-size: 0.8rem;
-  color: var(--dim);
-  margin-bottom: 0.25rem;
-}
-.bx-snippet pre {
-  overflow-x: auto;
-  padding: 0.6rem 0.75rem;
-  font-size: 0.75rem;
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: 6px;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 7px;
 }
 
-/* ── the room: three panels ────────────────────────────────── */
+.bx-snippet-head code {
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.bx-snippet pre {
+  background: var(--ink-900);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 11px 13px;
+  font-size: 11.5px;
+  line-height: 1.6;
+  overflow-x: auto;
+  color: var(--text-dim);
+}
+
+/* ── room ────────────────────────────────────────────────────────── */
 
 .bx-room {
-  max-width: 1600px;
-  margin: 0 auto;
-  padding: 1.25rem 1.5rem 2rem;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
 }
-.bx-top { align-items: flex-start; }
-.bx-title h1 { display: flex; align-items: center; gap: 0.5rem; }
-.bx-pencil {
-  font: inherit;
-  font-size: 0.85rem;
-  padding: 0.1rem 0.35rem;
-  color: var(--dim);
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 5px;
-  cursor: pointer;
+
+.bx-top {
+  position: relative;
+  border-bottom: 1px solid var(--line);
+  background: var(--ink-900);
 }
-.bx-pencil:hover { color: var(--ink); border-color: var(--line); }
+
+/* The wire runs across the top of the room, and a real arrival sends a packet
+   down it. This is the same component as the hero, at 46px. */
+.bx-top-wire {
+  position: relative;
+  height: 46px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--line);
+}
+
+.bx-top-bar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding: 16px 22px;
+}
+
+.bx-title h1 {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
 .bx-rename {
-  width: 100%;
-  max-width: 40rem;
-  font: inherit;
-  font-size: 1.4rem;
-  font-weight: 700;
-  color: var(--ink);
-  background: var(--panel);
-  border: 1px solid var(--ink);
-  border-radius: 6px;
-  padding: 0.2rem 0.5rem;
+  font-size: 17px;
+  font-weight: 600;
+  max-width: 460px;
 }
-.bx-actions { display: flex; align-items: center; gap: 0.5rem; }
+
+.bx-pencil {
+  color: var(--text-faint);
+  font-size: 13px;
+  padding: 6px;
+  border-radius: var(--r-sm);
+  line-height: 1;
+}
+
+.bx-pencil:hover {
+  color: var(--seal);
+}
+
+.bx-title .meta {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+
+.meta .sideA {
+  color: var(--side-a);
+}
+
+.meta .sideB {
+  color: var(--side-b);
+}
+
+.meta .warn {
+  color: var(--seal);
+}
+
+.bx-actions {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+
 .bx-save {
-  font: inherit;
-  font-size: 0.8rem;
-  padding: 0.35rem 0.7rem;
-  color: var(--ink);
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  cursor: pointer;
+  font-size: 12px;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  color: var(--text-dim);
+  transition: all 140ms var(--ease);
 }
-.bx-save:hover:not(:disabled) { border-color: var(--ink); }
-.bx-save:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.bx-save:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--text-faint);
+}
+
+.bx-save:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pulse {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--font-mono-stack);
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.pulse .led {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-faint);
+}
+
+.pulse.on .led {
+  background: var(--seal);
+  box-shadow: 0 0 9px var(--seal);
+  animation: breathe 2.6s var(--ease) infinite;
+}
+
+.pulse.off .led {
+  background: var(--alarm);
+}
+
+@keyframes breathe {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+/* ── panels ──────────────────────────────────────────────────────── */
 
 .bx-panels {
+  flex: 1;
   display: grid;
-  grid-template-columns: minmax(200px, 260px) minmax(0, 1fr) minmax(240px, 340px);
-  gap: 1rem;
-  align-items: start;
-}
-/* One column on anything narrow. The three-panel layout is a desk
-   layout; on a laptop half-screen it becomes three unreadable
-   slivers, which is worse than scrolling. */
-@media (max-width: 1100px) {
-  .bx-panels { grid-template-columns: 1fr; }
+  grid-template-columns: 250px minmax(0, 1fr) 320px;
+  gap: 1px;
+  background: var(--line);
+  min-height: 0;
 }
 
-.bx-tree, .bx-agree {
-  padding: 0.85rem 0.9rem;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 9px;
+.bx-tree,
+.bx-chat,
+.bx-agree {
+  background: var(--ink-900);
+  padding: 20px;
+  overflow-y: auto;
+  min-height: 0;
 }
-.bx-tree h2, .bx-agree h2 {
-  font-size: 0.72rem;
-  letter-spacing: 0.09em;
+
+.bx-panels h2 {
+  font-family: var(--font-mono-stack);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--dim);
-  margin-bottom: 0.6rem;
+  color: var(--text-faint);
+  margin-bottom: 16px;
 }
-.bx-agree h3 {
-  font-size: 0.85rem;
-  margin: 1rem 0 0.35rem;
+
+.bx-panels h3 {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-dim);
+  margin: 20px 0 9px;
 }
-.bx-folder { margin-bottom: 0.75rem; }
-.bx-folder h3 { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.25rem; }
-.bx-folder-name {
+
+/* ── left: the record tree ───────────────────────────────────────── */
+
+.bx-folder {
+  margin-bottom: 16px;
+}
+
+.bx-folder h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 7px;
+}
+
+/* `input.` rather than `.` on purpose. The global field rule is
+   `input:not([type])`, which outranks a bare class — so the first version of
+   this gave every folder heading a 44px bordered form field and the record tree
+   read like a settings page. Specificity is the bug and the selector is the fix. */
+input.bx-folder-name {
   flex: 1;
   min-width: 0;
-  font: inherit;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--ink);
+  width: auto;
+  min-height: 28px;
   background: transparent;
   border: 1px solid transparent;
-  border-radius: 4px;
-  padding: 0.1rem 0.25rem;
+  border-radius: var(--r-sm);
+  padding: 2px 5px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--text-dim);
 }
-.bx-folder-name:hover { border-color: var(--line); }
-.bx-folder-name:focus { border-color: var(--ink); outline: none; background: var(--bg); }
+
+input.bx-folder-name:hover {
+  border-color: var(--line);
+  color: var(--text);
+}
+
+input.bx-folder-name:focus {
+  border-color: var(--seal);
+  background: var(--ink-800);
+  color: var(--text);
+}
+
 .bx-count {
-  font-size: 0.7rem;
-  color: var(--dim);
-  background: var(--bg);
-  border-radius: 999px;
-  padding: 0.05rem 0.4rem;
+  font-family: var(--font-mono-stack);
+  font-size: 10px;
+  color: var(--text-faint);
+  background: var(--ink-700);
+  border-radius: 100px;
+  padding: 2px 7px;
 }
-.bx-folder ul { list-style: none; margin: 0; padding: 0; }
+
+.bx-folder ul {
+  list-style: none;
+  display: grid;
+  gap: 2px;
+}
+
 .bx-leaf {
-  display: flex;
-  gap: 0.4rem;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: 8px;
   width: 100%;
   text-align: left;
-  font: inherit;
-  font-size: 0.78rem;
-  padding: 0.2rem 0.3rem;
-  color: var(--ink);
-  background: transparent;
-  border: none;
+  padding: 7px 8px;
+  border-radius: var(--r-sm);
   border-left: 2px solid transparent;
-  border-radius: 3px;
-  cursor: pointer;
+  transition: background 120ms var(--ease);
 }
-.bx-leaf:hover { background: var(--bg); }
-.bx-leaf.on { background: var(--bg); font-weight: 600; }
-.bx-leaf.sideA { border-left-color: var(--a); }
-.bx-leaf.sideB { border-left-color: var(--b); }
-.bx-leaf code { color: var(--dim); font-size: 0.7rem; flex: none; }
-.bx-leaf span {
-  /* min-width:0 is what MAKES the ellipsis work, and its absence is silent.
-     .bx-leaf is display:flex, so this span is a flex item with the default
-     min-width:auto -> min-content -- and under white-space:nowrap min-content
-     is the whole untruncated title. A flex item cannot shrink below that, so
-     the box never narrows and text-overflow never fires: long titles overflow
-     the button instead of ellipsing. The same idiom is already used twice
-     within fifty lines (.bx-folder-name, .bx-chat); it was simply omitted here.
-     Found S#276 by the far side of our own bridge, which read this file and
-     the component to answer a question about a DIFFERENT, false-positive
-     warning on the overflow line below. */
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.bx-none { font-size: 0.78rem; color: var(--dim); font-style: italic; padding: 0.15rem 0.3rem; }
 
-.bx-chat { min-width: 0; }
+.bx-leaf:hover {
+  background: var(--ink-700);
+}
+
+.bx-leaf.on {
+  background: var(--ink-600);
+  border-left-color: var(--seal);
+}
+
+.bx-leaf.sideA {
+  border-left-color: color-mix(in oklab, var(--side-a) 55%, transparent);
+}
+
+.bx-leaf.sideB {
+  border-left-color: color-mix(in oklab, var(--side-b) 55%, transparent);
+}
+
+.bx-leaf code {
+  font-size: 10px;
+  color: var(--text-faint);
+  letter-spacing: 0.02em;
+}
+
+/* The title is clamped to two lines rather than ellipsed on one: an entry title
+   is a sentence, and one line of it is usually not enough to tell two apart. */
+.bx-leaf span {
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--text-dim);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.bx-leaf.on span,
+.bx-leaf:hover span {
+  color: var(--text);
+}
+
+.bx-none {
+  font-size: 12px;
+  color: var(--text-faint);
+  font-style: italic;
+  padding: 4px 8px;
+}
+
+/* ── centre: the conversation, drawn as a chain ──────────────────── */
+
 .bx-chat-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 0.5rem;
+  gap: 12px;
+  flex-wrap: wrap;
 }
+
 .bx-chat-head h2 {
-  font-size: 0.72rem;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  color: var(--dim);
+  margin-bottom: 16px;
 }
-.bx-stats { margin: 0 0 0.5rem; }
-.bx-contract pre {
-  overflow-x: auto;
-  font-size: 0.75rem;
+
+/* THE CHAIN. Entries are hash-linked in `lib/chain.ts`, so the feed draws the
+   link: a continuous spine down the left with a node per entry. This is the
+   tamper-evidence made visible rather than described — the structure on screen
+   is the structure in the store. */
+.feed {
+  position: relative;
+  display: grid;
+  gap: 2px;
+  padding-left: 22px;
+}
+
+/* Brighter than a hairline on purpose. At --line-strong the spine was invisible
+   at normal viewing distance, which left the node rings floating and killed the
+   whole point — the chain has to READ as a chain or it is just decoration. */
+.feed::before {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 10px;
+  bottom: 10px;
+  width: 1px;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    color-mix(in oklab, var(--text-faint) 70%, transparent) 7%,
+    color-mix(in oklab, var(--text-faint) 70%, transparent) 93%,
+    transparent
+  );
+}
+
+.entry {
+  position: relative;
+  padding: 13px 15px;
+  border-radius: var(--r-md);
+  border: 1px solid transparent;
+  transition: border-color 160ms var(--ease), background 160ms var(--ease);
+}
+
+.entry:hover {
+  background: var(--ink-800);
+  border-color: var(--line);
+}
+
+/* The node on the spine. */
+.entry::before {
+  content: "";
+  position: absolute;
+  left: -22px;
+  top: 19px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--ink-900);
+  border: 1.5px solid var(--text-faint);
+  z-index: 1;
+}
+
+.entry.sideA::before {
+  border-color: var(--side-a);
+}
+
+.entry.sideB::before {
+  border-color: var(--side-b);
+}
+
+.entry .head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.entry .id {
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+}
+
+.entry .author {
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.entry.sideA .author {
+  color: var(--side-a);
+}
+
+.entry.sideB .author {
+  color: var(--side-b);
+}
+
+.entry .verb {
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+
+.entry .ref {
+  font-size: 10.5px;
+  color: var(--text-faint);
+}
+
+.entry .time {
+  font-size: 10.5px;
+  margin-left: auto;
+  color: var(--text-faint);
+}
+
+.entry .reopened {
+  font-family: var(--font-mono-stack);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--seal);
+  border: 1px solid color-mix(in oklab, var(--seal) 40%, transparent);
+  border-radius: 3px;
+  padding: 1px 5px;
+}
+
+.entry .title {
+  font-size: 14px;
+  line-height: 1.5;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.entry .body {
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: var(--text-dim);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.bx-decision {
-  padding: 0.4rem 0.55rem;
-  margin-bottom: 0.4rem;
-  font-size: 0.8rem;
-  background: var(--bg);
-  border-left: 2px solid var(--line);
-  border-radius: 4px;
-}
-.bx-decision.sideA { border-left-color: var(--a); }
-.bx-decision.sideB { border-left-color: var(--b); }
-.bx-decision code { display: block; font-size: 0.7rem; color: var(--dim); }
-.bx-decision p { margin-top: 0.2rem; }
 
-/* The trust block on the gate. Present because a partner's AI refused a
-   Bridger token — correctly — and there was nowhere for it or its operator
-   to check what this service actually is. */
-.bx-trust {
-  margin-top: 1.5rem;
-  padding-top: 1.25rem;
+.entry .why {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-dim);
+  margin-top: 7px;
+  padding-left: 11px;
+  border-left: 1px solid var(--line-strong);
+}
+
+.entry .why span {
+  font-family: var(--font-mono-stack);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-right: 7px;
+}
+
+/* THE PROVENANCE LINE — the only assertively coloured thing in the product. */
+.prov {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px dashed var(--line-strong);
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.prov code {
+  font-size: 11.5px;
+  color: var(--text);
+  background: var(--ink-700);
+  border-radius: 3px;
+  padding: 2px 6px;
+  overflow-wrap: anywhere;
+}
+
+.prov.ok {
+  color: var(--seal);
+}
+
+.prov.ok code {
+  color: var(--seal);
+  background: color-mix(in oklab, var(--seal) 12%, transparent);
+}
+
+.prov.thin {
+  color: var(--text-dim);
+}
+
+.prov.bad {
+  color: var(--alarm);
+}
+
+/* The grade is deliberately quiet. It describes how specific a citation is and
+   says nothing about whether the answer is right, and a loud badge would be
+   read as a verdict. */
+.prov .span {
+  font-family: var(--font-mono-stack);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 1px 6px;
+}
+
+/* A new entry arriving. One soft sweep, no bounce — this is a record, not a
+   notification. */
+.entry.flash {
+  animation: land 1.8s var(--ease);
+}
+
+@keyframes land {
+  0% {
+    background: color-mix(in oklab, var(--seal) 14%, transparent);
+    border-color: color-mix(in oklab, var(--seal) 40%, transparent);
+  }
+  100% {
+    background: transparent;
+    border-color: transparent;
+  }
+}
+
+.empty {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text-dim);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--r-md);
+  padding: 20px;
+}
+
+.empty code {
+  font-size: 12px;
+  color: var(--text);
+}
+
+/* ── right: agreements ───────────────────────────────────────────── */
+
+.bx-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+
+.bx-stats > div {
+  background: var(--ink-800);
+  padding: 12px 8px;
+  text-align: center;
+}
+
+.bx-stats strong {
+  display: block;
+  font-family: var(--font-mono-stack);
+  font-size: 19px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.bx-stats span {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.bx-stats .hot strong {
+  color: var(--seal);
+}
+
+.bx-stats .flag strong {
+  color: var(--alarm);
+}
+
+.bx-contract pre {
+  font-size: 11.5px;
+  line-height: 1.65;
+  color: var(--text-dim);
+  background: var(--ink-800);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 13px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.bx-contract .meta {
+  font-size: 11px;
+  color: var(--text-faint);
+  margin-bottom: 7px;
+}
+
+.bx-decision,
+.openq {
+  border-left: 2px solid var(--line-strong);
+  padding: 9px 0 9px 12px;
+  margin-bottom: 10px;
+}
+
+.bx-decision.sideA,
+.openq.sideA {
+  border-left-color: var(--side-a);
+}
+
+.bx-decision.sideB,
+.openq.sideB {
+  border-left-color: var(--side-b);
+}
+
+.bx-decision code,
+.openq code {
+  display: block;
+  font-size: 10px;
+  color: var(--text-faint);
+  margin-bottom: 3px;
+}
+
+.bx-decision strong {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.bx-decision p {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+
+.openq .who {
+  display: block;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.openq .qt {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+/* ── footer ──────────────────────────────────────────────────────── */
+
+.bx-room footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 22px;
   border-top: 1px solid var(--line);
-  font-size: 0.82rem;
-  color: var(--dim);
+  font-size: 11.5px;
+  color: var(--text-faint);
 }
-.bx-trust h2 {
-  font-size: 0.9rem;
-  color: var(--ink);
-  margin-bottom: 0.4rem;
+
+/* ── responsive: the room REFLOWS, it does not shrink ────────────── */
+
+@media (max-width: 1080px) {
+  .bx-panels {
+    grid-template-columns: 220px minmax(0, 1fr);
+  }
+
+  .bx-agree {
+    grid-column: 1 / -1;
+    border-top: 1px solid var(--line);
+  }
 }
-.bx-trust p { margin-bottom: 0.6rem; }
-.bx-trust ul { margin: 0 0 0.75rem; padding-left: 1.1rem; }
-.bx-trust li { margin-bottom: 0.3rem; }
-.bx-trust strong { color: var(--ink); font-weight: 600; }
-.bx-trust-links { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
-.bx-trust-links a { color: var(--ink); }
+
+@media (max-width: 860px) {
+  .gate-body {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 28px;
+    padding: 40px 20px 64px;
+  }
+}
+
+@media (max-width: 720px) {
+  body {
+    font-size: 14.5px;
+  }
+
+  .hero {
+    min-height: 68vh;
+    padding: 56px 20px 44px;
+  }
+
+  /* Stacked, full-width, and in reading order: record, then conversation, then
+     agreements. Panels get their own scroll on desktop; on a phone the page
+     scrolls and the panels do not, which is the behaviour a thumb expects. */
+  .bx-panels {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .bx-tree,
+  .bx-chat,
+  .bx-agree {
+    overflow-y: visible;
+    border-top: 1px solid var(--line);
+    padding: 18px 16px;
+  }
+
+  .bx-top-bar {
+    padding: 14px 16px;
+  }
+
+  .bx-actions {
+    width: 100%;
+  }
+
+  .bx-pair {
+    grid-template-columns: 1fr;
+  }
+
+  /* The pill wrapped to two lines at 390px, which reads as a mistake rather
+     than as a label. Tightened until the line fits rather than shortened —
+     the three facts in it are the ones worth stating first. */
+  .eyebrow {
+    font-size: 9.5px;
+    letter-spacing: 0.11em;
+    padding: 6px 11px;
+  }
+
+  .bx-room footer {
+    padding: 12px 16px;
+  }
+}
+
+/* ── motion, print, forced colours ───────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+
+  .bx-primary:hover:not(:disabled) {
+    transform: none;
+  }
+}
+
+/* Windows high-contrast: never let a hairline-only affordance disappear. */
+@media (forced-colors: active) {
+  .bx-token,
+  .entry,
+  .panel,
+  .bx-details {
+    border: 1px solid CanvasText;
+  }
+
+  .wire-hero,
+  .wire-strip {
+    display: none;
+  }
+}
+
+@media print {
+  .wire-hero,
+  .wire-strip,
+  .bx-actions,
+  .bx-room footer {
+    display: none;
+  }
+
+  .bx-panels {
+    display: block;
+  }
+
+  body {
+    background: #fff;
+    color: #000;
+  }
+}

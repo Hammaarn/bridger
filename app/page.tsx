@@ -15,6 +15,18 @@
  *   minted  → the token box: every connector, shown exactly once
  *   room    → the three-panel view (record / conversation / agreements)
  *
+ * WHAT CHANGED IN S#277 — THE DESIGN. The markup was restructured onto "the
+ * wire" (see `globals.css` and `wire.tsx`). Three things drove it:
+ *   - The gate is now a real first screen rather than a token box with a trust
+ *     paragraph stapled underneath. The person it has to convince is often a
+ *     partner's operator deciding whether this domain deserves a credential.
+ *   - The conversation is drawn as a CHAIN, because it is one: `lib/chain.ts`
+ *     hash-links every entry, and the spine down the feed is that structure made
+ *     visible instead of merely claimed.
+ *   - A real arrival on the bridge sends a packet down the wire in the room
+ *     header. The animation is driven by the record, never by a timer.
+ * No behaviour moved. Same polling, same roles, same single write path.
+ *
  * IT STILL WRITES NOTHING INTO THE RECORD. Erik's call, asked directly: *"The
  * chat is watch only, the communication between you and gemini is the users
  * chatting."* So the page mints and renames, and never posts an entry — there
@@ -36,6 +48,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { openQuestionIds } from "@/lib/question-state";
 import { classifyCitation, describeCitation, isUnlocated, isWideRange } from "@/lib/citation";
+import Wire from "./wire";
 
 interface Entry {
   id: string;
@@ -176,41 +189,57 @@ function Gate({ onWatch, onCreate }: { onWatch: (t: string) => void; onCreate: (
   const [draft, setDraft] = useState("");
   return (
     <main className="gate">
-      <div className="gate-card">
-        <h1>Bridger</h1>
-        <p className="sub">A traced record between two builders&rsquo; AI sessions.</p>
-
-        <button type="button" className="bx-primary" onClick={onCreate}>
-          Open a new room
-        </button>
-
-        <div className="bx-or">
-          <span>or watch one you have a token for</span>
+      <section className="hero">
+        <Wire className="wire-hero" band={[0.26, 1.04]} pitch={10} period={30} intensity={0.92} />
+        <div className="hero-inner">
+          <span className="eyebrow">
+            <span className="led" />
+            append-only · two parties · no model called
+          </span>
+          <h1>Where your AI and theirs work it out.</h1>
+          <p className="lede">
+            A shared record between two teams&rsquo; AI sessions. Questions, answers, decisions — and
+            the source each answer was actually checked against.
+          </p>
+          <div className="hero-actions">
+            <button type="button" className="bx-primary" onClick={onCreate}>
+              Open a new room
+            </button>
+            <a className="bx-ghost" href="https://github.com/Hammaarn/bridger">
+              Read the source
+            </a>
+          </div>
         </div>
+      </section>
 
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            const t = draft.trim();
-            if (t) onWatch(t);
-          }}
-        >
-          <label htmlFor="tok">Room token</label>
-          <input
-            id="tok"
-            type="password"
-            placeholder="br_live_…"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            autoComplete="off"
-            spellCheck={false}
-          />
-          <button type="submit">Watch the bridge</button>
-        </form>
-        <p className="fine">
-          Held in this tab only, sent as a bearer header. Never placed in the URL — an address bar
-          ends up in history, logs, and screenshots.
-        </p>
+      <div className="gate-body">
+        <section className="panel">
+          <h2>Already have a token?</h2>
+          <p className="sub">Watch a room someone opened for you.</p>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const t = draft.trim();
+              if (t) onWatch(t);
+            }}
+          >
+            <label htmlFor="tok">Room token</label>
+            <input
+              id="tok"
+              type="password"
+              placeholder="br_live_…"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              autoComplete="off"
+              spellCheck={false}
+            />
+            <button type="submit">Watch the bridge</button>
+          </form>
+          <p className="fine" style={{ marginTop: 14 }}>
+            Held in this tab only, sent as a bearer header. Never placed in the URL — an address bar
+            ends up in history, logs, and screenshots.
+          </p>
+        </section>
 
         {/*
           The landing page used to be a token gate and nothing else, which is
@@ -220,7 +249,7 @@ function Gate({ onWatch, onCreate }: { onWatch: (t: string) => void; onCreate: (
           Bridger token on exactly that reasoning and was right to. This block
           is the human half of the answer; `/api/about` is the machine half.
         */}
-        <section className="bx-trust">
+        <section className="panel bx-trust">
           <h2>Been sent a token and not sure about this?</h2>
           <p>
             Good. A pasted bearer token for a domain you have never seen has the same shape as a
@@ -244,9 +273,17 @@ function Gate({ onWatch, onCreate }: { onWatch: (t: string) => void; onCreate: (
               <strong>You can run the whole thing offline</strong> with no account and no
               credentials, and read every byte on your own disk.
             </li>
+            {/*
+              This bullet used to end "and tamper-evidence is not built yet",
+              which stopped being true when lib/chain.ts merged in S#275 — a
+              stale line on the one page whose entire job is to be trusted. The
+              honest version keeps the admission (we CAN read your room) and
+              states the actual mechanism next to it.
+            */}
             <li>
-              <strong>We operate the server</strong>, so we can read your room — and tamper-evidence
-              is not built yet. That and the rest of the limits are written down, not hidden.
+              <strong>We operate the server, so we can read your room.</strong> Every entry is
+              hash-chained, and <code>bridger verify</code> keeps the head on your disk — so a
+              rewrite is provable by you rather than deniable by us.
             </li>
           </ul>
           <p className="bx-trust-links">
@@ -303,8 +340,8 @@ function Create({ onMinted, onCancel }: { onMinted: (m: Minted) => void; onCance
   }
 
   return (
-    <main className="gate">
-      <div className="gate-card bx-wide">
+    <main className="sheet">
+      <div className="sheet-card">
         <h1>Open a room</h1>
         <p className="sub">Two AI sessions, one record, and a token each.</p>
 
@@ -366,7 +403,7 @@ function Create({ onMinted, onCancel }: { onMinted: (m: Minted) => void; onCance
             the wait cursor and in the idle brake. Saying so is more useful than
             greying the buttons out silently.
           */}
-          <p className="fine">
+          <p className="fine" style={{ marginTop: 9 }}>
             Three or more is a rewrite of the room model, not a bigger number here — every side is
             <code> a</code> or <code> b</code> throughout the registry.
           </p>
@@ -410,8 +447,8 @@ function TokenBox({ minted, onWatch }: { minted: Minted; onWatch: (t: string) =>
   const claudeCmd = `claude mcp add --transport http bridger ${minted.endpoint} --header "Authorization: Bearer ${minted.slots[1].token}"`;
 
   return (
-    <main className="gate">
-      <div className="gate-card bx-wide">
+    <main className="sheet">
+      <div className="sheet-card bx-wide">
         <h1>{minted.room.topic}</h1>
         <p className="sub">
           room <code>{minted.room.id}</code> — hand one connector to each side
@@ -490,6 +527,12 @@ function RoomView({ token, onForget }: { token: string; onForget: () => void }) 
   const [names, setNames] = useState<Record<string, string>>({});
   const lastSeq = useRef(0);
   const [flash, setFlash] = useState<number | null>(null);
+  /**
+   * Counts real arrivals, and nothing else. It drives the packet that runs down
+   * the wire in the header, so that animation can only be caused by something
+   * actually landing in the record — not by a poll, a reconnect or a clock.
+   */
+  const [arrivals, setArrivals] = useState(0);
 
   const load = useCallback(async (tok: string): Promise<boolean> => {
     try {
@@ -512,7 +555,10 @@ function RoomView({ token, onForget }: { token: string; onForget: () => void }) 
       }
       const payload = (await res.json()) as ExportPayload;
       const newest = payload.entries.at(-1)?.seq ?? 0;
-      if (lastSeq.current && newest > lastSeq.current) setFlash(newest);
+      if (lastSeq.current && newest > lastSeq.current) {
+        setFlash(newest);
+        setArrivals((n) => n + 1);
+      }
       lastSeq.current = newest;
       setData(payload);
       setError(null);
@@ -622,37 +668,44 @@ function RoomView({ token, onForget }: { token: string; onForget: () => void }) 
   }).length;
   const decisions = entries.filter((e) => e.type === "decision");
 
+  /**
+   * The record as markdown. Used by both the .md download and "copy for your
+   * AI" — the same bytes either way, because a partner pasting the record into
+   * their own session should get exactly what the file would have contained.
+   */
+  const asMarkdown = useCallback(() => {
+    if (!data) return "";
+    return [
+      `# ${data.room.topic}`,
+      ``,
+      `Room \`${data.room.id}\` — ${data.room.you.label} and ${data.room.peer.label}`,
+      `Exported ${data.exportedAt}`,
+      ``,
+      ...(data.contract
+        ? [`## Contract`, ``, data.contract.body, ``, `_last changed by ${data.contract.updatedBy}_`, ``]
+        : []),
+      `## Record`,
+      ``,
+      ...entries.flatMap((e) => [
+        `### ${e.id} — ${e.author} ${verbFor(e.type)}${e.answers ? ` → ${e.answers}` : ""}`,
+        ``,
+        e.title,
+        ...(e.body && e.body !== e.title ? [``, e.body] : []),
+        ...(e.why ? [``, `**Why:** ${e.why}`] : []),
+        ...(e.type === "answer"
+          ? [``, e.checkedAgainst ? `**Checked against:** \`${e.checkedAgainst}\`` : `**Unchecked** — nobody named what this rests on.`]
+          : []),
+        ``,
+      ]),
+    ].join("\n");
+  }, [data, entries]);
+
   /** The whole record, as the two files a person would actually keep. */
   function download(kind: "json" | "md") {
     if (!data) return;
     const stamp = data.exportedAt.slice(0, 10);
     const name = `bridger-${data.room.id}-${stamp}.${kind}`;
-    const body =
-      kind === "json"
-        ? JSON.stringify(data, null, 2)
-        : [
-            `# ${data.room.topic}`,
-            ``,
-            `Room \`${data.room.id}\` — ${data.room.you.label} and ${data.room.peer.label}`,
-            `Exported ${data.exportedAt}`,
-            ``,
-            ...(data.contract
-              ? [`## Contract`, ``, data.contract.body, ``, `_last changed by ${data.contract.updatedBy}_`, ``]
-              : []),
-            `## Record`,
-            ``,
-            ...entries.flatMap((e) => [
-              `### ${e.id} — ${e.author} ${verbFor(e.type)}${e.answers ? ` → ${e.answers}` : ""}`,
-              ``,
-              e.title,
-              ...(e.body && e.body !== e.title ? [``, e.body] : []),
-              ...(e.why ? [``, `**Why:** ${e.why}`] : []),
-              ...(e.type === "answer"
-                ? [``, e.checkedAgainst ? `**Checked against:** \`${e.checkedAgainst}\`` : `**Unchecked** — nobody named what this rests on.`]
-                : []),
-              ``,
-            ]),
-          ].join("\n");
+    const body = kind === "json" ? JSON.stringify(data, null, 2) : asMarkdown();
 
     const url = URL.createObjectURL(new Blob([body], { type: kind === "json" ? "application/json" : "text/markdown" }));
     const a = document.createElement("a");
@@ -664,69 +717,87 @@ function RoomView({ token, onForget }: { token: string; onForget: () => void }) 
 
   return (
     <main className="bx-room">
-      <header className="top bx-top">
-        <div className="bx-title">
-          {renaming ? (
-            <input
-              className="bx-rename"
-              value={nameDraft}
-              autoFocus
-              maxLength={200}
-              onChange={(e) => setNameDraft(e.target.value)}
-              onBlur={saveName}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") void saveName();
-                if (e.key === "Escape") setRenaming(false);
-              }}
-            />
-          ) : (
-            <h1>
-              {data?.room.topic ?? "…"}
-              {canWrite && data && (
-                <button
-                  type="button"
-                  className="bx-pencil"
-                  title="Rename this room"
-                  onClick={() => {
-                    setNameDraft(data.room.topic);
-                    setRenaming(true);
-                  }}
-                >
-                  ✎
-                </button>
-              )}
-            </h1>
-          )}
-          <p className="meta">
-            {data ? (
-              <>
-                <span className="sideA">{data.room.you.label}</span>
-                <span className="dot">·</span>
-                <span className="sideB">{data.room.peer.label}</span>
-                {data.room.peer.joinedAt === null && <span className="warn"> — has not connected yet</span>}
-                <span className="dot">·</span>
-                <span className="mono dim">room {data.room.id}</span>
-              </>
-            ) : (
-              "connecting…"
-            )}
-          </p>
+      <header className="bx-top">
+        {/*
+          The wire, at 46px. `arrivals` only ever increments when an entry
+          actually lands, so the packet crossing this strip is caused by the
+          record and by nothing else.
+        */}
+        <div className="bx-top-wire">
+          <Wire className="wire-strip" band={[0.1, 0.95]} pitch={9} period={34} intensity={0.34} ping={arrivals} />
         </div>
-        <div className="bx-actions">
-          <button type="button" className="bx-save" onClick={() => download("md")} disabled={!data}>
-            Save .md
-          </button>
-          <button type="button" className="bx-save" onClick={() => download("json")} disabled={!data}>
-            Save .json
-          </button>
-          <div className={`pulse ${live ? "on" : "off"}`}>
-            <span className="led" />
-            {live ? "live" : "stalled"}
+
+        <div className="bx-top-bar">
+          <div className="bx-title">
+            {renaming ? (
+              <input
+                className="bx-rename"
+                value={nameDraft}
+                autoFocus
+                maxLength={200}
+                onChange={(e) => setNameDraft(e.target.value)}
+                onBlur={saveName}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void saveName();
+                  if (e.key === "Escape") setRenaming(false);
+                }}
+              />
+            ) : (
+              <h1>
+                {data?.room.topic ?? "…"}
+                {canWrite && data && (
+                  <button
+                    type="button"
+                    className="bx-pencil"
+                    title="Rename this room"
+                    onClick={() => {
+                      setNameDraft(data.room.topic);
+                      setRenaming(true);
+                    }}
+                  >
+                    ✎
+                  </button>
+                )}
+              </h1>
+            )}
+            <p className="meta">
+              {data ? (
+                <>
+                  <span className="sideA">{data.room.you.label}</span>
+                  <span className="dot">·</span>
+                  <span className="sideB">{data.room.peer.label}</span>
+                  {data.room.peer.joinedAt === null && <span className="warn"> — has not connected yet</span>}
+                  <span className="dot">·</span>
+                  <span className="mono dim">room {data.room.id}</span>
+                </>
+              ) : (
+                "connecting…"
+              )}
+            </p>
+          </div>
+          <div className="bx-actions">
+            {/*
+              The record, shaped for the reader it was built for. A partner's
+              agent that cannot reach this room can still be handed everything
+              in it, in the format a model reads best — the same bytes the .md
+              download writes.
+            */}
+            <CopyButton value={asMarkdown()}>copy for your AI</CopyButton>
+            <button type="button" className="bx-save" onClick={() => download("md")} disabled={!data}>
+              Save .md
+            </button>
+            <button type="button" className="bx-save" onClick={() => download("json")} disabled={!data}>
+              Save .json
+            </button>
+            <div className={`pulse ${live ? "on" : "off"}`}>
+              <span className="led" />
+              {live ? "live" : "stalled"}
+            </div>
           </div>
         </div>
       </header>
 
-      {error && <div className="error">{error}</div>}
+      {error && <div className="error" style={{ margin: "12px 22px" }}>{error}</div>}
 
       <div className="bx-panels">
         {/* LEFT — the record, as browsable folders */}
@@ -773,7 +844,7 @@ function RoomView({ token, onForget }: { token: string; onForget: () => void }) 
           </p>
         </aside>
 
-        {/* CENTRE — the conversation */}
+        {/* CENTRE — the conversation, drawn as the chain it actually is */}
         <section className="bx-chat">
           <div className="bx-chat-head">
             <h2>Conversation</h2>
@@ -875,14 +946,14 @@ function RoomView({ token, onForget }: { token: string; onForget: () => void }) 
 
           <h3>Decisions</h3>
           {decisions.length === 0 && <p className="bx-none">Nothing decided yet.</p>}
-          {decisions.map((d) => (
-            <div key={d.id} className={`bx-decision ${d.side === "a" ? "sideA" : "sideB"}`}>
-              <code>{d.id}</code>
-              <strong>{d.title}</strong>
-              {d.body && <p>{d.body}</p>}
-              {d.why && (
+          {decisions.map((dec) => (
+            <div key={dec.id} className={`bx-decision ${dec.side === "a" ? "sideA" : "sideB"}`}>
+              <code>{dec.id}</code>
+              <strong>{dec.title}</strong>
+              {dec.body && <p>{dec.body}</p>}
+              {dec.why && (
                 <p className="why">
-                  <span>why</span> {d.why}
+                  <span>why</span> {dec.why}
                 </p>
               )}
             </div>
