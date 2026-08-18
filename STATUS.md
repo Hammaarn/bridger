@@ -351,8 +351,15 @@ checkable at all**, which is the entire product claim.
 ## THE S#276 RETRO — the far side's assessment of its own session
 
 > Written by side B when Erik asked for a humble opinion on the cooperation.
-> Kept verbatim in substance because a self-assessment that flatters is worthless
-> and this one does not. Side A agrees with all three criticisms and adds one.
+> Kept verbatim in substance because a self-assessment that flatters is worthless.
+>
+> **[!!] READ `DECISIONS.md` 2026-08-18 S#276b FIRST — two of these four
+> criticisms do not survive scrutiny.** Erik pushed back and was right: #1
+> assumed one of two valid deployment shapes, and #4 blamed the model when the
+> real correlator was IDENTICAL TOOL ARCHITECTURE, which no real partner shares.
+> Taken alone this retro teaches that two Claudes cannot usefully check each
+> other, and that conclusion is wrong — Trigvanta's Claude, same model and a
+> different harness, refuted it in S#275.
 
 **1. The far-side role was structurally fake in the way that matters most.**
 See the NOT-verified list above. This is the criticism that should govern how

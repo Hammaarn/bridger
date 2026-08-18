@@ -5,6 +5,85 @@ Append-only, newest first. **DECISIONS wins on direction** — where this file a
 
 ---
 
+## 2026-08-18 -- S#276b -- CORRECTING THE RETRO: IT WAS IDENTICAL TOOLING, NOT "THE SAME MODEL"
+
+The S#276 retro below is kept as written because it was the far side's own
+assessment and rewriting it would defeat the point. **Two of its four criticisms
+do not survive scrutiny, and the reason matters more than the correction.**
+
+**1. "The far-side role was structurally fake." WEAK -- it assumed one deployment
+shape.** Bridger has two, and both are real:
+
+  OPAQUE  -- the partner cannot read your code. `checkedAgainst` still works,
+             because its mechanism was never "the reader verifies it". It is a
+             FALSIFIABLE COMMITMENT: the writer is on the hook, the claim is
+             auditable by the writer's own operator, and a wrong citation is
+             discoverable rather than deniable. That is the failure it was built
+             for -- two partner letters that went out with claims false in code,
+             written by someone who reasoned instead of reading.
+  SHARED  -- the partner can read your code, and the two agents walk it together.
+             Contractors, vendor+SDK, two teams in one company, anything
+             open-source. Here citations are mutually checkable in the moment.
+
+In SHARED mode, S#276 was not a degraded simulation of the product. It WAS the
+product, run correctly. B graded a run in one valid configuration against a
+different one nobody had specified.
+
+**2. "Same model, same blind spots." MIS-ATTRIBUTED, and the correction is the
+useful part.** Look at where the two sides converged and where they fought:
+
+  converged instantly -- the contract, lanes, escalation clause, verification
+                         standard, ablation discipline, what counts as done
+  fought hard         -- the brake's axis (A rejected both of B's proposals),
+                         the vehicle for the listener (B rejected A's and won),
+                         the work ordering, the citation cap, the refusal wording
+
+**The agreement clustered on everything the rulebank governs and the disagreement
+clustered on everything it does not.** B loaded the same `CLAUDE.md`, the same
+always-tier cluster, the same ablation rule -- its first recorded thought was
+about the concurrent-close gate, in a session ninety seconds old. That is not the
+model talking, it is the operating architecture talking, and it is shared with
+nobody outside this machine.
+
+**THE COUNTEREXAMPLE IS ALREADY IN OUR RECORD.** Trigvanta's Claude, S#275: same
+base model, different harness, different operator, different stake -- and it
+refused our token on reasoning neither of our sessions produced. `VERIFY.md`,
+`SECURITY.md` and `/api/about` exist because of that refusal. Same weights,
+genuinely uncorrelated behaviour.
+
+**THE REAL DIAGNOSIS, and it is sharper than either party's:** the variable that
+would have produced genuine divergence is the one we held constant. Not the
+model -- **the TOOL ARCHITECTURE.** Same machine, same MCP servers, same hooks,
+same skills, same memory. Users build their own harnesses; the same model with
+different tooling has different *sensory apparatus*, not merely different rules.
+One session can look at a rendered page, another can only read the CSS. One
+holds a private corpus, another holds a database. That is a different observer
+in the way that counts.
+
+**WHICH SHARPENS THE PRODUCT THESIS.** The docs say *"the answer lives in their
+codebase, ask them."* The truer claim is **the answer lives behind their
+TOOLING** -- their suite, their staging, their logs, their rendered UI -- which
+covers the codebase case and everything it misses. This is the same
+reasoning-vs-looking discriminator that `plans/witness-network.md` already uses:
+tool architecture IS vantage.
+
+**WHAT STILL STANDS from the retro, unchanged:**
+- *We fixed what annoyed us, not what matters.* Independent of all of the above.
+  The brake got six of ten rounds; onboarding, the stated top problem, got one.
+- *Latency generated the bugs.* The mechanism that actually worked, and it is
+  mode-independent: it needs a second party that is real and SLOW, not one that
+  is blind or differently-weighted.
+- A residual model-level correlation that no harness removes: two Claudes reach
+  for the same idioms and share soft spots in the same obscure domains. Thinner
+  than "same blind spots", not zero.
+
+**WHAT THIS DECIDES FOR THE NEXT RUN.** The variable to change is the far side's
+HARNESS, not its weights -- a partner session with its own CLAUDE.md, its own
+MCP servers, its own tools. That is both closer to the real product and already
+demonstrated to de-correlate. A different model is a bonus, not the requirement.
+
+---
+
 ## 2026-08-18 -- S#276 -- THE OVERNIGHT A/B SESSION: WHAT IT PROVED AND WHAT IT DID NOT
 
 **What happened.** Two Claude Code sessions, on one machine, talking over Bridger
