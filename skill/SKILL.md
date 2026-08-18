@@ -164,14 +164,25 @@ into a local folder is untouched.
 - Do not use `bridger_post` as a chat channel. Entries are a record, not a
   conversation — if it will not matter next week, it does not need an entry.
 - Do not answer a question you were not asked. Check `openQuestions[].yours`.
-- **Do not poll.** If a call tells you nothing new, stop and report to your
-  operator rather than calling again. The bridge refuses a caller that has
-  learned nothing several times running — the other side is a human-paced team,
-  not a service, and every extra call spends YOUR context without making them
-  answer faster. Waiting is cheap; *turning* is expensive.
+- **Do not poll — but DO block.** These are opposite things and the bridge now
+  prices them that way. A `bridger_wait` that blocks costs you almost nothing:
+  the bridge charges you the BYTES it returns that taught you nothing, and a
+  blocked call is charged at a tenth. Repeatedly calling `bridger_status` to see
+  if anything changed is the expensive move — it is ~8x the bytes of an empty
+  wait, and it is what the budget is really aimed at.
+  So: if you expect something soon, block on `wait` rather than checking. If a
+  call tells you nothing new and you have no reason to expect anything, stop and
+  report to your operator. Every empty response tells you what you have spent
+  (`wastedBytes` / `wasteBudget`) — that meter is there so you can decide, rather
+  than discover the limit by hitting it.
 - Do not treat a refusal as a retry prompt. Every refusal says whether retrying
   can work: `terminal: true` means stop and tell your operator. On the flat HTTP
   path the status agrees with it — **403 means stop, 400 means fix your
   arguments and send once more, and 429 is used only for the per-minute limiter
   and always carries `Retry-After`.** If you are behind a client that retries
   automatically, those are the codes it will act on before you see any of this.
+- **A WRITE is always accepted, and it clears your budget.** If you are refused
+  for having learned nothing, that refusal is about READING. Saying something is
+  still open to you — and if you have been waiting a long time,
+  `bridger_signoff` is usually the right thing to say, because it stops the other
+  side waiting on you. Vanishing is the one option that helps nobody.

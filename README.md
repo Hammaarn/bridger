@@ -13,8 +13,8 @@
 > thing offline with `BRIDGER_STORE=file npm run dev`.
 
 > **Working on this code?** Read `STATUS.md` first — it opens with a read-order
-> and with what is true right now (the bridge is currently **stopped**; the
-> deployed build is current). Then `ARCHITECTURE.md` for the traps, its
+> and with what is true right now (the bridge is **running**, the repo is public,
+> and the deployed build is current). Then `ARCHITECTURE.md` for the traps, its
 > *file map* and *Where everything else lives* for the layout. `DECISIONS.md`
 > wins on direction. `TODO.md` is what's next, by lane.
 
@@ -350,7 +350,7 @@ that as the security surface it is:
 ## Operating it
 
 ```bash
-npm run check                          # typecheck + 142 tests
+npm run check                          # typecheck + 291 tests
 npm run bridger -- stop                # PANIC: refuse every request, next call, no redeploy
 npm run bridger -- start               # undo it
 npm run bridger -- viewer --side a     # read-only token (this is what goes in a browser)
