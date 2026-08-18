@@ -404,8 +404,8 @@ function Create({ onMinted, onCancel }: { onMinted: (m: Minted) => void; onCance
             greying the buttons out silently.
           */}
           <p className="fine" style={{ marginTop: 9 }}>
-            Three or more is a rewrite of the room model, not a bigger number here — every side is
-            <code> a</code> or <code> b</code> throughout the registry.
+            Three or more is a rewrite of the room model, not a bigger number here — every side is{" "}
+            <code>a</code> or <code>b</code> throughout the registry.
           </p>
 
           {error && <div className="error">{error}</div>}
