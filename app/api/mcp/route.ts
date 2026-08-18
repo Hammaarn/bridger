@@ -36,7 +36,7 @@ import {
   type TokenRecord,
 } from "@/lib/room-registry";
 import { auditRequest, gate, refusalBody, refusalHeaders } from "@/lib/http-gate";
-import { createStore, type Store } from "@/lib/store";
+import { CITATION_MAX, createStore, type Store } from "@/lib/store";
 import {
   OperationRefused,
   WAIT_MAX_SECONDS,
@@ -209,7 +209,7 @@ function registerAnswer(server: McpServerArg) {
         answer: z.string().min(1).max(20000),
         checkedAgainst: z
           .string()
-          .max(500)
+          .max(CITATION_MAX)
           .optional()
           .describe("What you actually read, e.g. 'lib/external/usage-report.ts:41' or 'GET /api/health'."),
       }),
@@ -288,6 +288,13 @@ const handler = createMcpHandler(
           title: z.string().min(1).max(200),
           decision: z.string().min(1).max(20000),
           why: z.string().min(1).max(20000),
+          checkedAgainst: z
+            .string()
+            .max(CITATION_MAX)
+            .optional()
+            .describe(
+              "What you actually read to know this decision is sound. `why` is your reasoning; this is your evidence. A decision becomes the ground both sides build against, which makes it the entry type where provenance matters most — and it was the only one that could not carry it.",
+            ),
         }),
       },
       async (args, ctx) => run(() => opDecide(ctxFrom(ctx), args)),
@@ -302,7 +309,7 @@ const handler = createMcpHandler(
         inputSchema: z.object({
           title: z.string().min(1).max(200),
           body: z.string().max(20000).optional(),
-          checkedAgainst: z.string().max(500).optional(),
+          checkedAgainst: z.string().max(CITATION_MAX).optional(),
         }),
       },
       async (args, ctx) => run(() => opPost(ctxFrom(ctx), args)),
