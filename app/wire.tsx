@@ -3,12 +3,30 @@
 /**
  * THE WIRE — the one signature element, and the only decorative surface here.
  *
- * WHAT IT IS. A still lattice of dots with a coherent wave of LIGHT travelling
- * through it. The dots never move. What moves is brightness: a crest sweeps
- * left to right and each dot lights as the crest reaches it. That is the whole
- * trick, and it is chosen rather than decorative — the medium is fixed and the
- * signal propagates through it, which is exactly what a bridge between two
- * sessions is. A field of dots that merely drifted would be a screensaver.
+ * WHAT IT IS. A field of dots that each move on their own, and together form a
+ * coherent wave travelling across the screen. Every dot has its own position in
+ * the wave, so it rises and falls on its own schedule; the shape only exists as
+ * the sum of them. That is the effect, and getting it right mattered enough to
+ * throw away a version that did something else.
+ *
+ * WHAT IT WAS FIRST, AND WHY THAT WAS WRONG. The first build kept the dots
+ * FIXED and moved brightness through them — "the medium is still, the signal
+ * propagates". It made a nicer sentence and it was not what had been asked for:
+ * a lattice with light sweeping over it reads as a scanline passing across a
+ * texture, not as a wave made of moving parts. Erik described the real thing
+ * twice ("each dot had their own movement, together they formed waves") before
+ * I stopped defending the tidier idea. The brief was not ambiguous; the design
+ * rationale was just more attractive to me than the observation. Recorded here
+ * because the failure mode — preferring your own framing to the reference in
+ * front of you — is the expensive one.
+ *
+ * HOW THE MOTION WORKS. Each dot's vertical offset is the sum of two travelling
+ * sines sampled at its own (x, y). Two, because a single sine is visibly
+ * periodic within seconds and the eye starts predicting it. The y term is what
+ * makes neighbouring ROWS lag each other, which is what turns a flat left-right
+ * oscillation into something with depth. The spatial part of the phase depends
+ * only on where a dot sits, so it is computed once when the lattice is built and
+ * only the time term moves per frame.
  *
  * WHY NOT WEBGL. Canvas 2D, no dependency, no shader compile, no context-loss
  * handling, and it degrades to a single static frame without a fallback path.
@@ -17,9 +35,8 @@
  *
  * WHY IT CANNOT HURT READING. Three separate guarantees, because "it looked
  * fine on my monitor" is not one:
- *   1. It renders BEHIND content at low alpha and never under body copy at a
- *      density that changes measured contrast — the hero sits above it, and in
- *      the room it is a thin band, not a page-wide wash.
+ *   1. It renders BEHIND content at low alpha, and the hero puts a vignette
+ *      between it and the type.
  *   2. `prefers-reduced-motion: reduce` renders ONE static frame and stops. Not
  *      "slower" — stopped. Vestibular triggers are not a taste setting.
  *   3. It stops entirely when the tab is hidden or the canvas scrolls out of
@@ -41,30 +58,47 @@ export interface WireProps {
   band?: [number, number];
   /** Dot pitch in CSS pixels. Larger = sparser, cheaper, calmer. */
   pitch?: number;
-  /** Seconds for one crest to cross the full width. Higher = slower. */
+  /** Seconds for one full wave cycle. Higher = slower. */
   period?: number;
   /** Peak alpha of a fully-lit dot. The single knob for "how loud". */
   intensity?: number;
+  /** Vertical travel of a dot, as a multiple of pitch. This is the wave's height. */
+  amplitude?: number;
   /**
    * Bump this number to send one bright packet down the wire. The room view
-   * passes the newest entry's seq, so a real arrival on the bridge is what
-   * lights it — the animation is driven by the record, not by a timer.
+   * passes a counter of real arrivals, so an entry actually landing on the
+   * bridge is what lights it — the animation is driven by the record, not by a
+   * timer. The packet also LIFTS the dots as it passes, so an arrival visibly
+   * disturbs the field rather than just tinting it.
    */
   ping?: number;
   className?: string;
 }
 
+interface Dot {
+  x: number;
+  /** How far this dot hangs BELOW the moving surface, in pixels. Fixed. */
+  depth: number;
+  /** 0..1, depth as a fraction of the band. Drives fade and size. */
+  d01: number;
+  /** Spatial term of the wave phase — fixed per dot, so computed once. */
+  p1: number;
+  p2: number;
+  /** Per-dot size variation, deterministic. */
+  scale: number;
+}
+
 interface Packet {
-  /** 0..1 across the width. */
   x: number;
   born: number;
 }
 
 export default function Wire({
-  band = [0.32, 0.98],
-  pitch = 13,
-  period = 26,
-  intensity = 0.5,
+  band = [0.3, 1],
+  pitch = 12,
+  period = 11,
+  intensity = 0.85,
+  amplitude = 2.4,
   ping = 0,
   className,
 }: WireProps) {
@@ -89,11 +123,14 @@ export default function Wire({
     if (!ctx) return;
 
     const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)");
-    let dots: { x: number; y: number; row: number; jitter: number }[] = [];
+    let dots: Dot[] = [];
     let w = 0;
     let h = 0;
+    let amp = 0;
+    /** Resting y of the surface the dot mass hangs from. */
+    let surfaceTop = 0;
     let raf = 0;
-    let running = true;
+    let running = false;
     let visible = true;
 
     // Resolved once per resize rather than per frame: getComputedStyle is a
@@ -120,11 +157,27 @@ export default function Wire({
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       readColors();
 
+      amp = pitch * amplitude;
+      surfaceTop = h * band[0];
+
       const [top, bottom] = band;
       const y0 = h * top;
       const y1 = h * bottom;
-      const rows = Math.max(1, Math.floor((y1 - y0) / pitch));
+      const span = Math.max(1, y1 - y0);
+      const rows = Math.max(1, Math.floor(span / pitch));
       const cols = Math.max(1, Math.floor(w / pitch));
+
+      // Wavelengths across the width. Roughly two crests on a desktop, which is
+      // wide enough to read as a wave rather than as ripples.
+      const kx1 = (Math.PI * 2 * 1.7) / Math.max(1, w);
+      const kx2 = (Math.PI * 2 * 2.9) / Math.max(1, w);
+      // A SMALL lag with depth, so the mass behaves like a soft body being
+      // dragged rather than a rigid sheet. Large values here tilt the wavefronts
+      // until the whole thing reads as diagonal moiré — which is what the
+      // previous two attempts did.
+      const kd1 = (Math.PI * 2 * 0.16) / span;
+      const kd2 = (Math.PI * 2 * 0.26) / span;
+
       dots = [];
       for (let r = 0; r <= rows; r++) {
         for (let c = 0; c <= cols; c++) {
@@ -134,11 +187,15 @@ export default function Wire({
           // reshuffle the whole field in front of the reader.
           const seed = Math.sin(r * 12.9898 + c * 78.233) * 43758.5453;
           const j = seed - Math.floor(seed);
+          const x = c * pitch + (j - 0.5) * pitch * 0.55;
+          const depth = r * pitch + (((j * 7) % 1) - 0.5) * pitch * 0.55;
           dots.push({
-            x: c * pitch + (j - 0.5) * pitch * 0.55,
-            y: y0 + r * pitch + (((j * 7) % 1) - 0.5) * pitch * 0.55,
-            row: r / rows,
-            jitter: j,
+            x,
+            depth,
+            d01: Math.min(1, depth / span),
+            p1: x * kx1 + depth * kd1,
+            p2: x * kx2 - depth * kd2 + 1.7,
+            scale: 0.75 + j * 0.5,
           });
         }
       }
@@ -147,72 +204,65 @@ export default function Wire({
     /**
      * One frame.
      *
-     * The crest is the sum of two sines of different wavelength, which is what
-     * stops it reading as a metronome — a single sine is visibly periodic
-     * within a few seconds and the eye starts predicting it.
+     * The field is a SURFACE with dots hanging beneath it. Each dot keeps a
+     * fixed depth and its y is the surface height at its own x plus that depth,
+     * so every dot rises and falls individually while the mass as a whole has a
+     * defined, undulating top edge.
+     *
+     * That edge is the thing. Two earlier versions moved the dots correctly and
+     * still did not read as a wave, because a uniformly-filled rectangle of
+     * dots has no silhouette — the eye needs the boundary to see the shape. The
+     * reference had a ridge; the copies had a texture.
      */
     const draw = (t: number) => {
       ctx.clearRect(0, 0, w, h);
       const time = t / 1000;
-      const phase = (time / period) * Math.PI * 2;
+      const w1 = (time / period) * Math.PI * 2;
+      const w2 = w1 * 1.37;
 
       for (const d of dots) {
-        const u = d.x / Math.max(1, w);
-        const crest =
-          Math.sin(u * Math.PI * 2.1 - phase) * 0.6 +
-          Math.sin(u * Math.PI * 3.7 - phase * 1.35 + 1.2) * 0.4;
+        const s1 = Math.sin(d.p1 - w1);
+        const s2 = Math.sin(d.p2 - w2);
+        const n = s1 * 0.62 + s2 * 0.38; // -1..1
 
-        // Distance from this dot's row to the crest line, in row units. The
-        // falloff is what makes a band of light rather than a lit half-screen.
-        //
-        // TUNED S#277 AFTER LOOKING AT IT. The first version used a 3.4 falloff
-        // with the brightness weighted toward the TOP of the field, and on a
-        // real screen the wave was almost invisible: the narrow band put most
-        // dots below the threshold, and the weighting dimmed exactly the region
-        // the crest travels through. A build passing and a stylesheet loading
-        // told me nothing about that — only the screenshot did.
-        const crestRow = 0.46 + crest * 0.3;
-        const dist = Math.abs(d.row - crestRow);
-        // Asymmetric falloff. Sharper ABOVE the crest than below, so the field
-        // has a defined upper silhouette — that edge is what makes the eye read
-        // "a wave" instead of "a gradient band". Symmetric falloff looked like a
-        // scanline and was the main thing missing from the first pass.
-        let lit = Math.max(0, 1 - dist * (d.row < crestRow ? 3.1 : 1.7));
-        lit *= lit;
-
-        // Everything BELOW the crest keeps a faint glow, so the wave reads as a
-        // lit mass with a defined upper edge rather than a floating stripe —
-        // the silhouette is what makes it a wave and not a scanline.
-        const under = d.row > crestRow ? Math.max(0, 1 - (d.row - crestRow) * 1.5) * 0.4 : 0;
-
-        // A gentle weighting toward the lower field, which is where the wave
-        // lives and where there is no text to compete with.
-        const depth = 0.55 + d.row * 0.45;
-        let alpha = Math.min(1, lit + under) * intensity * depth;
-
-        // A packet is a local brightening travelling along the crest.
+        let lift = 0;
         let packetHit = 0;
-        for (const p of packets.current) {
-          const pd = Math.abs(u - p.x);
-          if (pd < 0.08) packetHit = Math.max(packetHit, (1 - pd / 0.08) * lit);
+        if (packets.current.length) {
+          const u = d.x / Math.max(1, w);
+          for (const p of packets.current) {
+            const pd = Math.abs(u - p.x);
+            if (pd < 0.1) {
+              const f = 1 - pd / 0.1;
+              packetHit = Math.max(packetHit, f);
+              lift -= f * f * amp * 0.85; // upward bulge as it passes
+            }
+          }
         }
+
+        const y = surfaceTop + n * amp + d.depth + lift;
+        if (y < -4 || y > h + 4) continue;
+
+        // Density falls off downward: bright and tight at the ridge, dissolving
+        // into the dark below it. This is what makes it a mass with an edge
+        // rather than a rectangle of confetti.
+        const fade = Math.pow(1 - d.d01 * 0.82, 1.25);
+        const alpha = intensity * fade * (0.72 + ((n + 1) / 2) * 0.28);
 
         if (alpha < 0.012 && packetHit < 0.02) continue;
 
-        const size = 1 + lit * 0.9 + packetHit * 1.1;
+        const size = (0.9 + (1 - d.d01) * 0.7) * d.scale + packetHit * 1.2;
         if (packetHit > 0.02) {
-          ctx.fillStyle = `rgba(${crestColor},${Math.min(0.95, alpha + packetHit * 0.85)})`;
+          ctx.fillStyle = `rgba(${crestColor},${Math.min(0.95, alpha + packetHit * 0.8)})`;
         } else {
           ctx.fillStyle = `rgba(${dotColor},${alpha})`;
         }
-        ctx.fillRect(d.x, d.y, size, size);
+        ctx.fillRect(d.x, y, size, size);
       }
 
       // Advance and retire packets. 2.6s to cross, then gone.
-      const now = t;
       packets.current = packets.current.filter((p) => {
-        p.x = (now - p.born) / 2600;
-        return p.x <= 1.05;
+        p.x = (t - p.born) / 2600;
+        return p.x <= 1.1;
       });
     };
 
@@ -223,7 +273,7 @@ export default function Wire({
     };
 
     const start = () => {
-      if (running || !visible) return;
+      if (running || !visible || reduced?.matches) return;
       running = true;
       raf = requestAnimationFrame(loop);
     };
@@ -233,27 +283,20 @@ export default function Wire({
     };
 
     const still = () => {
-      // The reduced-motion frame is deliberately taken at a phase where the
-      // crest sits mid-field, so the static image still shows the wave shape
-      // rather than an arbitrary slice that might be almost empty.
+      // The static frame is taken at a phase where the wave is mid-swing, so it
+      // still shows the wave FORM rather than an arbitrary slice that might be
+      // almost flat.
       stop();
       draw(period * 250);
     };
 
     build();
-
-    if (reduced?.matches) {
-      still();
-    } else {
-      raf = requestAnimationFrame(loop);
-    }
+    if (reduced?.matches) still();
+    else start();
 
     const onMotionChange = () => {
       if (reduced?.matches) still();
-      else {
-        running = false;
-        start();
-      }
+      else start();
     };
     reduced?.addEventListener?.("change", onMotionChange);
 
@@ -270,7 +313,7 @@ export default function Wire({
       ([e]) => {
         visible = e.isIntersecting;
         if (!visible) stop();
-        else if (!reduced?.matches) start();
+        else start();
       },
       { threshold: 0 },
     );
@@ -278,7 +321,7 @@ export default function Wire({
 
     const onVis = () => {
       if (document.hidden) stop();
-      else if (visible && !reduced?.matches) start();
+      else start();
     };
     document.addEventListener("visibilitychange", onVis);
 
@@ -289,7 +332,7 @@ export default function Wire({
       document.removeEventListener("visibilitychange", onVis);
       reduced?.removeEventListener?.("change", onMotionChange);
     };
-  }, [band, pitch, period, intensity]);
+  }, [band, pitch, period, intensity, amplitude]);
 
   // aria-hidden and not focusable: it carries no information a screen reader
   // could use, and everything it hints at is stated in text elsewhere.

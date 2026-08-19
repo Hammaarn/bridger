@@ -183,6 +183,58 @@ function CopyButton({ value, children }: { value: string; children: React.ReactN
   );
 }
 
+/**
+ * The GitHub mark, inline.
+ *
+ * Inline rather than an icon dependency or a remote SVG for the same reason the
+ * fonts are self-hosted: this page is read by people deciding whether the
+ * domain deserves a credential, and every extra host it talks to is another
+ * thing they have to take on faith. It is also the single most load-bearing
+ * link here — "read the source" is the whole trust argument — so it should not
+ * be able to fail to load.
+ */
+function GitHubMark() {
+  return (
+    <svg viewBox="0 0 16 16" width="17" height="17" fill="currentColor" aria-hidden="true">
+      <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z" />
+    </svg>
+  );
+}
+
+/**
+ * The brand mark is one crest of the wire. The signature element and the logo
+ * are the same object, which is the cheapest kind of coherence there is.
+ */
+function Nav({ over = false }: { over?: boolean }) {
+  return (
+    <nav className={`nav ${over ? "nav-over" : ""}`} aria-label="Bridger">
+      <a className="brand" href="/">
+        <svg viewBox="0 0 34 12" width="26" height="10" aria-hidden="true">
+          <path
+            d="M1 8.5C4 8.5 4 3.5 7.5 3.5S11 8.5 14.5 8.5 18 3.5 21.5 3.5 25 8.5 28.5 8.5 32 4.5 33 4"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+          />
+        </svg>
+        Bridger
+      </a>
+      <div className="nav-links">
+        <a href="/api/about">/api/about</a>
+        <a
+          href="https://github.com/Hammaarn/bridger"
+          className="nav-icon"
+          aria-label="Bridger source on GitHub"
+          title="Source on GitHub"
+        >
+          <GitHubMark />
+        </a>
+      </div>
+    </nav>
+  );
+}
+
 // ── view: gate ───────────────────────────────────────────────────
 
 function Gate({ onWatch, onCreate }: { onWatch: (t: string) => void; onCreate: () => void }) {
@@ -190,7 +242,8 @@ function Gate({ onWatch, onCreate }: { onWatch: (t: string) => void; onCreate: (
   return (
     <main className="gate">
       <section className="hero">
-        <Wire className="wire-hero" band={[0.26, 1.04]} pitch={10} period={30} intensity={0.92} />
+        <Wire className="wire-hero" band={[0.63, 1.45]} pitch={11} period={14} intensity={0.9} amplitude={2.9} />
+        <Nav over />
         <div className="hero-inner">
           <span className="eyebrow">
             <span className="led" />
@@ -201,13 +254,15 @@ function Gate({ onWatch, onCreate }: { onWatch: (t: string) => void; onCreate: (
             A shared record between two teams&rsquo; AI sessions. Questions, answers, decisions — and
             the source each answer was actually checked against.
           </p>
+          {/*
+            One call to action. "Read the source" moved to the nav as the GitHub
+            mark — it is a permanent affordance, not a step in this flow, and two
+            side-by-side buttons made the primary action argue with a link.
+          */}
           <div className="hero-actions">
             <button type="button" className="bx-primary" onClick={onCreate}>
               Open a new room
             </button>
-            <a className="bx-ghost" href="https://github.com/Hammaarn/bridger">
-              Read the source
-            </a>
           </div>
         </div>
       </section>
@@ -341,6 +396,7 @@ function Create({ onMinted, onCancel }: { onMinted: (m: Minted) => void; onCance
 
   return (
     <main className="sheet">
+      <Nav />
       <div className="sheet-card">
         <h1>Open a room</h1>
         <p className="sub">Two AI sessions, one record, and a token each.</p>
@@ -448,6 +504,7 @@ function TokenBox({ minted, onWatch }: { minted: Minted; onWatch: (t: string) =>
 
   return (
     <main className="sheet">
+      <Nav />
       <div className="sheet-card bx-wide">
         <h1>{minted.room.topic}</h1>
         <p className="sub">

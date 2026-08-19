@@ -201,6 +201,91 @@ a:hover {
   opacity: 0.85;
 }
 
+/* ── nav ─────────────────────────────────────────────────────────── */
+
+.nav {
+  position: relative;
+  z-index: 3;
+  width: 100%;
+  max-width: 1160px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 24px;
+}
+
+/* On the gate the nav sits INSIDE the hero so the wave runs behind it, rather
+   than on a separate strip of flat colour above it. */
+.nav-over {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 14.5px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.brand svg {
+  color: var(--seal);
+  overflow: visible;
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.nav-links > a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 0 11px;
+  border-radius: var(--r-sm);
+  font-family: var(--font-mono-stack);
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+  color: var(--text-dim);
+  text-decoration: none;
+  transition: color 140ms var(--ease), background 140ms var(--ease);
+}
+
+.nav-links > a:hover {
+  color: var(--text);
+  background: var(--ink-700);
+}
+
+/* 38px square is under the 44px guideline, so the tap target is widened by
+   padding rather than by making the mark bigger — the icon is the right size
+   optically and the hit area is a separate question. */
+.nav-icon {
+  width: 38px;
+  padding: 0 !important;
+}
+
+@media (max-width: 480px) {
+  .nav {
+    padding: 14px 16px;
+  }
+
+  /* The path label is the first thing to go on a phone; the mark is not. */
+  .nav-links > a:not(.nav-icon) {
+    display: none;
+  }
+}
+
 /* ── shared controls ─────────────────────────────────────────────── */
 
 button {
@@ -352,7 +437,7 @@ input.bx-bad {
 .hero {
   position: relative;
   isolation: isolate;
-  min-height: min(78vh, 660px);
+  min-height: min(88vh, 740px);
   display: grid;
   place-items: center;
   padding: 72px 24px 56px;
@@ -375,8 +460,8 @@ input.bx-bad {
   inset: 0;
   z-index: 1;
   background:
-    radial-gradient(46% 34% at 50% 38%, var(--ink-900) 0%, color-mix(in oklab, var(--ink-900) 72%, transparent) 55%, transparent 100%),
-    linear-gradient(to bottom, var(--ink-900) 0%, transparent 26%);
+    radial-gradient(42% 26% at 50% 34%, var(--ink-900) 0%, color-mix(in oklab, var(--ink-900) 55%, transparent) 60%, transparent 100%),
+    linear-gradient(to bottom, var(--ink-900) 0%, transparent 22%);
   pointer-events: none;
 }
 
@@ -559,14 +644,17 @@ input.bx-bad {
 
 .sheet {
   min-height: 100dvh;
-  display: grid;
-  place-items: start center;
-  padding: 56px 24px 72px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 0 72px;
 }
 
 .sheet-card {
   width: 100%;
   max-width: 480px;
+  margin-top: 42px;
+  padding: 0 24px;
 }
 
 .sheet-card.bx-wide {
