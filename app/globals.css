@@ -85,6 +85,9 @@
   --wire-b: 255, 176, 108;
   --wire-crest: 255, 184, 107;
 
+  /* The still version of the wire: a fine dot lattice used as page texture. */
+  --grid-dot: rgba(255, 255, 255, 0.06);
+
   --font-sans-stack: var(--font-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono-stack: var(--font-mono), ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 
@@ -127,6 +130,7 @@
     --wire-a: 28, 84, 150;
     --wire-b: 150, 82, 20;
     --wire-crest: 143, 84, 21;
+    --grid-dot: rgba(0, 0, 0, 0.07);
 
     --lift: 0 1px 0 rgba(255, 255, 255, 0.8), 0 12px 30px -20px rgba(0, 0, 0, 0.35);
   }
@@ -552,11 +556,45 @@ input.bx-bad {
 
 /* ── the gate: body ──────────────────────────────────────────────── */
 
+/* THE LOWER SECTION WAS FLAT BLACK, AND IT KILLED THE PAGE.
+   Everything above it moved and had material; below the hero border it went
+   dead — two panels floating on nothing. Three cheap layers fix it, none of
+   them animated, so the fix costs one paint and no frames:
+     1. two very wide, very faint radial washes in the NEXT shades up
+        (--ink-800 / --ink-700) so the black has depth instead of being one flat
+        value. They are offset from each other so the eye reads a soft diagonal.
+     2. a fine dot lattice at 3% — the same motif as the wire, held still. The
+        wave is the moving version of this texture, so the page reads as one
+        material in two states rather than as an animation sitting on a void.
+     3. a hairline top edge, because the hero's border was the only thing
+        separating them and it landed like a cut. */
+.gate-shell {
+  position: relative;
+  isolation: isolate;
+  background:
+    radial-gradient(110% 58% at 16% 2%, var(--ink-700) 0%, transparent 60%),
+    radial-gradient(85% 52% at 90% 38%, color-mix(in oklab, var(--ink-600) 78%, transparent) 0%, transparent 64%),
+    radial-gradient(70% 40% at 50% 100%, color-mix(in oklab, var(--ink-800) 90%, transparent) 0%, transparent 70%),
+    var(--ink-900);
+}
+
+.gate-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image: radial-gradient(circle at 1px 1px, var(--grid-dot) 1px, transparent 0);
+  background-size: 15px 15px;
+  /* Fades out top and bottom so the lattice never ends on a visible edge. */
+  mask-image: linear-gradient(to bottom, transparent, #000 10%, #000 84%, transparent);
+  pointer-events: none;
+}
+
 .gate-body {
   width: 100%;
   max-width: 940px;
   margin: 0 auto;
-  padding: 56px 24px 80px;
+  padding: 64px 24px 88px;
   display: grid;
   gap: 44px;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -564,10 +602,56 @@ input.bx-bad {
 }
 
 .panel {
+  position: relative;
   background: var(--ink-800);
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
   padding: 26px;
+  overflow: hidden;
+}
+
+/* The same lattice again, tighter and fainter, inside the card. This is the
+   graph-paper texture the reference puts in its stat cards, and it is what
+   stops a dark panel on a dark page from reading as a hole. */
+.panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle at 1px 1px, var(--grid-dot) 1px, transparent 0);
+  background-size: 11px 11px;
+  opacity: 0.75;
+  mask-image: radial-gradient(120% 90% at 50% 0%, #000 0%, transparent 78%);
+  pointer-events: none;
+}
+
+.panel > * {
+  position: relative;
+}
+
+/* The page's closing band: the same wave, mirrored and flowing the other way.
+   Bookends the composition and answers the hero rather than repeating it. */
+.gate-foot {
+  position: relative;
+  height: 190px;
+  overflow: hidden;
+  border-top: 1px solid var(--line);
+}
+
+.wire-foot {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  /* Flipped, so the mass hangs UP from the bottom edge — a reflection of the
+     hero rather than a second copy of it. */
+  transform: scaleY(-1);
+}
+
+.gate-foot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, var(--ink-900) 0%, transparent 32%);
+  pointer-events: none;
 }
 
 .panel h2 {

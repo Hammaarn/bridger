@@ -65,6 +65,16 @@ export interface WireProps {
   /** Vertical travel of a dot, as a multiple of pitch. This is the wave's height. */
   amplitude?: number;
   /**
+   * Horizontal drift in CSS px per second. Negative flows right-to-left.
+   *
+   * This is what makes the field FLOW rather than bob. The wave shape lives in
+   * screen space and the dots travel through it, so a given dot rises as it
+   * enters a crest and falls as it leaves — which is the behaviour measured off
+   * the reference (its stat row translates ~35-40 px/sec) and the thing a purely
+   * vertical oscillation cannot produce no matter how it is tuned.
+   */
+  flow?: number;
+  /**
    * Bump this number to send one bright packet down the wire. The room view
    * passes a counter of real arrivals, so an entry actually landing on the
    * bridge is what lights it — the animation is driven by the record, not by a
@@ -76,14 +86,12 @@ export interface WireProps {
 }
 
 interface Dot {
+  /** Resting x. Screen x is this plus the flow offset, wrapped. */
   x: number;
   /** How far this dot hangs BELOW the moving surface, in pixels. Fixed. */
   depth: number;
   /** 0..1, depth as a fraction of the band. Drives fade and size. */
   d01: number;
-  /** Spatial term of the wave phase — fixed per dot, so computed once. */
-  p1: number;
-  p2: number;
   /** Per-dot size variation, deterministic. */
   scale: number;
   /**
@@ -108,6 +116,7 @@ export default function Wire({
   period = 11,
   intensity = 0.85,
   amplitude = 2.4,
+  flow = 26,
   ping = 0,
   className,
 }: WireProps) {
@@ -138,6 +147,11 @@ export default function Wire({
     let amp = 0;
     /** Resting y of the surface the dot mass hangs from. */
     let surfaceTop = 0;
+    /** Wave numbers. Hoisted out of build() because the phase now depends on a
+        dot's CURRENT x, which changes every frame as the field flows. */
+    let kx1 = 0, kx2 = 0, kd1 = 0, kd2 = 0;
+    /** Width the flow wraps over — one pitch wider so re-entry is seamless. */
+    let wrapW = 1;
     let raf = 0;
     let running = false;
     let visible = true;
@@ -190,14 +204,15 @@ export default function Wire({
 
       // Wavelengths across the width. Roughly two crests on a desktop, which is
       // wide enough to read as a wave rather than as ripples.
-      const kx1 = (Math.PI * 2 * 1.7) / Math.max(1, w);
-      const kx2 = (Math.PI * 2 * 2.9) / Math.max(1, w);
+      kx1 = (Math.PI * 2 * 1.7) / Math.max(1, w);
+      kx2 = (Math.PI * 2 * 2.9) / Math.max(1, w);
+      wrapW = w + pitch;
       // A SMALL lag with depth, so the mass behaves like a soft body being
       // dragged rather than a rigid sheet. Large values here tilt the wavefronts
       // until the whole thing reads as diagonal moiré — which is what the
       // previous two attempts did.
-      const kd1 = (Math.PI * 2 * 0.16) / span;
-      const kd2 = (Math.PI * 2 * 0.26) / span;
+      kd1 = (Math.PI * 2 * 0.16) / span;
+      kd2 = (Math.PI * 2 * 0.26) / span;
 
       dots = [];
       for (let r = 0; r <= rows; r++) {
@@ -244,8 +259,6 @@ export default function Wire({
             x,
             depth,
             d01: Math.min(1, depth / span),
-            p1: x * kx1 + depth * kd1,
-            p2: x * kx2 - depth * kd2 + 1.7,
             scale: 0.75 + j * 0.5,
             rgb: `${mixed(colA[0], colB[0])},${mixed(colA[1], colB[1])},${mixed(colA[2], colB[2])}`,
           });
@@ -272,15 +285,25 @@ export default function Wire({
       const w1 = (time / period) * Math.PI * 2;
       const w2 = w1 * 1.37;
 
+      // The field's horizontal offset this frame. Modulo the wrap width so a dot
+      // leaving one edge re-enters at the other; the lattice is uniform, so the
+      // seam is invisible.
+      const drift = ((time * flow) % wrapW + wrapW) % wrapW;
+
       for (const d of dots) {
-        const s1 = Math.sin(d.p1 - w1);
-        const s2 = Math.sin(d.p2 - w2);
+        // Screen x, not resting x. The wave lives in SCREEN space, so the phase
+        // is sampled where the dot currently is — that is what makes a dot rise
+        // as it flows into a crest instead of bobbing on the spot.
+        const x = (d.x + drift) % wrapW;
+
+        const s1 = Math.sin(x * kx1 + d.depth * kd1 - w1);
+        const s2 = Math.sin(x * kx2 - d.depth * kd2 + 1.7 - w2);
         const n = s1 * 0.62 + s2 * 0.38; // -1..1
 
         let lift = 0;
         let packetHit = 0;
         if (packets.current.length) {
-          const u = d.x / Math.max(1, w);
+          const u = x / Math.max(1, w);
           for (const p of packets.current) {
             const pd = Math.abs(u - p.x);
             if (pd < 0.1) {
@@ -308,7 +331,7 @@ export default function Wire({
         } else {
           ctx.fillStyle = `rgba(${d.rgb},${alpha})`;
         }
-        ctx.fillRect(d.x, y, size, size);
+        ctx.fillRect(x, y, size, size);
       }
 
       // Advance and retire packets. 2.6s to cross, then gone.
