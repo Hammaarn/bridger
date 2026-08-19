@@ -86,6 +86,15 @@ interface Dot {
   p2: number;
   /** Per-dot size variation, deterministic. */
   scale: number;
+  /**
+   * This dot's own colour as a bare "r,g,b" string, ready for alpha.
+   *
+   * Precomputed at build rather than mixed per frame: the mix depends only on
+   * where the dot sits and on its jitter, neither of which changes between
+   * frames. Per-frame it costs exactly what a single shared colour cost — one
+   * template concat — so the nuance is free.
+   */
+  rgb: string;
 }
 
 interface Packet {
@@ -138,11 +147,23 @@ export default function Wire({
     // background animation starts costing more than the application.
     let dotColor = "255,255,255";
     let crestColor = "255,255,255";
+    let colA: [number, number, number] = [192, 208, 230];
+    let colB: [number, number, number] = [192, 208, 230];
+
+    const triplet = (v: string, fallback: [number, number, number]): [number, number, number] => {
+      const p = v.split(",").map((n) => Number(n.trim()));
+      return p.length === 3 && p.every((n) => Number.isFinite(n))
+        ? [p[0], p[1], p[2]]
+        : fallback;
+    };
 
     const readColors = () => {
       const s = getComputedStyle(canvas);
       dotColor = s.getPropertyValue("--wire-dot").trim() || "255,255,255";
       crestColor = s.getPropertyValue("--wire-crest").trim() || dotColor;
+      const neutral = triplet(dotColor, [192, 208, 230]);
+      colA = triplet(s.getPropertyValue("--wire-a").trim(), neutral);
+      colB = triplet(s.getPropertyValue("--wire-b").trim(), neutral);
     };
 
     const build = () => {
@@ -187,8 +208,38 @@ export default function Wire({
           // reshuffle the whole field in front of the reader.
           const seed = Math.sin(r * 12.9898 + c * 78.233) * 43758.5453;
           const j = seed - Math.floor(seed);
+          const seed2 = Math.sin(r * 39.3467 + c * 11.135) * 24634.6345;
+          const j2 = seed2 - Math.floor(seed2);
           const x = c * pitch + (j - 0.5) * pitch * 0.55;
           const depth = r * pitch + (((j * 7) % 1) - 0.5) * pitch * 0.55;
+
+          // Where this dot sits between the two sides. The base term walks left
+          // to right across the field; the scatter term is what stops it being
+          // a clean gradient — neighbouring dots land on different tones, which
+          // is the whole source of the liveliness. Depth nudges it slightly too,
+          // so the mass is not uniform front-to-back.
+          // A plain left-to-right gradient puts the MIDDLE of the screen at the
+          // exact average of the two colours — which is neutral grey, across
+          // most of the visible field. That is what the first attempt did, and
+          // magnifying it showed a grey wave with two faintly tinted edges.
+          //
+          // So the positional term is kept weak and the per-dot scatter is made
+          // dominant, then pushed toward the poles with a double smoothstep.
+          // Neighbouring dots land near A or near B rather than both landing in
+          // the middle, so the field is cool-and-warm everywhere instead of
+          // averaging itself out.
+          let m = Math.min(
+            1,
+            Math.max(0, x / Math.max(1, w) * 0.46 + 0.27 + (j2 - 0.5) * 0.95 + (depth / span - 0.5) * 0.1),
+          );
+          m = m * m * (3 - 2 * m);
+          const mix = m * m * (3 - 2 * m);
+
+          // Per-dot luminance wobble on top of the hue mix. Without it the field
+          // reads as two tinted halves; with it, every dot is its own value.
+          const lum = 0.82 + j * 0.42;
+          const mixed = (a: number, b: number) => Math.round(Math.min(255, (a + (b - a) * mix) * lum));
+
           dots.push({
             x,
             depth,
@@ -196,6 +247,7 @@ export default function Wire({
             p1: x * kx1 + depth * kd1,
             p2: x * kx2 - depth * kd2 + 1.7,
             scale: 0.75 + j * 0.5,
+            rgb: `${mixed(colA[0], colB[0])},${mixed(colA[1], colB[1])},${mixed(colA[2], colB[2])}`,
           });
         }
       }
@@ -254,7 +306,7 @@ export default function Wire({
         if (packetHit > 0.02) {
           ctx.fillStyle = `rgba(${crestColor},${Math.min(0.95, alpha + packetHit * 0.8)})`;
         } else {
-          ctx.fillStyle = `rgba(${dotColor},${alpha})`;
+          ctx.fillStyle = `rgba(${d.rgb},${alpha})`;
         }
         ctx.fillRect(d.x, y, size, size);
       }
@@ -300,6 +352,18 @@ export default function Wire({
     };
     reduced?.addEventListener?.("change", onMotionChange);
 
+    // Rebuild when the colour scheme flips. The canvas resolves its palette from
+    // CSS at build time, and build only ran on resize — so before this, toggling
+    // the OS theme left the dot field painted in the previous scheme's colours
+    // until something happened to resize it. Barely visible when every dot was
+    // one neutral grey; obvious now that each dot carries its own hue.
+    const scheme = window.matchMedia?.("(prefers-color-scheme: dark)");
+    const onScheme = () => {
+      build();
+      if (reduced?.matches) still();
+    };
+    scheme?.addEventListener?.("change", onScheme);
+
     const ro = new ResizeObserver(() => {
       build();
       if (reduced?.matches) still();
@@ -331,6 +395,7 @@ export default function Wire({
       io.disconnect();
       document.removeEventListener("visibilitychange", onVis);
       reduced?.removeEventListener?.("change", onMotionChange);
+      scheme?.removeEventListener?.("change", onScheme);
     };
   }, [band, pitch, period, intensity, amplitude]);
 

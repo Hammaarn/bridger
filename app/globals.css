@@ -9,20 +9,32 @@
  * vetoes it, because this thing's actual content is hashes, citations and
  * tamper-evidence. It is an evidence surface. It should feel like one.
  *
- * THE ONE SIGNATURE. A still lattice of dots with a wave of LIGHT moving through
- * it (`wire.tsx`). The dots do not move; brightness does. The medium is fixed
- * and the signal propagates — which is what a bridge between two sessions is.
- * It appears exactly twice: full height on the gate, and as a thin band in the
- * room header where a real arrival on the bridge sends a packet down it.
+ * THE ONE SIGNATURE. A field of dots that each move on their own and together
+ * form a coherent wave (`wire.tsx`). The mass hangs beneath a moving surface,
+ * so it has an undulating top EDGE — which is what makes the eye read a wave
+ * rather than a texture. It appears exactly twice: full height on the gate, and
+ * as a thin band in the room header where a real arrival sends a packet down it.
  *
- * THE COLOUR RULE, AND IT IS THE WHOLE PALETTE. Everything is monochrome except
- * PROVENANCE. `--seal` is spent only on citations and verification, so colour
- * in this interface means exactly one thing: someone named what a claim rests
- * on. The two sides are told apart by cool/warm luminance rather than by
- * competing hues, and the wave's crest is `--seal` itself — the light crossing
- * the wire is the same colour as a checked answer. Inherited from the previous
- * stylesheet's best idea ("the provenance line is the one thing allowed to use
- * colour assertively") and pushed until it governs the whole system.
+ * THE COLOUR RULE, AND IT IS THE WHOLE PALETTE. Interface colour means exactly
+ * one thing: PROVENANCE. `--seal` is spent only on citations and verification,
+ * nowhere else, so a coloured thing on this page is always a claim with a
+ * source attached. Inherited from the previous stylesheet's best idea ("the
+ * provenance line is the one thing allowed to use colour assertively") and
+ * pushed until it governs the system.
+ *
+ * The dot field is the one exception, and it earns it. Its dots are spread
+ * between `--wire-a` and `--wire-b` — the two SIDES' hues — with heavy per-dot
+ * scatter, so the wave is literally the two parties mixed together. That buys
+ * the liveliness Erik asked for without introducing a second accent and without
+ * touching `--seal`. Two things learned by magnifying it rather than by
+ * reasoning: a straight left-to-right gradient puts the middle of the screen at
+ * the exact average of the two colours, which is grey across most of the
+ * visible field; and pale label colours wash out to grey at low alpha, so the
+ * wire's poles are more saturated than the labels they derive from.
+ *
+ * (This block described the OPPOSITE effect for one commit — "the dots do not
+ * move; brightness does" — after the wave was rewritten and the docstring was
+ * not. Same failure as the gate page claiming tamper-evidence was unbuilt.)
  *
  * ACCESSIBILITY IS A CONSTRAINT, NOT A PASS AT THE END. Every text pair below
  * clears WCAG AA in both schemes, the motion stops dead under
@@ -61,8 +73,16 @@
   --seal: #ffb86b;
   --alarm: #ff8a7a;
 
-  /* Fed to the canvas as bare "r,g,b" so it can compose its own alpha. */
+  /* Fed to the canvas as bare "r,g,b" so it can compose its own alpha.
+     `--wire-a` and `--wire-b` are the two SIDES' colours, and the dot field is
+     spread between them: cool on the left, warm on the right, with per-dot
+     scatter so it never reads as a clean gradient. So the wave is literally the
+     two parties mixing, and it gets its liveliness from hue variation instead
+     of from a second accent — which keeps `--seal` reserved for provenance.
+     `--wire-dot` remains the neutral fallback if either is missing. */
   --wire-dot: 192, 208, 230;
+  --wire-a: 116, 178, 255;
+  --wire-b: 255, 176, 108;
   --wire-crest: 255, 184, 107;
 
   --font-sans-stack: var(--font-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -104,6 +124,8 @@
     --alarm: #b03a28;
 
     --wire-dot: 40, 55, 80;
+    --wire-a: 28, 84, 150;
+    --wire-b: 150, 82, 20;
     --wire-crest: 143, 84, 21;
 
     --lift: 0 1px 0 rgba(255, 255, 255, 0.8), 0 12px 30px -20px rgba(0, 0, 0, 0.35);
