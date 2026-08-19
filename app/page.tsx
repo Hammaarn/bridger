@@ -267,7 +267,8 @@ function Gate({ onWatch, onCreate }: { onWatch: (t: string) => void; onCreate: (
         </div>
       </section>
 
-      <div className="gate-body">
+      <div className="gate-shell">
+        <div className="gate-body">
         <section className="panel">
           <h2>Already have a token?</h2>
           <p className="sub">Watch a room someone opened for you.</p>
@@ -352,7 +353,27 @@ function Gate({ onWatch, onCreate }: { onWatch: (t: string) => void; onCreate: (
             <span className="dot">·</span>
             <span className="dim">Operated by Erik Hammarström</span>
           </p>
-        </section>
+          </section>
+        </div>
+
+        {/*
+          The page closes on the same wave, mirrored (scaleY(-1) in CSS) and
+          flowing the other way. Erik's note was that everything under the hero
+          was flat black and unalive; a second copy of the hero would have been
+          repetition, so this answers it instead — same material, opposite
+          direction, quieter.
+        */}
+        <div className="gate-foot">
+          <Wire
+            className="wire-foot"
+            band={[0.42, 1.35]}
+            pitch={10}
+            period={17}
+            intensity={0.85}
+            amplitude={1.9}
+            flow={-19}
+          />
+        </div>
       </div>
     </main>
   );
