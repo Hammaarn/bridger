@@ -242,7 +242,7 @@ function Gate({ onWatch, onCreate }: { onWatch: (t: string) => void; onCreate: (
   return (
     <main className="gate">
       <section className="hero">
-        <Wire className="wire-hero" band={[0.63, 1.45]} pitch={11} period={14} intensity={0.9} amplitude={2.9} />
+        <Wire className="wire-hero" band={[0.54, 1.02]} pitch={7} period={15} intensity={0.9} amplitude={0.15} />
         <Nav over />
         <div className="hero-inner">
           <span className="eyebrow">
@@ -366,12 +366,12 @@ function Gate({ onWatch, onCreate }: { onWatch: (t: string) => void; onCreate: (
         <div className="gate-foot">
           <Wire
             className="wire-foot"
-            band={[0.42, 1.35]}
-            pitch={10}
-            period={17}
-            intensity={0.85}
-            amplitude={1.9}
-            flow={-19}
+            band={[0.3, 1.0]}
+            pitch={7}
+            period={19}
+            intensity={0.72}
+            amplitude={0.13}
+            reverse
           />
         </div>
       </div>
@@ -802,7 +802,7 @@ function RoomView({ token, onForget }: { token: string; onForget: () => void }) 
           record and by nothing else.
         */}
         <div className="bx-top-wire">
-          <Wire className="wire-strip" band={[0.1, 0.95]} pitch={9} period={34} intensity={0.34} ping={arrivals} />
+          <Wire className="wire-strip" band={[0.16, 1.0]} pitch={6} period={22} intensity={0.5} amplitude={0.1} ping={arrivals} />
         </div>
 
         <div className="bx-top-bar">

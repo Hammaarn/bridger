@@ -630,9 +630,14 @@ input.bx-bad {
 
 /* The page's closing band: the same wave, mirrored and flowing the other way.
    Bookends the composition and answers the hero rather than repeating it. */
+/* The page's closing band. Full-bleed by construction: the wire is a
+   perspective PLANE, so it spans the viewport at every depth — the previous
+   version was a mirrored 2D field whose dots bunched into the bottom-left
+   corner and stopped, which is what Erik saw as "chopped and cut off". */
 .gate-foot {
   position: relative;
-  height: 190px;
+  width: 100%;
+  height: 260px;
   overflow: hidden;
   border-top: 1px solid var(--line);
 }
@@ -640,17 +645,18 @@ input.bx-bad {
 .wire-foot {
   position: absolute;
   inset: 0;
+  width: 100%;
   height: 100%;
-  /* Flipped, so the mass hangs UP from the bottom edge — a reflection of the
-     hero rather than a second copy of it. */
-  transform: scaleY(-1);
 }
 
+/* Softens only the horizon line, so the plane emerges from the dark rather than
+   starting on a hard edge. Deliberately shallow — the previous one covered a
+   third of the band and was eating the thing it was meant to frame. */
 .gate-foot::after {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(to bottom, var(--ink-900) 0%, transparent 32%);
+  background: linear-gradient(to bottom, var(--ink-900) 0%, transparent 22%);
   pointer-events: none;
 }
 
