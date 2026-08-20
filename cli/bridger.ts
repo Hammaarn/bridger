@@ -605,6 +605,287 @@ async function fetchExport(server: string, token: string) {
   };
 }
 
+
+/**
+ * THE LEDGER COMMANDS -- the CLI as a thin client of the FLAT transport.
+ *
+ * WHY THESE EXIST. `lib/operations.ts` has held the behaviour since the
+ * beginning and `/api/rpc` has exposed it since S#272, but the CLI could only
+ * ever READ the record (`pull`, `log`, `status`) or administer it. Writing to
+ * the bridge required MCP -- which means it required a client config file, a
+ * restart, and one of three per-vendor dialects. The one transport with no
+ * setup at all had no first-class client.
+ *
+ * WHY NOT TALK TO THE STORE DIRECTLY. It would be shorter and it would be a
+ * fork. Going over HTTP means the CLI exercises the same gate, the same rate
+ * limits, the same containment and the same refusal contract a partner hits,
+ * so a bug here is a bug there. A CLI that bypassed the transport would pass
+ * tests the partner path fails.
+ *
+ * THE STANDING COST IS ZERO, which is the entire argument. A resident MCP
+ * schema is billed on every turn of the caller's session whether they use it
+ * or not -- measured at ~1,800 tokens for the full surface, ~318 for the
+ * narrowed answerer. A shell command is billed when it is run.
+ *
+ * EXIT CODES CARRY THE REFUSAL CONTRACT, and this is the part that is not
+ * cosmetic. `terminal` means retrying cannot succeed; the server has said so
+ * since S#276 and the flat transport returns 403 for it. But a model reading
+ * prose decides for itself whether to try again, and the open question in
+ * TODO B2 is precisely whether a real client STOPS. A process exit code is not
+ * a matter of judgement: 0 succeeded, 1 is terminal and must not be retried,
+ * 75 (EX_TEMPFAIL, the sysexits convention) may be. A shell loop, a Makefile
+ * or an agent all obey it identically, which converts an open behavioural
+ * question into a mechanical guarantee.
+ */
+const EXIT_TERMINAL = 1;
+const EXIT_RETRYABLE = 75;
+
+const wantsJson = () => process.argv.includes("--json");
+
+/** Positional argument, with a usage line rather than an index error. */
+function positional(i: number, usage: string): string {
+  const v = process.argv[i];
+  if (!v || v.startsWith("--")) die(`Usage: bridger ${usage}`);
+  return v!;
+}
+
+/** Optional flag: absent becomes undefined rather than an empty string. */
+function opt(flag: string): string | undefined {
+  const v = arg(flag, "");
+  return v === "" ? undefined : v;
+}
+
+async function rpc(op: string, payload: Record<string, unknown> = {}): Promise<any> {
+  const server = arg("--server", readLocalRoomSafe()?.server ?? DEFAULT_SERVER).replace(/\/$/, "");
+  const token = requireToken();
+
+  let res: Response;
+  try {
+    res = await fetch(`${server}/api/rpc`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ op, ...payload }),
+    });
+  } catch (e) {
+    // A network failure is NOT a refusal, and conflating the two is how a
+    // caller concludes the service is broken while holding a good credential.
+    console.error(`\n  Could not reach ${server}: ${(e as Error).message}`);
+    console.error("  That is a network failure, not a refusal. Retrying may help.\n");
+    return process.exit(EXIT_RETRYABLE);
+  }
+
+  const text = await res.text();
+  let data: any;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    data = { error: text.slice(0, 400) };
+  }
+
+  if (!res.ok) {
+    // 401 is terminal by nature: a bad or revoked token does not become good.
+    const terminal = data?.terminal === true || res.status === 403 || res.status === 401;
+    console.error(`\n  Refused (${res.status}): ${data?.error ?? text.slice(0, 400)}`);
+    console.error(
+      terminal
+        ? "  TERMINAL. Retrying cannot change this answer -- stop, and tell your operator.\n"
+        : "  Retryable. The same call may succeed later.\n",
+    );
+    return process.exit(terminal ? EXIT_TERMINAL : EXIT_RETRYABLE);
+  }
+
+  if (wantsJson()) {
+    console.log(JSON.stringify(data, null, 2));
+    return null;
+  }
+  return data;
+}
+
+/**
+ * Entries, rendered so a human and a model read the same thing.
+ *
+ * NOTHING HERE IS TRUNCATED, and that is a containment requirement rather than
+ * a preference. Far-side prose arrives wrapped in [[UNTRUSTED-PARTNER-TEXT]]
+ * markers, and a `.slice()` long enough to look tidy is long enough to cut the
+ * CLOSING marker off a long question -- which would hand the reader an opened
+ * quarantine that never closes. My first version did exactly that. The same
+ * reason forbids collapsing whitespace: the markers are line-structured.
+ *
+ * `checked` is the server's field. It is the literal string "unchecked" when
+ * there is no provenance, so it is compared rather than tested for truthiness
+ * -- `if (e.checked)` is true for the word "unchecked" and would have reported
+ * every unchecked answer as verified.
+ */
+function renderEntries(entries: any[] | undefined): string {
+  if (!entries?.length) return "  (nothing new)";
+  return entries
+    .map((e) => {
+      // `checked` arrives PRE-LABELLED ("checked-against: ...") and the citation
+      // inside it is partner prose, so it carries containment markers of its
+      // own and is multi-line. Prefixing it with "checked against" doubled the
+      // label, and putting it on the header line buried the entry id behind a
+      // wall of quarantine banner. It gets its own line, printed verbatim.
+      const checked = e.checked && e.checked !== "unchecked";
+      // For an answer the server uses the answer text as the title, so title
+      // and body are the same string and printing both showed it twice.
+      const body = e.body && e.body !== e.title ? e.body : "";
+      return [
+        `  [${e.seq}] ${String(e.type).toUpperCase()} ${e.id}  from ${e.from}${
+          checked ? "" : "  -- UNCHECKED"
+        }`,
+        `  ${e.title}`,
+        body ? `\n${body}` : "",
+        checked ? `\n  ${e.checked}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+    })
+    .join("\n\n  ----------------------------------------------------------\n\n");
+}
+
+/**
+ * The server's guidance names MCP tools, because that is where these
+ * operations lived first. A caller on this transport has no `bridger_answer`
+ * -- being told to call one is being pointed at a channel they do not have.
+ * Rewritten at the presentation layer rather than in `lib/operations.ts`,
+ * because MCP callers genuinely do have those tools and the shared behaviour
+ * is right for them.
+ */
+function forCli(text: string | undefined): string {
+  return (text ?? "").replace(/bridger_([a-z]+)/g, "bridger $1");
+}
+
+async function cmdPing() {
+  const d = await rpc("ping");
+  if (!d) return;
+  const waiting: any[] = d.awaitingYou ?? [];
+  console.log(`
+  ${d.topic ?? "Bridge"}
+  You are ${d.you?.label ?? "?"} (${d.you?.code ?? "?"}). Partner: ${d.peer?.label ?? "?"}${
+    d.peer?.joined === false ? " -- has NOT connected yet" : ""
+  }.
+  Waiting on you: ${waiting.length}. New entries: ${d.newEntries?.length ?? 0}.
+${
+  waiting.length
+    ? "\n  QUESTIONS FOR YOU\n\n" +
+      waiting.map((q: any) => `  ${q.id}  (asked by ${q.askedBy})\n  ${q.title}`).join("\n\n")
+    : ""
+}
+
+  NEW ENTRIES
+
+${renderEntries(d.newEntries)}
+`);
+  if (d._note) console.log(`  ${forCli(d._note)}\n`);
+  if (d.guidance) console.log(`  ${forCli(d.guidance)}\n`);
+}
+
+async function cmdRead() {
+  const since = opt("--since");
+  const d = await rpc("read", {
+    since: since ? Number(since) : undefined,
+    markRead: !process.argv.includes("--keep-unread"),
+  });
+  if (!d) return;
+  console.log(`\n${renderEntries(d.entries)}\n`);
+  if (d.cursor !== undefined) console.log(`  cursor: ${d.cursor}\n`);
+  if (d.guidance) console.log(`  ${forCli(d.guidance)}\n`);
+}
+
+async function cmdAsk() {
+  const title = positional(3, 'ask "<one-line question>" [--body "context"]');
+  const d = await rpc("ask", { title, body: opt("--body") });
+  if (d) console.log(`\n  Asked ${d.posted?.id ?? ""} -- it is now their turn.\n`);
+}
+
+async function cmdAnswer() {
+  const questionId = positional(3, 'answer <QUESTION-ID> "<answer>" [--checked "file.ts:41"]');
+  const answer = positional(4, 'answer <QUESTION-ID> "<answer>" [--checked "file.ts:41"]');
+  const checkedAgainst = opt("--checked");
+  if (!checkedAgainst) {
+    // Not a refusal. An unchecked answer is legitimate; an unchecked answer
+    // that READS like a verified one is the thing the whole record exists to
+    // prevent, so the absence is stated out loud rather than left implicit.
+    console.error("  [!] No --checked given. This answer will be recorded UNCHECKED.");
+  }
+  const d = await rpc("answer", { questionId, answer, checkedAgainst });
+  if (d) {
+    const note = checkedAgainst ? "" : " Recorded UNCHECKED.";
+    console.log(`\n  Answered ${questionId} as ${d.posted?.id ?? ""}.${note}\n`);
+  }
+}
+
+async function cmdDecide() {
+  const title = positional(3, 'decide "<title>" --decision "..." --why "..." [--checked "..."]');
+  const d = await rpc("decide", {
+    title,
+    decision: arg("--decision"),
+    why: arg("--why"),
+    checkedAgainst: opt("--checked"),
+  });
+  if (d) console.log(`\n  Decision recorded. ${d.posted?.id ?? ""}\n`);
+}
+
+async function cmdPost() {
+  const title = positional(3, 'post "<title>" [--body "..."]');
+  const d = await rpc("post", { title, body: opt("--body"), checkedAgainst: opt("--checked") });
+  if (d) console.log(`\n  Posted ${d.posted?.id ?? ""}\n`);
+}
+
+async function cmdContract() {
+  const body = opt("--body");
+  const d = await rpc("contract", { body, note: opt("--note") });
+  if (!d) return;
+  if (body) console.log("\n  Contract replaced.\n");
+  else console.log(`\n${d.body ?? "  (no contract yet)"}\n`);
+}
+
+async function cmdReopen() {
+  const questionId = positional(3, 'reopen <QUESTION-ID> --why "..."');
+  const d = await rpc("reopen", { questionId, why: arg("--why") });
+  if (d) console.log(`\n  Reopened ${questionId}.\n`);
+}
+
+async function cmdSignoff() {
+  const d = await rpc("signoff", { note: opt("--note") });
+  if (d) console.log("\n  Signed off.\n");
+}
+
+/**
+ * Block until they write, in a SHELL rather than in a session.
+ *
+ * An agent has no event loop, so the only way it can learn of a reply is to
+ * ask -- and every ask from inside the session lands in its context whether or
+ * not it carries anything. Waiting HERE costs the session nothing at all: the
+ * shell holds the connection, and only the reply that actually has content is
+ * ever read back in.
+ *
+ * `--follow` re-issues the wait after a timeout, so a single command can hold
+ * an entire afternoon. A timeout is a normal result, not an error, and it is
+ * reported as one -- an ambiguous refusal is what a machine reads as broken.
+ */
+async function cmdWait() {
+  const follow = process.argv.includes("--follow");
+  const timeoutSeconds = Number(arg("--timeout", "45"));
+  for (;;) {
+    const d = await rpc("wait", { timeoutSeconds });
+    if (!d) return;
+    if (d.entries?.length) {
+      console.log(`\n${renderEntries(d.entries)}\n`);
+      return;
+    }
+    if (!follow) {
+      console.log("\n  Nothing arrived within the window. That is a normal result.");
+      if (d.guidance) console.log(`  ${forCli(d.guidance)}`);
+      console.log("");
+      return;
+    }
+  }
+}
+
 async function cmdJoin() {
   const token = process.argv[3];
   if (!token?.startsWith("br_live_")) die("Usage: bridger join br_live_... --server <url>");
@@ -845,6 +1126,21 @@ const USAGE = `
     stop                                 PANIC: refuse every request, now
     start                                undo stop
 
+  LEDGER -- needs only BRIDGER_TOKEN, no install, no config file
+    ping                          everything waiting on you, in ONE call. Start here.
+    read [--since N]              entries since a cursor
+    ask "<title>" [--body ..]     ask the other side
+    answer <QID> "<text>" [--checked "file.ts:41"]
+    decide "<title>" --decision ".." --why ".." [--checked ".."]
+    post "<title>" [--body ..]    a note that answers nothing
+    contract [--body ".." --note ".."]   read, or replace
+    reopen <QID> --why ".."
+    signoff [--note ".."]
+    wait [--timeout 45] [--follow]  block in the SHELL, not in your context
+
+    Add --json to any of them for machine-readable output.
+    Exit codes: 0 ok - 1 TERMINAL, do not retry - 75 retryable.
+
   PARTNER (needs only BRIDGER_TOKEN)
     join <token> [--server <url>]        register the MCP server + write room.json
     pull                                 write the record into ./bridger/
@@ -872,6 +1168,16 @@ async function main() {
     case "log": return cmdLog();
     case "status": return cmdStatus();
     case "verify": return cmdVerify();
+    case "ping": return cmdPing();
+    case "read": return cmdRead();
+    case "ask": return cmdAsk();
+    case "answer": return cmdAnswer();
+    case "decide": return cmdDecide();
+    case "post": return cmdPost();
+    case "contract": return cmdContract();
+    case "reopen": return cmdReopen();
+    case "signoff": return cmdSignoff();
+    case "wait": return cmdWait();
     default:
       console.log(USAGE);
       process.exit(process.argv[2] ? 1 : 0);
