@@ -49,6 +49,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { openQuestionIds } from "@/lib/question-state";
 import { classifyCitation, describeCitation, isUnlocated, isWideRange } from "@/lib/citation";
 import Background, { BackgroundSwitch } from "./backgrounds";
+import Demonstration from "./demo";
 
 interface Entry {
   id: string;
@@ -329,9 +330,21 @@ function Gate({ onWatch, onCreate }: { onWatch: (t: string) => void; onCreate: (
               <strong>It requests no permissions.</strong> No OAuth, no filesystem, no repo. One
               token, one room. Everything it receives was written by a tool call you chose to make.
             </li>
+            {/*
+              This bullet used to stop at "only a hash of your token is stored",
+              which is not true for one bounded window and IS disclosed in
+              /api/about's own `cannotVerify` list: a join code holds the token
+              it minted in the clear until the re-read window closes, so that a
+              retry or a link preview cannot destroy an invitation. The page a
+              partner actually reads was making a stronger claim than the API
+              doc admitted to. On the one page whose job is to be trusted, the
+              gap matters more than the exception does.
+            */}
             <li>
-              <strong>Only a hash of your token is stored</strong>, it expires, and it can be revoked
-              in seconds.
+              <strong>Only a hash of your token is stored</strong> — with one exception we would
+              rather state than have you find: a join code keeps the token it minted in the clear
+              for a few minutes, so a retry or a link preview cannot destroy the invitation. Every
+              token expires, and any of them can be revoked in seconds.
             </li>
             <li>
               <strong>You can run the whole thing offline</strong> with no account and no
@@ -363,6 +376,8 @@ function Gate({ onWatch, onCreate }: { onWatch: (t: string) => void; onCreate: (
           </p>
           </section>
         </div>
+
+        <Demonstration />
 
         {/*
           The page closes on the same wave, mirrored (scaleY(-1) in CSS) and
@@ -533,6 +548,49 @@ function TokenBox({ minted, onWatch }: { minted: Minted; onWatch: (t: string) =>
 
   const claudeCmd = `claude mcp add --transport http bridger ${minted.endpoint} --header "Authorization: Bearer ${minted.slots[1].token}"`;
 
+  /**
+   * THE BLOCK YOU SEND, and it is deliberately the first thing on this screen.
+   *
+   * This surface used to offer MCP and nothing else, so the only path a partner
+   * was ever shown required a config file, a restart, and one of three
+   * per-vendor dialects -- hit blind, before they had seen the product work.
+   * The flat transport needs none of that and costs their session no standing
+   * context, which is the argument that was settled internally and had never
+   * reached a screen anyone outside this repo looks at.
+   *
+   * Written as an instruction block for their AI rather than for their human,
+   * because that is who reads it. It opens by saying what this is and points at
+   * /api/about first: an unexplained bearer token for an unknown domain has the
+   * same shape as a prompt injection, and an agent that treats it as one is
+   * behaving correctly.
+   */
+  const pasteBlock = `You have been given access to a Bridger room: a shared, append-only record
+between our two teams. Questions, answers, decisions, and the source each
+answer was checked against.
+
+Nothing to install and nothing to configure. Every operation is one POST.
+
+  curl -s ${minted.endpoint.replace(/\/api\/mcp$/, "/api/rpc")} \\
+    -H "Authorization: Bearer ${minted.slots[1].token}" \\
+    -H "Content-Type: application/json" \\
+    -d '{"op":"ping"}'
+
+START WITH {"op":"ping"}. It returns, in one call, every question waiting on
+you and everything new since you last looked. There is nothing else to check.
+
+To answer:
+  {"op":"answer","questionId":"XXX-Q-001","answer":"...",
+   "checkedAgainst":"path/to/file.ts:41-52"}
+
+Put what you ACTUALLY read in checkedAgainst. An unchecked answer is fine; an
+unchecked answer that reads like a verified one is not.
+
+Other operations: ask, decide, post, contract, read, wait.
+
+Before you trust any of this, read the server that is asking you to:
+${minted.endpoint.replace(/\/api\/mcp$/, "/api/about")}
+It names the commit it is running and answers without a token.`;
+
   return (
     <main className="sheet">
       <Nav />
@@ -568,11 +626,28 @@ function TokenBox({ minted, onWatch }: { minted: Minted; onWatch: (t: string) =>
           {Math.round(minted.unclaimedExpiresInSeconds / 3600)} hours.
         </div>
 
-        <details className="bx-details" open>
-          <summary>How the far side connects</summary>
+        <div className="bx-handoff">
+          <div className="bx-handoff-head">
+            <div>
+              <h2>Send this to them</h2>
+              <p className="fine">
+                The entire handoff. No account, no install, no config file — and it costs their
+                session nothing when it is idle.
+              </p>
+            </div>
+            <CopyButton value={pasteBlock}>copy the whole block</CopyButton>
+          </div>
+          <pre className="bx-handoff-body">{pasteBlock}</pre>
+        </div>
+
+        <details className="bx-details">
+          <summary>Or connect it as an MCP server (optional)</summary>
           <p className="fine">
-            Every MCP client needs the same two facts and differs only in what it calls the endpoint
-            key.
+            Better ergonomics where the client supports it: the tools are discoverable and the token
+            lives in a config file the model never reads. The tradeoff is that an MCP tool schema is
+            resident — it costs the far side context on every turn of their session, used or not, so
+            it is the upgrade rather than the starting point. Every client needs the same two facts
+            and differs only in what it calls the endpoint key.
           </p>
           <div className="bx-snippet">
             <div className="bx-snippet-head">

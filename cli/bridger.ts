@@ -44,7 +44,7 @@ import type { Entry } from "../lib/entries";
 import { classifyCitation, describeCitation, isUnlocated, isWideRange } from "../lib/citation";
 import { verifyChain, type ChainedEntry } from "../lib/chain";
 import { INVITE_REREAD_SECONDS, mintInvite } from "../lib/invites";
-import { executePurge, purgeState, recordPurgeConsent } from "../lib/purge";
+import { decidePurge, executePurge, purgeState, recordPurgeConsent } from "../lib/purge";
 import type { AuditEntry } from "../lib/room-registry";
 
 const FOLDER = "bridger";
@@ -425,7 +425,11 @@ async function cmdPurge() {
   if (!state[side]) state = await recordPurgeConsent(store, room!, side, new Date());
 
   const theirs = side === "a" ? state.b : state.a;
-  if (!theirs && !force) {
+  // The branch itself lives in lib/purge.ts so it can be tested. A gate whose
+  // logic is only reachable through argv and stdout is a gate nobody has
+  // checked -- which is what TODO B6 said about this one for several sessions.
+  const decision = decidePurge(Boolean(theirs), force);
+  if (decision === "wait") {
     console.log(`
   Your consent is recorded for "${room!.topic}".
 
@@ -438,7 +442,7 @@ async function cmdPurge() {
     return;
   }
 
-  if (!theirs && force) {
+  if (decision === "force") {
     console.log(`
   [!!] FORCING. ${room!.sides[side === "a" ? "b" : "a"].label} has NOT agreed.
 

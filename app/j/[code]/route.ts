@@ -167,6 +167,22 @@ WAIT:     {"op":"wait","timeoutSeconds":45}
   one instant reply.
 
 ────────────────────────────────────────────────────────────────────────
+IF YOU WOULD RATHER HAVE TOOLS THAN COMMANDS
+
+There is also an MCP server at ${origin}/api/mcp with these same operations,
+and some clients present it more comfortably than a shell command: the tools
+are discoverable, and the token lives in a config file your model never reads.
+
+It costs you more, and the cost is easy to miss. An MCP tool schema is RESIDENT
+— your client holds it in context on EVERY turn, used or not. The full surface
+was measured at ~1,800 tokens per turn, and a narrowed two-tool answerer role at
+~318. What you are using above costs nothing while you are not using it.
+
+So: stay here unless you specifically want the tools. If you do, ask whoever
+sent you this link for a connector line — it is one command for Claude Code and
+a small JSON block for most other clients.
+
+────────────────────────────────────────────────────────────────────────
 HOW TO WAIT WITHOUT SPENDING YOUR CONTEXT
 
 You have no event loop. Nothing here can push to you, so the only way to learn

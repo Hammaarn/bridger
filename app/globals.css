@@ -244,7 +244,7 @@ a:hover {
   border-radius: 999px;
   background: color-mix(in srgb, var(--ink-900) 82%, transparent);
   backdrop-filter: blur(8px);
-  font-family: var(--mono, ui-monospace, monospace);
+  font-family: var(--font-mono-stack);
   font-size: 11px;
   letter-spacing: 0.04em;
 }
@@ -1787,4 +1787,303 @@ input.bx-folder-name:focus {
     background: #fff;
     color: #000;
   }
+}
+
+
+/* ── the demonstration ───────────────────────────────────────────────
+   Lives in the band between the gate and the closing wave, which was empty
+   dark. A visitor who is convinced by the hero and has not yet decided to
+   paste a token has one question -- "what would I actually type" -- and this
+   is where it gets answered. Sized off the same 940px column as .gate-body so
+   the page keeps one measure rather than three. */
+
+.bx-demo {
+  position: relative;
+  width: 100%;
+  max-width: 940px;
+  margin: 0 auto;
+  padding: 8px 24px 96px;
+}
+
+.bx-demo-head {
+  max-width: 660px;
+  margin-bottom: 40px;
+}
+
+.bx-demo-head h2 {
+  margin: 14px 0 10px;
+  font-size: clamp(26px, 3.4vw, 38px);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.bx-demo-head .lede {
+  margin: 0;
+  max-width: 58ch;
+}
+
+.bx-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 28px;
+}
+
+.bx-steps > li {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--ink-800) 84%, transparent);
+  padding: 22px 22px 20px;
+}
+
+.bx-step-head {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.bx-step-n {
+  flex: 0 0 auto;
+  font-family: var(--font-mono-stack);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--wire-crest-solid, #f0c49c);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  padding: 6px 9px;
+  line-height: 1;
+}
+
+.bx-step-head h3 {
+  margin: 0 0 5px;
+  font-size: 17px;
+  letter-spacing: -0.01em;
+}
+
+.bx-step-head p {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 14px;
+  line-height: 1.55;
+  max-width: 62ch;
+}
+
+/* ── terminal blocks ─────────────────────────────────────────────────
+   The command is the deliverable here, so it gets the treatment a command
+   deserves: its own surface, a copy affordance, and horizontal scrolling
+   rather than wrapping -- a wrapped shell line reads as two commands. */
+
+.bx-term {
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--ink-900);
+  overflow: hidden;
+}
+
+.bx-term-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px 8px 12px;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in oklab, var(--ink-700) 60%, transparent);
+}
+
+.bx-term-dots {
+  display: inline-flex;
+  gap: 5px;
+}
+
+.bx-term-dots i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--line-strong);
+}
+
+.bx-term-label {
+  font-family: var(--font-mono-stack);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.bx-copy {
+  margin-left: auto;
+  font-family: var(--font-mono-stack);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 4px 9px;
+  cursor: pointer;
+}
+
+.bx-copy:hover {
+  color: var(--text);
+  border-color: var(--line-strong);
+}
+
+.bx-term pre {
+  margin: 0;
+  padding: 14px 16px;
+  overflow-x: auto;
+}
+
+.bx-term code {
+  display: block;
+  font-family: var(--font-mono-stack);
+  font-size: 13px;
+  line-height: 1.75;
+  color: var(--text);
+  white-space: pre;
+}
+
+.bx-returns {
+  display: grid;
+  gap: 4px;
+  margin: 12px 2px 0;
+  padding-left: 14px;
+  border-left: 2px solid var(--line-strong);
+}
+
+.bx-returns span {
+  font-family: var(--font-mono-stack);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-dim);
+}
+
+.bx-demo-note {
+  margin: 26px 0 0;
+  padding: 16px 18px;
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  color: var(--text-dim);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* ── check us, don't trust us ────────────────────────────────────────
+   The differentiator, and it is a real one: every property carries the command
+   that settles it, and the property that does NOT favour us is in the same
+   list rather than in a footnote. */
+
+.bx-verify {
+  margin-top: 64px;
+  padding-top: 44px;
+  border-top: 1px solid var(--line);
+}
+
+.bx-verify > header {
+  max-width: 620px;
+  margin-bottom: 30px;
+}
+
+.bx-verify h2 {
+  margin: 0 0 10px;
+  font-size: clamp(22px, 2.6vw, 30px);
+  letter-spacing: -0.02em;
+}
+
+.bx-verify > header p {
+  margin: 0;
+  color: var(--text-dim);
+  line-height: 1.6;
+}
+
+.bx-verify ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 24px;
+}
+
+.bx-verify h3 {
+  margin: 0 0 6px;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+}
+
+.bx-verify li > p {
+  margin: 0 0 12px;
+  color: var(--text-dim);
+  font-size: 14px;
+  line-height: 1.6;
+  max-width: 68ch;
+}
+
+.bx-against {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 18px 20px;
+  background: color-mix(in oklab, var(--ink-800) 60%, transparent);
+}
+
+.bx-against > p {
+  margin-bottom: 0 !important;
+}
+
+@media (max-width: 720px) {
+  .bx-demo {
+    padding-bottom: 64px;
+  }
+  .bx-step-head {
+    gap: 12px;
+  }
+  .bx-term code {
+    font-size: 12px;
+  }
+}
+
+/* ── the handoff block ───────────────────────────────────────────────
+   The first thing on the screen after a room is minted, and the only thing on
+   it that a partner actually needs. It used to be MCP-only here, which meant
+   the sole path we ever showed required a config file and a restart. */
+
+.bx-handoff {
+  margin: 26px 0 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 13px;
+  background: color-mix(in oklab, var(--ink-800) 88%, transparent);
+  overflow: hidden;
+}
+
+.bx-handoff-head {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 16px 18px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.bx-handoff-head h2 {
+  margin: 0 0 4px;
+  font-size: 16px;
+  letter-spacing: -0.01em;
+}
+
+.bx-handoff-head .fine {
+  margin: 0;
+  max-width: 54ch;
+}
+
+.bx-handoff-body {
+  margin: 0;
+  padding: 16px 18px 18px;
+  max-height: 340px;
+  overflow: auto;
+  font-family: var(--font-mono-stack);
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--text-dim);
+  white-space: pre-wrap;
+  word-break: break-word;
 }

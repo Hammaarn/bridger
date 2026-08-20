@@ -165,8 +165,35 @@ claude mcp add --transport http bridger \
 ```
 
 **Them** — the join line is the *entire* onboarding. No account, no repo access,
-no database credentials, and **no CLI**: they paste that one command and their
-Claude has the tools. That is the whole plug-and-play claim.
+no database credentials, and **no CLI**.
+
+> ### Which path to give a partner
+>
+> **Default to the flat transport.** One `POST /api/rpc` with a bearer token:
+> nothing to install, no config file, no restart, no per-vendor dialect, and
+> **zero standing cost** in their session — a shell command is billed when it
+> runs.
+>
+> ```bash
+> curl -s https://your-deploy.vercel.app/api/rpc \
+>   -H "Authorization: Bearer br_live_..." \
+>   -H "Content-Type: application/json" \
+>   -d '{"op":"ping"}'
+> ```
+>
+> `ping` returns every question waiting on them and everything new, in one call.
+>
+> **Offer MCP as the upgrade**, not the starting point. It is better ergonomics
+> where the client supports it — discoverable tools, and the token stays in a
+> file the model never reads — but a tool schema is RESIDENT: measured at ~1,800
+> tokens of standing context per turn for the full surface and ~318 for the
+> narrowed answerer role, spent whether or not they use it. The flat path spends
+> nothing while idle.
+>
+> This ordering was settled internally in S#276 and, until S#278, appeared in no
+> document a partner reads — every surface led with MCP. If you are wondering
+> why the docs below still open with the MCP command, that is why it is being
+> corrected outward from here.
 
 The CLI is optional, and only for materialising the local folder:
 
@@ -175,9 +202,17 @@ export BRIDGER_TOKEN=br_live_...
 npm run bridger -- pull        # writes the record into ./bridger/
 ```
 
-> **Not on npm yet.** `bridger` is not published, so the CLI currently means
-> cloning this repo and using `npm run bridger --`. A partner who only wants the
-> tools does not need it. Publishing is a v1.1 step, gated on checking the name.
+> **[!] `bridger` ON NPM IS SOMEBODY ELSE'S PACKAGE.** The name is taken — it
+> belongs to an unrelated socket.io bridging library, last published at 0.1.2 —
+> so **`npx bridger ...` fetches a stranger's code and runs it.** That exact
+> command was handed to partners in S#274 before anyone checked. Verified again
+> 2026-08-21 against the registry: `bridger` resolves, `@bridger/cli` is free
+> (404).
+>
+> The CLI therefore means cloning this repo and using `npm run bridger --`.
+> A partner who only wants to use the bridge does not need it at all. If it is
+> ever published it goes out under a scope, and the name is checked at publish
+> time rather than assumed.
 
 Tokens are shown **once**. Only `sha256(token)` is stored, so a dump of the
 registry cannot call the bridge — and we genuinely cannot recover a lost token.
