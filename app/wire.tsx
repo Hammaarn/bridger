@@ -86,15 +86,80 @@ interface Packet {
 }
 
 /**
- * The sea state. Four components: one dominant diagonal, three crossing it.
- * `dx`/`dz` are a direction vector, `k` the wave number, `sp` relative speed.
+ * The sea state. Six components: one dominant diagonal swell, the rest crossing
+ * it at other angles and much shorter wavelengths. `dx`/`dz` are a direction
+ * vector, `k` the wave number, `sp` relative speed.
  */
 const COMPONENTS = [
-  { amp: 1.0, dx: 0.72, dz: 0.69, k: 0.62, sp: 1.0 },
-  { amp: 0.52, dx: 0.94, dz: -0.34, k: 1.05, sp: 1.31 },
-  { amp: 0.34, dx: -0.3, dz: 0.95, k: 1.48, sp: 0.83 },
-  { amp: 0.19, dx: 0.55, dz: 0.84, k: 2.6, sp: 1.72 },
+  { amp: 1.0, dx: 0.72, dz: 0.69, k: 0.55, sp: 1.0 },
+  { amp: 0.58, dx: 0.94, dz: -0.34, k: 1.05, sp: 1.31 },
+  { amp: 0.4, dx: -0.3, dz: 0.95, k: 1.62, sp: 0.83 },
+  { amp: 0.26, dx: 0.55, dz: 0.84, k: 2.7, sp: 1.72 },
+  { amp: 0.17, dx: -0.86, dz: 0.51, k: 4.1, sp: 2.15 },
+  { amp: 0.11, dx: 0.38, dz: -0.93, k: 6.3, sp: 2.9 },
 ];
+
+/**
+ * PERLIN NOISE — the thing sine superposition cannot do.
+ *
+ * Summed sines get you an irregular-looking surface, but every crest is still a
+ * smooth arc and the irregularity is periodic if you watch long enough. Real
+ * water has structure at every scale, and the standard way to get that is
+ * gradient noise summed over octaves (fBm). React Bits' own `Waves` background
+ * — the site Erik pointed at — uses `perlin2` for exactly this reason, which is
+ * the borrow here: the technique, not the code.
+ *
+ * Seeded from a constant rather than Math.random, so the sea looks identical on
+ * every load and across a resize. A field that reshuffles itself when the window
+ * changes width is a field the reader notices.
+ */
+const PERM = (() => {
+  const p = new Uint8Array(512);
+  const base = new Uint8Array(256);
+  for (let i = 0; i < 256; i++) base[i] = i;
+  // xorshift, fixed seed. Deterministic shuffle.
+  let s = 0x9e3779b9;
+  for (let i = 255; i > 0; i--) {
+    s ^= s << 13;
+    s ^= s >>> 17;
+    s ^= s << 5;
+    const j = (s >>> 0) % (i + 1);
+    const t = base[i];
+    base[i] = base[j];
+    base[j] = t;
+  }
+  for (let i = 0; i < 512; i++) p[i] = base[i & 255];
+  return p;
+})();
+
+const fade = (t: number) => t * t * t * (t * (t * 6 - 15) + 10);
+
+function perlin2(x: number, y: number): number {
+  const xi = Math.floor(x) & 255;
+  const yi = Math.floor(y) & 255;
+  const xf = x - Math.floor(x);
+  const yf = y - Math.floor(y);
+  const u = fade(xf);
+  const v = fade(yf);
+
+  const grad = (hash: number, gx: number, gy: number) => {
+    switch (hash & 3) {
+      case 0: return gx + gy;
+      case 1: return -gx + gy;
+      case 2: return gx - gy;
+      default: return -gx - gy;
+    }
+  };
+
+  const aa = PERM[PERM[xi] + yi];
+  const ab = PERM[PERM[xi] + yi + 1];
+  const ba = PERM[PERM[xi + 1] + yi];
+  const bb = PERM[PERM[xi + 1] + yi + 1];
+
+  const x1 = grad(aa, xf, yf) + u * (grad(ba, xf - 1, yf) - grad(aa, xf, yf));
+  const x2 = grad(ab, xf, yf - 1) + u * (grad(bb, xf - 1, yf - 1) - grad(ab, xf, yf - 1));
+  return x1 + v * (x2 - x1);
+}
 
 const Z_NEAR = 1.0;
 const Z_FAR = 18;
@@ -253,12 +318,32 @@ export default function Wire({
         packets.current = packets.current.filter((q) => (t - q.born) / 3000 <= 1);
       }
 
+      // Noise scroll. The field drifts diagonally, so detail travels with the
+      // swell rather than sitting still underneath it.
+      const nx = time * 0.055;
+      const nz = time * 0.038;
+
       for (const p of pts) {
         let y = 0;
         for (const c of COMPONENTS) {
           y += c.amp * Math.sin((p.x * c.dx + p.z * c.dz) * c.k - base * c.sp);
         }
-        y *= amplitude;
+
+        // Two octaves of fBm on top of the swell. This is what puts structure
+        // between the crests — chop, texture, the parts of a real sea that are
+        // not any single wave.
+        const n1 = perlin2(p.x * 0.42 + nx, p.z * 0.42 + nz);
+        const n2 = perlin2(p.x * 0.95 - nx * 1.7, p.z * 0.95 + nz * 1.3);
+        y += n1 * 0.85 + n2 * 0.42;
+
+        // WAVE GROUPS. A very slow, very large-scale noise field modulating the
+        // amplitude, so some stretches of water are calm and others are rough
+        // and the boundary moves. Without this the sea is uniformly choppy
+        // everywhere, which is the one thing an ocean never is — and it is what
+        // "randomized height and width" actually describes.
+        const env = 0.42 + 0.78 * (perlin2(p.x * 0.07 + time * 0.014, p.z * 0.07) * 0.5 + 0.5);
+
+        y *= amplitude * env;
 
         if (swellR > 0) {
           const d = Math.abs(p.z - swellR);
