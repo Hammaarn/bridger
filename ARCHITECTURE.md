@@ -484,6 +484,86 @@ unreviewable by `grep`, in the one file whose entire purpose is being auditable.
 `room-text.ts`) and build hostile test fixtures with `String.fromCodePoint`. A
 regex of invisible characters cannot be reviewed by anyone, including its author.
 
+### 38. The wire is a 3D projection, and every "2D field" fix is wasted work (S#277)
+
+`app/wire.tsx` is not a dot lattice with displacement. It is a horizontal plane
+receding to a horizon, with points projected through a pinhole camera:
+
+    s  = focal / z
+    sx = cx + x * s
+    sy = horizonY + (camY - y) * s
+
+Four independent things carry the depth: rows compressing toward the horizon,
+size falling off as `1/z`, distance fog, and the wave's SCREEN amplitude
+shrinking with distance so near crests are tall and far ones are a ripple.
+
+The consequence for anyone editing it: **`band` is `[horizon, near]`, not a
+region to fill, and the plane spans the full width at every depth by
+construction.** The closing band on the gate was once "chopped off at the
+bottom-left" precisely because it was a 2D field whose coverage depended on its
+lattice rather than on the viewport.
+
+Three earlier versions were flat and none of them could be tuned into this one.
+If it looks wrong, ask what the camera is doing before changing a constant.
+
+### 39. Rows are spaced in SCREEN space, because even-in-z leaves holes at the front (S#277)
+
+Screen row spacing under perspective goes as `camY*focal/z^2`. Spacing rows
+evenly in `z` — the obvious way — put the nearest rows ~120px apart while the
+horizon stayed solid: dense at the back, gappy at the front. Rows are now placed
+evenly in screen space and the depth solved by inverting the projection
+(`z = camY*focal/offset`), with a mild exponent retaining some horizon density.
+
+**`pitch` controls COLUMNS.** Lowering it cannot fix a foreground gap, which is
+exactly the wrong turn this note exists to prevent.
+
+### 40. Per-frame `rgba()` strings, not fill count, are what costs frames (S#277)
+
+Adding one halo rect per point took the hero from 68fps to 37. The extra
+`fillRect` was not the cost — composing two `rgba()` strings per point per frame
+was, at roughly 40k allocations and 40k CSS colour parses per frame. A point's
+alpha is `intensity * fog` and both are fixed at build, so the string never
+changes; precomputing `fill` and `halo` per point restored 60fps with the halos
+still in place.
+
+The general rule for this canvas: **anything that does not change between frames
+belongs in `build()`.** `getComputedStyle` is already there for the same reason.
+
+### 41. The canvas resolves its palette in `build()`, so a theme flip needs a listener (S#277)
+
+Colours are read from CSS custom properties inside `build()`, and `build()` runs
+on resize. Without an explicit `prefers-color-scheme` listener, toggling the OS
+theme left the field painted in the previous scheme until something happened to
+resize the window. Invisible when every dot was one grey; obvious once each dot
+carried its own hue.
+
+The additive-glow switch is decided from the DOT COLOURS' luminance rather than
+from a media query, so it follows whatever the page's tokens actually are.
+Additive compositing on a light surface paints dark dots toward the paper and
+erases the field.
+
+### 42. Two canvases on the gate, and both are idle most of the time (S#277)
+
+The hero and the closing band are separate `Wire` instances. Each stops on
+`visibilitychange` and on leaving the viewport via `IntersectionObserver`, so the
+closing band costs nothing until it is scrolled to.
+
+**This produces a screenshot artifact that looks exactly like a bug:** a
+`fullPage` capture keeps the original viewport, so the closing band never
+intersects, never starts, and captures blank. Verified by re-capturing at a
+1900px viewport. Separately, Chrome CLI `--virtual-time-budget` captured the hero
+blank while a direct canvas probe found 308,233 non-zero pixels — use puppeteer
+for anything involving this component.
+
+### 43. Fonts are a BUILD-time network dependency now (S#277)
+
+`next/font/google` downloads Instrument Sans and Azeret Mono at build and
+self-hosts them, so there is no runtime third-party request — which is the point,
+on a page read by people deciding whether this domain deserves a credential. The
+trade is that **the build now needs network access to Google Fonts.** An offline
+or network-restricted build will fail here, and the fix is `next/font/local` with
+the files vendored.
+
 ## Invariants — break these and something silent goes wrong
 
 1. **No LLM call, ever.** The moment a model call enters this codebase, the cost
