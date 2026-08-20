@@ -5,6 +5,63 @@ Append-only, newest first. **DECISIONS wins on direction** — where this file a
 
 ---
 
+## 2026-08-21 — S#278 — THE FLAT TRANSPORT IS THE DEFAULT WE RECOMMEND
+
+**Source:** Erik, standing direction since S#275 (*"zero install, zero setup"*),
+argued out internally in S#276, and never written into a partner-facing document
+until now. Erik S#278: *"focus on making this so extremely trustworthy and
+verified so we can actually onboard users properly."*
+
+**Decision.** A partner is offered `POST /api/rpc` first, everywhere. MCP is
+presented as an optional upgrade for clients that manage tools well.
+
+**Why.** An MCP tool schema is RESIDENT: the client holds it in the caller's
+context on every turn, used or not — measured at ~1,800 tokens for the full
+surface and ~318 for the narrowed answerer role. The flat transport has no
+standing cost, no config file, no restart and no per-vendor dialect. Bridger
+calls no model, so every token it costs is billed to somebody else; a default
+that spends their context while idle is the wrong default.
+
+**Reverses** the implicit ordering in every surface up to S#277, where README,
+the join document and the token box each led with MCP and the flat path was
+described in its own source file as *"a prototype for Erik to run"*.
+
+**Code impact** (grep-verified, not recalled): `app/page.tsx` (token box now
+opens with a paste block, MCP moved into a closed `<details>`), `app/demo.tsx`
+(new, every command is `curl`), `app/j/[code]/route.ts` (the join document now
+says MCP exists and what it costs — it previously never mentioned it, so a
+partner who would have benefited never learned it was an option), `README.md`.
+
+**Doc impact:** README gained a "which path to give a partner" block. STATUS and
+TODO updated below.
+
+---
+
+## 2026-08-21 — S#278 — EVERY TRUST CLAIM CARRIES THE COMMAND THAT CHECKS IT
+
+**Source:** Erik S#278, after looking at buzzai.cc — an AI gateway, not a
+competitor, but a good study: it asserts strong privacy properties on its
+landing page and gives a reader no way to check any of them.
+
+**Decision.** Bridger states no trust property on the page without the command
+that settles it, and states the property that does NOT favour us in the same
+list rather than in a footnote.
+
+**Why.** The product IS verifiable provenance. A page that asked for trust while
+asserting unverifiable things would contradict the thing it sells.
+
+**Code impact:** `app/demo.tsx` "Don't trust this page. Check it." block.
+
+**And one claim was corrected because it was false.** The gate card said *"Only
+a hash of your token is stored"*. `lib/invites.ts:124` holds a minted token in
+PLAINTEXT for the re-read window, and `/api/about` already disclosed this in
+`cannotVerify` — so the page a partner reads was making a stronger claim than
+the API doc admitted. Now stated on the page, with the reason. (The token box's
+own note is unaffected: browser-minted tokens never pass through an invite
+record, so only hashes exist for those.)
+
+---
+
 ## 2026-08-20 -- S#277 -- THE DESIGN, AND THE LESSON THAT COST FOUR REWRITES
 
 **DIRECTION (Erik): "full creative freedom, push the envelope as hard as you

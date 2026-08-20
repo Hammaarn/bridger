@@ -40,7 +40,23 @@ Both were worth doing. Neither was this.
 
 # A. LEFT TO BUILD
 
-## A1. [!!] ONBOARDING — the paste path is not the recommended path anywhere
+## A1. ~~ONBOARDING — the paste path is not the recommended path anywhere~~ — DONE S#278
+
+Closed. The flat path is now the default in `README.md` (a "which path to give a
+partner" block), in the token box (which opens with a copyable handoff block
+written for the far side's AI, with MCP moved into a closed `<details>`), and in
+`app/demo.tsx`. The join document now names MCP, says what it costs, and tells
+the reader to stay on the flat path unless they specifically want tools — the
+gap where "both directions of that choice are hidden" is closed in both
+directions. `DECISIONS.md` 2026-08-21.
+
+**Verified by driving it, not by reading it:** puppeteer clicked through
+create-room on a file store and photographed the minted screen; the handoff
+block renders, MCP is collapsed, zero page errors.
+
+<details><summary>the original problem statement</summary>
+
+## A1 (original) — ONBOARDING
 
 The argument was made internally in S#276, agreed, and **never written into a
 single document a partner reads**: a resident MCP schema costs a far side ~1,800
@@ -57,16 +73,23 @@ highest-leverage item on this list.
 who would benefit from it never learns it is an option. Both directions of that
 choice are currently hidden.
 
+</details>
+
 ## A2. `WASTE_BUDGET_BYTES` 12000 -> 18000 — one constant, Erik's call
 
 Measured in S#276: the budget buys ~5.5 hours of continuous blocking against the
 ~8 an overnight listener needs. Barely moves the spinner case. Open since S#276.
 
-## A3. Publish the CLI, or stop implying it is published
+## A3. ~~Publish the CLI, or stop implying it is published~~ — RESOLVED S#278
 
-`README.md` currently says it is not. `npx bridger join ...` was handed to
-partners in S#274 and would have fetched an unrelated package. Check the npm
-name before either. Not cosmetic — that bug shipped once.
+**The name is taken.** `bridger` on npm is an unrelated socket.io bridging
+library (latest 0.1.2), verified against the registry 2026-08-21 — so
+`npx bridger ...`, the command handed to partners in S#274, **runs a stranger's
+code**. `@bridger/cli` returns 404 and is free.
+
+README now says this outright instead of the softer "not on npm yet". Closed as
+DOCUMENTED, not as published: publishing claims a public name irreversibly and
+is Erik's call (shipping-quality#3), and the name is parked anyway.
 
 ## A4. `vercel git connect` — needs Erik in a browser
 
@@ -88,8 +111,12 @@ GitHub", on the page whose job is to be trusted.
 
 - Fix `vercel env add … preview`, or record that preview is unused and drop the
   vars.
-- Delete the two test entries in the live room (`JMS-Q-001` and its answer) once
-  it stops being a demo.
+- ~~Delete the two test entries in the live room.~~ **CANNOT BE DONE, and the
+  item should not be re-carried.** The record is append-only and hash-chained;
+  there is no delete operation anywhere in `lib/operations.ts` or `/api/rpc`,
+  and adding one would break the property the product is built on. The only
+  removal that exists is `purge`, which destroys the whole room — and that room
+  is the open Trigvanta bridge (B1). The demo entries are part of the record.
 - Room `d437fff5b423` (Bridger x Antigravity) holds a contract and three seeded
   questions and is waiting on a fresh invite code — the S#277 one expired
   unredeemed. `npm run bridger -- invite --side b --ttl-minutes 60 --token-days 7`.
@@ -150,9 +177,12 @@ was over-broad. One data point is not generalisation. Different question shape.
 
 ## B6. Standing gaps carried from earlier sessions
 
-- The purge CONSENT GATE in the CLI is still not unit-tested. `purgeState`,
-  `recordPurgeConsent` and `executePurge` all are, and are ablation-proven;
-  `cmdPurge`'s refusal-without-consent is not.
+- ~~The purge CONSENT GATE in the CLI is not unit-tested.~~ **DONE S#278.** The
+  branch was untestable where it lived: inside a CLI function reading `argv` and
+  writing to stdout. It is now `decidePurge()` in `lib/purge.ts`, pure, with
+  `cmdPurge` calling it — so the tested code is the code that runs. Five cases,
+  including that `--force` must NOT re-label a consented purge as forced.
+  Ablation-proven: gate broken -> red, restored -> 296/296.
 - Upstash free-tier ceiling vs expected volume: unchecked.
 - `maxDuration` for `bridger_wait` on this Vercel plan: unconfirmed. The tool
   self-caps at 45s so it degrades rather than breaks.

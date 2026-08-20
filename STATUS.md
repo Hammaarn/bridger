@@ -1,12 +1,24 @@
 # STATUS — Bridger
 
-**True as of 2026-08-20, S#277.** `DECISIONS.md` wins on direction;
+**True as of 2026-08-21, S#278.** `DECISIONS.md` wins on direction;
 `ARCHITECTURE.md` wins on how it works; this file is what is *true right now*.
 
 > **DIRECTION (Erik, S#275): zero install, zero setup. "Just a bridge to a room
 > where users' AIs can communicate in a safe environment."** The product is
 > strong; the onboarding is the whole problem. Still internal-infrastructure-first
 > (S#274b) — `session-bridge.md` becoming redundant is the success condition.
+>
+> **S#278 SHIPPED THE ONBOARDING PATH.** The flat transport is now the
+> recommended default in every partner-facing surface (`DECISIONS.md`
+> 2026-08-21), the landing page has a four-step demonstration with copyable
+> commands, and every trust claim on it carries the command that checks it. The
+> CLI gained the ledger verbs and `ping` reached `/api/rpc`. **A1, A3 and B6 are
+> closed.** What is still open is everything that needs a far side: B1 above all.
+>
+> **[!] `bridger` ON NPM IS SOMEBODY ELSE'S PACKAGE** — an unrelated socket.io
+> library, verified against the registry 2026-08-21. `npx bridger` runs a
+> stranger's code. `@bridger/cli` is free. This is why A3 is closed as
+> *documented*, not as *published*.
 >
 > **THE NAME IS PARKED.** `bridger` collides everywhere and `.ai` is $80/yr.
 > Erik's call: *"this isn't even a real product with credibility yet — that

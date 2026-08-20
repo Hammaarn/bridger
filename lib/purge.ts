@@ -127,3 +127,30 @@ export async function executePurge(store: Store, room: RoomRecord): Promise<stri
   }
   return removed;
 }
+
+/**
+ * WHAT THE CLI DOES WITH TWO CONSENTS AND A FLAG.
+ *
+ * Extracted from `cmdPurge` so it can be tested at all. `purgeState`,
+ * `recordPurgeConsent` and `executePurge` were each covered; the DECISION that
+ * sits between them was not, because it lived inside a CLI command that reads
+ * `process.argv`, talks to a store and writes to stdout. That is the one branch
+ * standing between a mistyped flag and a deleted shared record, and it was the
+ * only part of the destructive path with no test on it.
+ *
+ * Pure on purpose: no store, no argv, no I/O. The caller keeps the printing.
+ */
+export type PurgeDecision = "wait" | "force" | "proceed";
+
+export function decidePurge(theirConsent: boolean, force: boolean): PurgeDecision {
+  // Consent from the other side is sufficient on its own. `--force` is not an
+  // escalation on top of it; it is only the override for its ABSENCE, so it
+  // must not change the outcome when consent is already there.
+  if (theirConsent) return "proceed";
+  return force ? "force" : "wait";
+}
+
+/** Whether a decision actually deletes anything. The reason `wait` exists. */
+export function purgeDeletes(d: PurgeDecision): boolean {
+  return d !== "wait";
+}
