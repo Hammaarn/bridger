@@ -487,7 +487,7 @@ input.bx-bad {
   z-index: 1;
   background:
     radial-gradient(46% 30% at 50% 32%, var(--ink-900) 0%, color-mix(in oklab, var(--ink-900) 72%, transparent) 62%, transparent 100%),
-    linear-gradient(to bottom, var(--ink-900) 0%, transparent 22%);
+    linear-gradient(to bottom, var(--ink-900) 0%, transparent 22%, transparent 88%, var(--ink-900) 100%);
   pointer-events: none;
 }
 

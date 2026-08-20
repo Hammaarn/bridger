@@ -79,6 +79,17 @@ interface Point {
   fog: number;
   scale: number;
   rgb: string;
+  /**
+   * Fully-formed `rgba(...)` strings, built once.
+   *
+   * A point's alpha is `intensity * fog`, and both are fixed at build — so the
+   * colour string never changes between frames. Composing it in the draw loop
+   * meant ~40k string allocations AND ~40k CSS colour parses per frame once the
+   * halo pass doubled the fills, which measured 37fps. Assigning a cached string
+   * is close to free. This was the entire cost; the extra rect was not.
+   */
+  fill: string;
+  halo: string;
 }
 
 interface Packet {
@@ -205,6 +216,15 @@ export default function Wire({
 
     let dotColor = "255,255,255";
     let crestColor = "255,255,255";
+    /**
+     * Whether to bloom additively.
+     *
+     * Decided from the DOT COLOURS rather than from a media query, so it follows
+     * whatever the page's tokens actually are instead of assuming the OS setting
+     * is the truth. Additive compositing on a light background washes the dots
+     * out toward invisible, so the glow is a dark-surface effect only.
+     */
+    let glow = true;
     let colA: [number, number, number] = [192, 208, 230];
     let colB: [number, number, number] = [192, 208, 230];
 
@@ -220,6 +240,8 @@ export default function Wire({
       const neutral = triplet(dotColor, [192, 208, 230]);
       colA = triplet(s.getPropertyValue("--wire-a").trim(), neutral);
       colB = triplet(s.getPropertyValue("--wire-b").trim(), neutral);
+      const lumOf = (c: [number, number, number]) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+      glow = (lumOf(colA) + lumOf(colB)) / 2 > 128;
     };
 
     const build = () => {
@@ -239,21 +261,34 @@ export default function Wire({
       camY = 1.0;
       focal = (h * drop * Z_NEAR) / camY;
 
-      const cols = Math.min(300, Math.max(24, Math.round(w / pitch)));
-      const rows = Math.min(110, Math.max(14, Math.round((h * drop) / (pitch * 1.5))));
+      const cols = Math.min(340, Math.max(24, Math.round(w / pitch)));
+      const rows = Math.min(150, Math.max(14, Math.round((h * drop) / (pitch * 1.15))));
+
+      // Rows are placed evenly in SCREEN space and the depth is then solved for,
+      // rather than spaced evenly in z.
+      //
+      // Linear-in-z was the first version and it is why the foreground had holes
+      // in it. Screen row spacing goes as camY*focal/z², so with Z_FAR/Z_NEAR=18
+      // the nearest rows landed ~120px apart while the horizon was solid — dense
+      // at the back, gappy at the front, which is the opposite of a compact
+      // waveform. Inverting the projection (z = camY*focal/offset) bounds the
+      // near gap by construction. The exponent keeps a little extra density at
+      // the horizon so it still reads as receding rather than as a flat grid.
+      const offNear = camY * focal / Z_NEAR;
+      const offFar = camY * focal / Z_FAR;
+      const ROW_BIAS = 1.25;
 
       pts = [];
       for (let r = 0; r <= rows; r++) {
-        // Linear in z, so the compression of rows toward the horizon is the
-        // projection's doing rather than something faked in the distribution.
-        const zBase = Z_NEAR + (r / rows) * (Z_FAR - Z_NEAR);
+        const off = offFar + (offNear - offFar) * Math.pow(r / rows, ROW_BIAS);
+        const zBase = (camY * focal) / Math.max(0.0001, off);
         for (let c = 0; c <= cols; c++) {
           const seed = Math.sin(r * 12.9898 + c * 78.233) * 43758.5453;
           const j = seed - Math.floor(seed);
           const seed2 = Math.sin(r * 39.3467 + c * 11.135) * 24634.6345;
           const j2 = seed2 - Math.floor(seed2);
 
-          const z = zBase + (j2 - 0.5) * ((Z_FAR - Z_NEAR) / rows) * 0.9;
+          const z = zBase * (1 + (j2 - 0.5) * 0.055);
           if (z <= Z_NEAR * 0.9) continue;
 
           // Each ROW is spread across the screen width AT ITS OWN DEPTH, rather
@@ -285,12 +320,16 @@ export default function Wire({
           const lum = 0.82 + j * 0.4;
           const mix = (a: number, b: number) => Math.round(Math.min(255, (a + (b - a) * m) * lum));
 
+          const rgb = `${mix(colA[0], colB[0])},${mix(colA[1], colB[1])},${mix(colA[2], colB[2])}`;
+          const a = intensity * fog;
           pts.push({
             x,
             z,
             fog,
             scale: 0.8 + j * 0.45,
-            rgb: `${mix(colA[0], colB[0])},${mix(colA[1], colB[1])},${mix(colA[2], colB[2])}`,
+            rgb,
+            fill: `rgba(${rgb},${a.toFixed(3)})`,
+            halo: `rgba(${rgb},${(a * 0.16).toFixed(3)})`,
           });
         }
       }
@@ -301,6 +340,10 @@ export default function Wire({
 
     const draw = (t: number) => {
       ctx.clearRect(0, 0, w, h);
+      // Additive on dark, normal on light. Light mode paints DARK dots on paper,
+      // and additive compositing there lightens them toward the background —
+      // the glow would erase the field instead of intensifying it.
+      ctx.globalCompositeOperation = glow ? "lighter" : "source-over";
       const time = (t / 1000) * (reverse ? -1 : 1);
       const base = (time / period) * Math.PI * 2;
       const cx = w / 2;
@@ -362,14 +405,34 @@ export default function Wire({
         // Size straight off the projection, so nearer points really are bigger.
         const size = Math.max(0.7, Math.min(3.2, s * 0.017 * p.scale));
 
+        // The only per-frame string work left, and it runs for a thin ring of
+        // points during the ~3 seconds after a real arrival.
+        let fill = p.fill;
         if (swellR > 0 && Math.abs(p.z - swellR) < 0.9) {
           const f = 1 - Math.abs(p.z - swellR) / 0.9;
-          ctx.fillStyle = `rgba(${crestColor},${Math.min(0.95, alpha + f * 0.7)})`;
-        } else {
-          ctx.fillStyle = `rgba(${p.rgb},${alpha})`;
+          fill = `rgba(${crestColor},${Math.min(0.95, alpha + f * 0.7)})`;
         }
+
+        // THE NEON. A soft halo behind the core, drawn only on dark surfaces and
+        // only for points near enough to be worth it.
+        //
+        // Deliberately not `ctx.shadowBlur`: canvas shadows are re-rasterised per
+        // draw call and would cost far more than the whole rest of this loop. A
+        // second, larger, much fainter rect under additive compositing gets the
+        // same read for one extra fill — and because it IS additive, dense parts
+        // of a crest bloom where the halos overlap, which is where the glow
+        // actually comes from rather than from any single point.
+        if (glow && size > 1.05) {
+          const hs = size * 2.9;
+          ctx.fillStyle = p.halo;
+          ctx.fillRect(sx - (hs - size) / 2, sy - (hs - size) / 2, hs, hs);
+        }
+
+        ctx.fillStyle = fill;
         ctx.fillRect(sx, sy, size, size);
       }
+
+      ctx.globalCompositeOperation = "source-over";
     };
 
     const loop = (t: number) => {
