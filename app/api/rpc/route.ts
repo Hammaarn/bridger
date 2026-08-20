@@ -40,6 +40,7 @@ import {
   opAsk,
   opContract,
   opDecide,
+  opPing,
   opPost,
   opPurge,
   opRead,
@@ -66,6 +67,22 @@ const OPS = {
   status: {
     schema: z.object({}),
     run: (ctx: OpContext, a: Record<string, never>) => opStatus(ctx),
+  },
+  /**
+   * THE CHEAPEST VERB IN THE SYSTEM, and it was unreachable from here.
+   *
+   * `ping` collapses status + read + wait into one round trip, and it existed
+   * only on MCP -- so the transport we want to RECOMMEND could not reach the
+   * operation that costs a partner least. A far side on the flat path had to
+   * spend three calls to learn what one returns, which is the exact cost this
+   * op was built to remove.
+   *
+   * Same handler, same containment, same idle brake. The divergence was an
+   * omission, not a decision.
+   */
+  ping: {
+    schema: z.object({}),
+    run: (ctx: OpContext, a: Record<string, never>) => opPing(ctx),
   },
   read: {
     schema: z.object({
