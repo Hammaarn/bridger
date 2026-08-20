@@ -1,6 +1,6 @@
 # STATUS — Bridger
 
-**True as of 2026-08-18, S#276.** `DECISIONS.md` wins on direction;
+**True as of 2026-08-20, S#277.** `DECISIONS.md` wins on direction;
 `ARCHITECTURE.md` wins on how it works; this file is what is *true right now*.
 
 > **DIRECTION (Erik, S#275): zero install, zero setup. "Just a bridge to a room
@@ -14,6 +14,69 @@
 > Candidates checked and free at the time: `trycrossing.com` $11.25 ·
 > `crossing.team` $7.99 · `crossing.dev` $97.90 · `bothsides.dev` $9.99.
 > Rejected with reasons in `DECISIONS.md` 2026-08-17.
+
+---
+
+## S#277 — THE DESIGN. Nothing about the protocol moved.
+
+**Prod runs `94de8d4`.** Eight commits, all visual. No route, no tool, no limit,
+no role and no storage key changed; 291/291 the whole way. If you are here for
+protocol behaviour, skip to the S#276 block — it is still current.
+
+**The system is "the wire"** — `app/wire.tsx` plus a rewritten `app/globals.css`.
+The register is INSTRUMENT (oscilloscope, flight recorder), chosen because the
+content is hashes, citations and tamper-evidence. Colour means exactly one thing:
+`--seal` is spent on PROVENANCE and nowhere else. The one exception is the dot
+field, whose points are spread between the two SIDES' hues, so the wave is
+literally the two parties mixed.
+
+**The signature is a 3D ocean in perspective.** A plane receding to a horizon,
+points projected through a pinhole camera, height = six sine components plus two
+octaves of Perlin fBm plus a slow noise envelope that makes some stretches calm
+and others rough. It took FOUR structural attempts; the first three were 2D and
+no amount of tuning could have worked. That is recorded in the file's docstring
+and in `DECISIONS.md` 2026-08-20, because the failure mode generalises.
+
+**Also shipped:** a nav with the GitHub mark (inline SVG — that link is the whole
+trust argument and must not be able to fail to load); the conversation feed drawn
+as the hash CHAIN it already is; `copy for your AI`, which puts the whole record
+on the clipboard in the format a model reads best; and the lower section given
+real material after Erik called it "unalive".
+
+**One real bug was fixed on the way, and it was on the page whose entire job is
+to be trusted:** the gate claimed *"tamper-evidence is not built yet"* while
+`lib/chain.ts` had been merged since S#275. Exactly the staleness `VERIFY.md`
+warns about. Two others: `input:not([type])` outranked `.bx-folder-name`, so
+every folder heading in the record tree rendered as a 44px form field; and
+light-mode `--text-faint` measured 4.34:1 against an AA claim written into the
+stylesheet's own docstring.
+
+**Measured, not asserted:** contrast **20/20 AA** in both schemes
+(`.local/s277-contrast.mjs`), **60.6fps** on a 3-second rAF count with ~20k
+points and additive halos, and `prefers-reduced-motion` proven to STOP the
+animation with a moving control proving the test can detect motion at all.
+
+**Two capture traps that cost real time — do not chase them again:**
+1. A `fullPage` puppeteer screenshot keeps the ORIGINAL viewport, so the closing
+   band's canvas never intersects and its IntersectionObserver correctly never
+   starts it. It captures blank. That is the battery guard working.
+2. Chrome CLI with `--virtual-time-budget` captured the hero completely blank
+   while a direct canvas probe found 308,233 non-zero pixels. Use puppeteer.
+
+**Fonts are now a build-time dependency.** `next/font/google` self-hosts
+Instrument Sans + Azeret Mono at build. No runtime third-party request — but the
+BUILD now needs network access to Google Fonts.
+
+### Design state — NOT verified
+- **Nobody has looked at this on a real monitor.** Every judgement in this block
+  came from screenshots and measurements. Erik has not yet reviewed the shipped
+  version at full size.
+- **The token box is still the one surface never seen.** Reaching it needs a real
+  mint through the UI, which spends live quota. Restyled and typechecked only.
+- **Room view under a LONG record.** Every capture used a 4-entry room. Panel
+  scrolling, the chain spine over 100+ entries, and the tree at length are
+  unexercised.
+- **No real device.** No phone, no Safari, no Firefox. Chrome headless only.
 
 ---
 

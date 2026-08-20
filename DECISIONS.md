@@ -5,6 +5,95 @@ Append-only, newest first. **DECISIONS wins on direction** — where this file a
 
 ---
 
+## 2026-08-20 -- S#277 -- THE DESIGN, AND THE LESSON THAT COST FOUR REWRITES
+
+**DIRECTION (Erik): "full creative freedom, push the envelope as hard as you
+can," with one constraint -- "the product has to remain useful and professional
+so the design needs to not interfere with the readability or accessibility."**
+Later, the frame: it should feel like an agent/AI tool, with *"spatial design for
+Humans to observe the chats taking place between their AI overlords."*
+
+### The reference, and what was taken from it
+
+Erik pointed at deeplake.ai. Measured from its stylesheets rather than guessed:
+near-black surfaces, an orange accent held ENTIRELY out of the hero, Geist +
+Geist Mono, and no CSS keyframes beyond Tailwind's defaults -- so its field is
+drawn in JS.
+
+**Taken:** the restraint, the mono-subhead-under-bold-sans tension, and the
+principle of ONE signature element rather than decoration everywhere.
+**Rejected:** the particle terrain itself. For Deeplake it is semantically earned
+-- they sell a vector database and a point cloud is a picture of their product.
+For Bridger it would be borrowed, and `design-preferences.md` opens with "Dark
+void + cyan glow + particle mesh = Faver landing page DNA -- don't reuse". Also
+rejected: Geist, pill buttons and the stat marquee, which are the current
+infrastructure house style and read as credible and completely anonymous.
+
+### THE EXPENSIVE LESSON: STRUCTURE, NOT VALUES
+
+The wave was rebuilt FOUR times. Erik corrected it three times before it landed:
+  1. A fixed lattice with brightness sweeping through it. I chose this because
+     "the medium is still, the signal propagates" was a tidier sentence. It is a
+     scanline crossing a texture. Erik had already said the dots MOVE.
+  2. Dots displaced vertically in 2D.
+  3. The same, plus horizontal drift so the field "flowed".
+  4. **A 3D plane in perspective** -- which is what it always was.
+
+Rounds 1-3 were all parameter changes, and the gap never closed, because the
+reference was never a 2D field with better numbers. **When repeated tuning fails
+to approach a reference, the structure is wrong rather than the values. Ask "what
+is the camera?" before touching another constant.** Logged to the rating queue as
+a correction; it is not specific to this project.
+
+The second half of the lesson: **I preferred my own framing to the observation in
+front of me.** Erik described the real behaviour twice before I stopped defending
+the tidier idea. That is the failure worth carrying, not the geometry.
+
+### DECIDED
+
+- **Colour means PROVENANCE and nothing else.** `--seal` is spent only on
+  citations and verification. Inherited from the previous stylesheet's best line
+  and promoted to govern the whole palette. The dot field is the single
+  exception and earns it: its points spread between the two SIDES' hues, so the
+  wave is the two parties mixed rather than a second accent.
+- **Dark-first with a real light mode**, warm paper rather than inverted black --
+  carried forward from the old design, which had that part right.
+- **Instrument Sans + Azeret Mono**, self-hosted at build. Not Geist: this page is
+  read by operators deciding whether the domain deserves a credential, and a font
+  call to an ad-adjacent CDN is a bad answer to "what does this page talk to".
+  **Accepted cost: the BUILD now needs network access to Google Fonts.**
+- **The GitHub mark is inline SVG**, not an icon dependency and not a remote
+  asset. "Read the source" is the entire trust argument; it must not be able to
+  fail to load.
+- **Accessibility is a build constraint, not a review step.** Contrast is
+  MEASURED in CI-able form (`.local/s277-contrast.mjs`, 20/20 AA both schemes),
+  reduced-motion STOPS the animation rather than slowing it, and the proof
+  carries a moving control so a pass cannot be vacuous.
+- **The animation may only be caused by the record.** The room strip's swell is
+  driven by a counter that increments on real arrivals -- never a poll, a
+  reconnect or a timer. A decorative surface that lies about activity on a page
+  about provenance would be the worst possible thing to ship.
+
+### NOT DECIDED -- Erik's calls, deliberately left open
+
+- **Sea state.** `amplitude` 0.26, `period` 17s, halo alpha 0.16. Tuned entirely
+  from stills; nobody has watched it at full size.
+- **Whether `--seal` should move off orange.** It is close enough to Deeplake's
+  accent to be worth a second look.
+- **Hero height (88vh)** and horizon position (0.6) -- these set how much ocean
+  versus page you get, and both were set by me.
+
+### The technique reference, for whoever tunes this next
+
+React Bits (`reactbits.dev/backgrounds`) is a client-rendered SPA and fetches as
+a 5KB shell -- exactly as `_kits/design-resources.md` already warned. The source
+is readable at `github.com/DavidHDev/react-bits`. Their `DotField` is a flat 2D
+grid with cursor-spring physics; their `Waves` displaces with `perlin2`, and that
+one line is the whole borrow. Sines alone give an irregular-LOOKING surface whose
+crests are all smooth arcs; gradient noise has structure at every scale.
+
+---
+
 ## 2026-08-18 -- S#276b -- CORRECTING THE RETRO: IT WAS IDENTICAL TOOLING, NOT "THE SAME MODEL"
 
 The S#276 retro below is kept as written because it was the far side's own

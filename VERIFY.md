@@ -171,6 +171,36 @@ npm install && npm run check     # typecheck + full suite
 
 ---
 
+### 2.7 — CLAIM: the web page talks to nobody but this server
+
+Added S#277, when the site got a visual redesign. A page asking you to trust it
+should not be loading assets from hosts it never names — fonts from a CDN, an
+icon library, an analytics beacon. None of that is here.
+
+The two typefaces are downloaded **at build time** by `next/font` and served from
+this origin. The GitHub mark is inline SVG in the page source. The background
+animation is a `<canvas>` drawn with plain 2D calls and loads nothing.
+
+```bash
+# Every external origin in the SERVED page. Expect NO OUTPUT AT ALL:
+curl -s https://bridger-nu.vercel.app/ | grep -oE 'https?://[^"]+' | cut -d/ -f1-3 | sort -u
+
+# The two typefaces, served from THIS origin (Next fingerprints the names):
+curl -s https://bridger-nu.vercel.app/ | grep -oE '/_next/static/immutable/media/[^"]+\.woff2' | sort -u
+
+# And in source: the only external URLs anywhere are links to the repo itself.
+grep -rhoE 'https?://[^"]+' app/layout.tsx app/page.tsx app/globals.css | sort -u
+```
+
+All three were run against production on 2026-08-20. The first returns nothing;
+the third returns only `github.com/Hammaarn/bridger` and the `VERIFY.md` link on
+this page.
+
+Open DevTools → Network on the landing page and confirm it yourself — the only
+origin should be this one. **What this does NOT tell you** is anything about the
+server's own outbound behaviour once it holds your data. That is §7, and it has
+not changed.
+
 ## 3. Do not trust us — run the whole thing yourself
 
 Bridger runs completely locally with no hosted service, no account, and no

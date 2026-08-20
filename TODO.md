@@ -1,28 +1,163 @@
 # TODO — Bridger
 
 Read `STATUS.md` first — the bridge is **RUNNING**, the repo is **PUBLIC**,
-`BRIDGER_PASTE_PATH=1` is **on**, and as of S#276 production runs `6efbef9` with
-the byte-denominated brake. This header said "stopped" for two sessions after it
-stopped being true; `curl -s <server>/api/health` settles it in one second.
+`BRIDGER_PASTE_PATH=1` is **on**, and as of S#277 production runs `94de8d4`.
+**Never read a commit out of prose here:** `curl -s <server>/api/about` reports
+the revision that actually answered, and `/api/health` settles running-vs-stopped
+in one second. This header said "stopped" for two sessions after it stopped being
+true, and named a stale commit for one more.
 
-**S#276 closed items 1 and 2 below.** A far-side agent completed a full round
-trip — joined from a bare link, read, wrote, cited five file:line ranges — but
-read the qualification in `STATUS.md`: it was on the same machine with the repo
-on disk, so the cross-company case the product exists for is STILL untested.
+**S#276 closed the invite-burn bug and got a far-side agent through a full round
+trip.** But read the qualification in `STATUS.md`: that agent was on the same
+machine with the repo on disk, so **the cross-company case the product exists for
+is still untested.** It is item B1 below and nothing outranks it.
 
-**The next thing worth doing is the one we avoided.** Both sides spent the
-session on the brake because it kept biting them, while `STATUS.md` says
-onboarding is the whole product problem. Onboarding got one round. The
-paste-path-as-default argument — that resident MCP schema costs a partner
-~1,800 tok/turn against ~318 for the answerer, so the flat transport should be
-the recommended default and MCP the opt-in — was made, agreed, and never
-written into the docs a partner actually reads.
+**S#277 was design-only** — eight commits, no protocol change, 291/291
+throughout. See `DECISIONS.md` 2026-08-20 for what was decided and what was left
+to Erik.
 
 > **DIRECTION (Erik, S#275): zero install, zero setup — "just a bridge to a room
 > where users' AIs can communicate in a safe environment."** The idea is strong;
 > the ONBOARDING is the product problem. Still internal-infrastructure-first
 > (S#274b). The name is parked until there is a working end-to-end bridge people
 > use — `DECISIONS.md` 2026-08-17.
+
+---
+
+## WHERE WE ARE — S#277 (2026-08-20)
+
+Prod runs `94de8d4`. The bridge is RUNNING, the repo is PUBLIC, the paste path is
+ON. S#277 was a **design-only** session: eight commits, zero protocol changes,
+291/291 throughout. Everything below that was true about behaviour before it is
+still true.
+
+**The one thing that has not moved in four sessions is ONBOARDING**, and it is
+still the stated top item. S#276 spent six of ten rounds on the idle brake
+because it kept biting the two agents; S#277 spent itself on the visual system.
+Both were worth doing. Neither was this.
+
+---
+
+# A. LEFT TO BUILD
+
+## A1. [!!] ONBOARDING — the paste path is not the recommended path anywhere
+
+The argument was made internally in S#276, agreed, and **never written into a
+single document a partner reads**: a resident MCP schema costs a far side ~1,800
+tokens of tool definitions on EVERY turn whether they use it or not, against ~318
+for the narrowed answerer surface. The flat `POST /api/rpc` transport costs zero
+standing tokens.
+
+So the flat path should be the DEFAULT we recommend and MCP the opt-in — and
+right now `README.md`, the join document and the token box all still lead with
+MCP. This is a docs-and-defaults change, not a code change, and it is the
+highest-leverage item on this list.
+
+**Also unwritten:** the join document never mentions MCP exists, so a partner
+who would benefit from it never learns it is an option. Both directions of that
+choice are currently hidden.
+
+## A2. `WASTE_BUDGET_BYTES` 12000 -> 18000 — one constant, Erik's call
+
+Measured in S#276: the budget buys ~5.5 hours of continuous blocking against the
+~8 an overnight listener needs. Barely moves the spinner case. Open since S#276.
+
+## A3. Publish the CLI, or stop implying it is published
+
+`README.md` currently says it is not. `npx bridger join ...` was handed to
+partners in S#274 and would have fetched an unrelated package. Check the npm
+name before either. Not cosmetic — that bug shipped once.
+
+## A4. `vercel git connect` — needs Erik in a browser
+
+It fails from the CLI (OAuth step). Until it is done, the commit in `/api/about`
+is self-reported by the CLI rather than asserted by the platform. That is the
+difference between "he says this commit" and "Vercel built this commit from
+GitHub", on the page whose job is to be trusted.
+
+## A5. Design — three open calls, all Erik's
+
+- **Sea state.** `amplitude` 0.26, `period` 17s, halo alpha 0.16, hero 88vh,
+  horizon 0.6. Every one of those was set from stills by me.
+- **Whether `--seal` moves off orange** — close enough to Deeplake's accent to
+  deserve a second look.
+- **The token box has never been seen by anyone.** It is restyled and
+  typechecked; reaching it requires a real mint through the UI.
+
+## A6. Housekeeping
+
+- Fix `vercel env add … preview`, or record that preview is unused and drop the
+  vars.
+- Delete the two test entries in the live room (`JMS-Q-001` and its answer) once
+  it stops being a demo.
+- Room `d437fff5b423` (Bridger x Antigravity) holds a contract and three seeded
+  questions and is waiting on a fresh invite code — the S#277 one expired
+  unredeemed. `npm run bridger -- invite --side b --ttl-minutes 60 --token-days 7`.
+
+## A7. Parked, with reasoning — see the lanes further down
+
+Multi-party rooms (a rewrite of the identity model, nobody has asked), the
+witness network (gated on a real far-side round trip), the communication layer
+(first step is MEASUREMENT, not building), reproducible builds, self-host guide.
+
+---
+
+# B. LEFT TO TEST AND VERIFY
+
+> Ordered by what a wrong answer would cost. The first item is the one the
+> product exists for and it has never run.
+
+## B1. [!!] A FAR SIDE THAT CANNOT READ OUR CODE
+
+The whole claim is *"the answer lives in their codebase, ask them directly"*.
+Every far side so far has been on this machine with the repo on disk, so
+`checkedAgainst` has never once been exercised under the conditions it was
+designed for — as a FALSIFIABLE COMMITMENT to someone who cannot check it.
+
+Room `0c7a12ba09d2` (Trigvanta) is still open and side B's token is still unused.
+Erik holds it. Nothing on this list is worth more than this.
+
+## B2. Does a real client STOP on a terminal refusal?
+
+`STATUS.md` calls this the question none of the 291 tests can answer. Fixed and
+verified on the FLAT transport (terminal is now 403, was 429 — the retryable code
+every client auto-retries). **On the MCP transport it is still unobserved:**
+`terminal` travels inside a JSON-RPC tool error's text, and what a given client
+does with that is unknown.
+
+## B3. Does Antigravity honour a narrowed `tools/list`?
+
+The answerer role is the entire cost argument for a partner (~318 tokens vs
+~1,800). `answererHandler` exists and is unit-tested. Whether a foreign client
+respects the narrowing — or enumerates hidden tools anyway — has never been
+watched. Safe to find out: `operations.ts` re-checks server-side.
+
+## B4. Second cold provenance test
+
+Antigravity filled `checkedAgainst` honestly once, and one of its two citations
+was over-broad. One data point is not generalisation. Different question shape.
+
+## B5. Design verification that has NOT happened
+
+- **Nobody has looked at the shipped design on a real monitor.** Everything was
+  judged from screenshots and measurements.
+- **No real device, no Safari, no Firefox.** Chrome headless only.
+- **The room view has only ever been captured with a FOUR-entry room.** Panel
+  scrolling, the chain spine over 100+ entries and the tree at length are all
+  unexercised.
+- **The token box**: see A5.
+- Reduced-motion, contrast (20/20 AA) and 60.6fps ARE measured and hold.
+
+## B6. Standing gaps carried from earlier sessions
+
+- The purge CONSENT GATE in the CLI is still not unit-tested. `purgeState`,
+  `recordPurgeConsent` and `executePurge` all are, and are ablation-proven;
+  `cmdPurge`'s refusal-without-consent is not.
+- Upstash free-tier ceiling vs expected volume: unchecked.
+- `maxDuration` for `bridger_wait` on this Vercel plan: unconfirmed. The tool
+  self-caps at 45s so it degrades rather than breaks.
+- The success-audit's `req.clone()` peek has never been observed under Vercel's
+  runtime, nor its ~20ms cost on the SSE path.
 
 ---
 
