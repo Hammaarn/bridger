@@ -48,7 +48,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { openQuestionIds } from "@/lib/question-state";
 import { classifyCitation, describeCitation, isUnlocated, isWideRange } from "@/lib/citation";
-import Wire from "./wire";
+import Background, { BackgroundSwitch } from "./backgrounds";
 
 interface Entry {
   id: string;
@@ -242,7 +242,15 @@ function Gate({ onWatch, onCreate }: { onWatch: (t: string) => void; onCreate: (
   return (
     <main className="gate">
       <section className="hero">
-        <Wire className="wire-hero" band={[0.6, 1.06]} pitch={5} period={17} intensity={0.92} amplitude={0.26} />
+        <Background
+          className="wire-hero"
+          band={[0.6, 1.06]}
+          pitch={5}
+          period={17}
+          intensity={0.92}
+          amplitude={0.26}
+          word="BRIDGER"
+        />
         <Nav over />
         <div className="hero-inner">
           <span className="eyebrow">
@@ -364,8 +372,9 @@ function Gate({ onWatch, onCreate }: { onWatch: (t: string) => void; onCreate: (
           direction, quieter.
         */}
         <div className="gate-foot">
-          <Wire
+          <Background
             className="wire-foot"
+            word="BRIDGER"
             band={[0.26, 1.0]}
             pitch={5}
             period={21}
@@ -375,6 +384,7 @@ function Gate({ onWatch, onCreate }: { onWatch: (t: string) => void; onCreate: (
           />
         </div>
       </div>
+      <BackgroundSwitch />
     </main>
   );
 }
@@ -802,7 +812,16 @@ function RoomView({ token, onForget }: { token: string; onForget: () => void }) 
           record and by nothing else.
         */}
         <div className="bx-top-wire">
-          <Wire className="wire-strip" band={[0.12, 1.0]} pitch={5} period={24} intensity={0.55} amplitude={0.14} ping={arrivals} />
+          <Background
+            className="wire-strip"
+            band={[0.12, 1.0]}
+            pitch={5}
+            period={24}
+            intensity={0.55}
+            amplitude={0.14}
+            ping={arrivals}
+            showWord={false}
+          />
         </div>
 
         <div className="bx-top-bar">
