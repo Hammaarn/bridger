@@ -103,80 +103,95 @@ interface Packet {
 }
 
 /**
- * The sea state. Six components: one dominant diagonal swell, the rest crossing
- * it at other angles and much shorter wavelengths. `dx`/`dz` are a direction
- * vector, `k` the wave number, `sp` relative speed.
+ * THE SEA: a Gerstner (trochoidal) spectrum, not a sum of sines.
+ *
+ * A sine surface is symmetric. Its troughs are the same shape as its crests,
+ * and no amount of layering fixes that, because it is a property of the
+ * FUNCTION rather than of the parameters. Real gravity waves are trochoidal:
+ * each surface particle travels a CIRCLE instead of bobbing straight up and
+ * down, which sharpens the crests and flattens the troughs. Gerstner solved it
+ * exactly in 1802 and it is what CG oceans have used ever since.
+ *
+ * For a POINT FIELD it buys something a heightmap does not care about. The
+ * circular orbit displaces each point HORIZONTALLY as well as vertically, and
+ * the horizontal component converges on the crest, so the dots physically
+ * GATHER where the water gathers. Brightness along a wave is then real density
+ * rather than an alpha threshold.
+ *
+ * That distinction is the whole reason this rewrite exists. The previous
+ * version keyed glow to HEIGHT, and a height threshold on a surface can only
+ * ever select an iso-height contour, which is a LINE. No tuning reaches a wave
+ * from there; the generating model has to change.
+ *
+ * Steepness is what Gerstner carries instead of amplitude: `a = s / k`. The
+ * steepnesses must sum to under 1 or the surface self-intersects and knots --
+ * which is, pleasingly, the exact point at which a real wave breaks.
+ *
+ * The headings are SPREAD, not aligned. A real sea has directional spreading
+ * around a dominant heading, and it is most of why water reads as water rather
+ * than as corrugated iron.
  */
-const COMPONENTS = [
-  { amp: 1.0, dx: 0.72, dz: 0.69, k: 0.55, sp: 1.0 },
-  { amp: 0.58, dx: 0.94, dz: -0.34, k: 1.05, sp: 1.31 },
-  { amp: 0.4, dx: -0.3, dz: 0.95, k: 1.62, sp: 0.83 },
-  { amp: 0.26, dx: 0.55, dz: 0.84, k: 2.7, sp: 1.72 },
-  { amp: 0.17, dx: -0.86, dz: 0.51, k: 4.1, sp: 2.15 },
-  { amp: 0.11, dx: 0.38, dz: -0.93, k: 6.3, sp: 2.9 },
+const WAVE_SPEC: { lambda: number; ang: number; s: number }[] = [
+  { lambda: 12.0, ang: 0.66, s: 1.0 },
+  { lambda: 7.3, ang: 0.34, s: 0.94 },
+  { lambda: 4.9, ang: 1.02, s: 0.88 },
+  { lambda: 3.1, ang: 0.12, s: 0.82 },
+  { lambda: 2.05, ang: 1.38, s: 0.76 },
+  { lambda: 1.32, ang: -0.31, s: 0.7 },
+  { lambda: 0.83, ang: 0.92, s: 0.63 },
+  { lambda: 0.54, ang: -0.66, s: 0.55 },
+  { lambda: 0.35, ang: 1.71, s: 0.46 },
+  { lambda: 0.22, ang: 0.5, s: 0.36 },
 ];
 
 /**
- * PERLIN NOISE — the thing sine superposition cannot do.
+ * Gravity, in the world units the wavelengths are in.
  *
- * Summed sines get you an irregular-looking surface, but every crest is still a
- * smooth arc and the irregularity is periodic if you watch long enough. Real
- * water has structure at every scale, and the standard way to get that is
- * gradient noise summed over octaves (fBm). React Bits' own `Waves` background
- * — the site Erik pointed at — uses `perlin2` for exactly this reason, which is
- * the borrow here: the technique, not the code.
- *
- * Seeded from a constant rather than Math.random, so the sea looks identical on
- * every load and across a resize. A field that reshuffles itself when the window
- * changes width is a field the reader notices.
+ * It is here for DISPERSION, the second thing summed sines could not do. Deep
+ * water travels at `c = sqrt(g/k)`, so long waves outrun short ones, and that
+ * one relationship is what makes wave GROUPS form and dissolve by themselves.
+ * The previous version faked groups with a slow noise field modulating
+ * amplitude. With real dispersion they are emergent and the fake comes out.
  */
-const PERM = (() => {
-  const p = new Uint8Array(512);
-  const base = new Uint8Array(256);
-  for (let i = 0; i < 256; i++) base[i] = i;
-  // xorshift, fixed seed. Deterministic shuffle.
-  let s = 0x9e3779b9;
-  for (let i = 255; i > 0; i--) {
-    s ^= s << 13;
-    s ^= s >>> 17;
-    s ^= s << 5;
-    const j = (s >>> 0) % (i + 1);
-    const t = base[i];
-    base[i] = base[j];
-    base[j] = t;
-  }
-  for (let i = 0; i < 512; i++) p[i] = base[i & 255];
-  return p;
+const G = 9.8;
+
+/**
+ * A sine lookup table.
+ *
+ * Ten components, each needing a sine AND a cosine, across tens of thousands of
+ * points, every frame: roughly half a million transcendental calls per frame,
+ * which does not fit in a frame budget. The table makes each one an array read.
+ * 4096 steps over a full turn is 0.0015 rad, far below anything visible on a
+ * dot two pixels wide.
+ *
+ * A point's phase is `k*(D . x) - w*t`. The FIRST term is constant per point
+ * per wave and is precomputed at build as an integer table index; the second is
+ * constant per wave per FRAME. So the entire per-point-per-wave cost inside the
+ * loop is one integer subtract and two array reads.
+ */
+const LUT_BITS = 12;
+const LUT_SIZE = 1 << LUT_BITS;
+const LUT_MASK = LUT_SIZE - 1;
+const LUT_QUARTER = LUT_SIZE >> 2;
+const LUT_SCALE = LUT_SIZE / (Math.PI * 2);
+const SIN_LUT = (() => {
+  const t = new Float32Array(LUT_SIZE);
+  for (let i = 0; i < LUT_SIZE; i++) t[i] = Math.sin((i / LUT_SIZE) * Math.PI * 2);
+  return t;
 })();
 
-const fade = (t: number) => t * t * t * (t * (t * 6 - 15) + 10);
-
-function perlin2(x: number, y: number): number {
-  const xi = Math.floor(x) & 255;
-  const yi = Math.floor(y) & 255;
-  const xf = x - Math.floor(x);
-  const yf = y - Math.floor(y);
-  const u = fade(xf);
-  const v = fade(yf);
-
-  const grad = (hash: number, gx: number, gy: number) => {
-    switch (hash & 3) {
-      case 0: return gx + gy;
-      case 1: return -gx + gy;
-      case 2: return gx - gy;
-      default: return -gx - gy;
-    }
-  };
-
-  const aa = PERM[PERM[xi] + yi];
-  const ab = PERM[PERM[xi] + yi + 1];
-  const ba = PERM[PERM[xi + 1] + yi];
-  const bb = PERM[PERM[xi + 1] + yi + 1];
-
-  const x1 = grad(aa, xf, yf) + u * (grad(ba, xf - 1, yf) - grad(aa, xf, yf));
-  const x2 = grad(ab, xf, yf - 1) + u * (grad(bb, xf - 1, yf - 1) - grad(ab, xf, yf - 1));
-  return x1 + v * (x2 - x1);
-}
+/**
+ * The light, as a half-vector in world space. Deliberately NOT vertical.
+ *
+ * A near-vertical light lands on flat water and leaves the wave faces dark,
+ * which is the inverse of what a sea looks like. A LOW light grazes the faces
+ * tilted toward it and produces the glitter path: the broad, moving road of
+ * light that reads instantly as water. Tilted far enough off vertical that calm
+ * water sits low on the specular curve and only a tilted face climbs it.
+ */
+const H_X = 0.14;
+const H_Y = 0.42;
+const H_Z = -0.9;
 
 const Z_NEAR = 1.0;
 const Z_FAR = 18;
@@ -190,6 +205,12 @@ const Z_FAR = 18;
  * is well below where banding is visible on a dot this small.
  */
 const HUE_BUCKETS = 14;
+
+/**
+ * The widest dot, in CSS px, and therefore how many size variants each hue
+ * caches. Eight covers the near edge on a large display with room to spare.
+ */
+const MAX_DOT = 8;
 
 /** Halo sprite radius in CSS px. Rendered once, scaled down at draw time. */
 const HALO_SPRITE_R = 24;
@@ -233,6 +254,68 @@ export default function Wire({
     const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)");
     let pts: Point[] = [];
     let haloSprites: HTMLCanvasElement[] = [];
+    // Indexed [hue][sizeInCssPx]. See buildSprites for why the size is part
+    // of the key rather than a scale factor at draw time.
+    let discSprites: HTMLCanvasElement[][] = [];
+    let dprNow = 1;
+
+    // Flat typed arrays rather than an array of objects: this is read ten times
+    // per point per frame and property lookup at that rate is not free.
+    const NW = WAVE_SPEC.length;
+    const wAX = new Float32Array(NW); // a * D.x  -- horizontal orbit, x
+    const wAY = new Float32Array(NW); // a        -- vertical orbit
+    const wAZ = new Float32Array(NW); // a * D.z  -- horizontal orbit, z
+    const wSX = new Float32Array(NW); // s * D.x  -- normal, x
+    const wSY = new Float32Array(NW); // s        -- normal, y
+    const wSZ = new Float32Array(NW); // s * D.z  -- normal, z
+    const wK = new Float32Array(NW);
+    const wDX = new Float32Array(NW);
+    const wDZ = new Float32Array(NW);
+    const wOmega = new Float32Array(NW);
+    const wtIdx = new Int32Array(NW);
+    // One phase index per point per wave, filled AFTER the painter sort so the
+    // row order matches `pts`.
+    let phaseIdx = new Int32Array(0);
+
+
+    /**
+     * Resolve the spectrum against this instance's sea state and period.
+     *
+     * `amplitude` is reinterpreted as TOTAL STEEPNESS, which is the parameter
+     * Gerstner actually has, and clamped below 1 because at 1 the surface ties
+     * itself in knots. The per-wave share keeps the spectrum's shape.
+     *
+     * Time is scaled so that the LONGEST wave completes in `period` seconds,
+     * which preserves the meaning the prop always had while leaving the
+     * dispersion RATIO between components untouched -- the ratio is the part
+     * that does the visual work.
+     */
+    const buildWaves = () => {
+      let sum = 0;
+      for (const c of WAVE_SPEC) sum += c.s;
+      const total = Math.min(0.75, Math.max(0.04, amplitude * 2.2));
+      const k0 = (Math.PI * 2) / WAVE_SPEC[0].lambda;
+      const timeScale = Math.PI * 2 / period / Math.sqrt(G * k0);
+
+      for (let i = 0; i < NW; i++) {
+        const c = WAVE_SPEC[i];
+        const k = (Math.PI * 2) / c.lambda;
+        const s = (c.s / sum) * total;
+        const a = s / k;
+        const dx = Math.cos(c.ang);
+        const dz = Math.sin(c.ang);
+        wK[i] = k;
+        wDX[i] = dx;
+        wDZ[i] = dz;
+        wAX[i] = a * dx;
+        wAY[i] = a;
+        wAZ[i] = a * dz;
+        wSX[i] = s * dx;
+        wSY[i] = s;
+        wSZ[i] = s * dz;
+        wOmega[i] = Math.sqrt(G * k) * timeScale;
+      }
+    };
     let w = 0;
     let h = 0;
     let raf = 0;
@@ -291,6 +374,7 @@ export default function Wire({
     const buildSprites = () => {
       const R = HALO_SPRITE_R;
       haloSprites = [];
+      discSprites = [];
       for (let i = 0; i < HUE_BUCKETS; i++) {
         const m = i / (HUE_BUCKETS - 1);
         const r = Math.round(colA[0] + (colB[0] - colA[0]) * m);
@@ -309,12 +393,56 @@ export default function Wire({
         sc.fillStyle = grad;
         sc.fillRect(0, 0, R * 2, R * 2);
         haloSprites.push(sprite);
+
+        // THE CORE DOT. This is the complaint that would not go away, and
+        // the reason is that the first fix only reached part of it.
+        //
+        // The dot was `fillRect(sx, sy, size, size)` -- an actual square, two to
+        // five pixels wide depending on the display. Making the HALO radial and
+        // leaving the core a rect fixed the wrong half, and then gating discs to
+        // dots wider than 2.6px fixed almost none of them, because almost no dot
+        // is that wide. On a 2545px-wide window every one of them read as a cube.
+        //
+        // So: no threshold, every dot is a disc. The cost of that is the reason
+        // for the size key. `drawImage` with a scale factor is markedly more
+        // expensive than a straight blit, so instead of one sprite stretched per
+        // point, there is one sprite PER INTEGER PIXEL SIZE, rendered at device
+        // resolution, and the draw maps it 1:1 onto the pixel grid. Rounding the
+        // size to whole pixels costs nothing anyone can see at two to eight
+        // pixels wide, and buys the fast path.
+        const row: HTMLCanvasElement[] = [];
+        for (let px = 0; px <= MAX_DOT; px++) {
+          const dim = Math.max(1, Math.round(px * dprNow));
+          const disc = document.createElement("canvas");
+          disc.width = dim;
+          disc.height = dim;
+          const dc = disc.getContext("2d");
+          if (!dc) return;
+          if (dim <= 2) {
+            // At one or two device pixels there is no room for a falloff, and a
+            // gradient here only produces a dimmer dot, not a rounder one.
+            dc.fillStyle = `rgb(${r},${g},${b})`;
+            dc.fillRect(0, 0, dim, dim);
+          } else {
+            const rad = dim / 2;
+            const dg = dc.createRadialGradient(rad, rad, 0, rad, rad, rad);
+            dg.addColorStop(0, `rgba(${r},${g},${b},1)`);
+            dg.addColorStop(0.5, `rgba(${r},${g},${b},1)`);
+            dg.addColorStop(0.82, `rgba(${r},${g},${b},0.5)`);
+            dg.addColorStop(1, `rgba(${r},${g},${b},0)`);
+            dc.fillStyle = dg;
+            dc.fillRect(0, 0, dim, dim);
+          }
+          row.push(disc);
+        }
+        discSprites.push(row);
       }
     };
 
     const build = () => {
       const rect = canvas.getBoundingClientRect();
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      dprNow = dpr;
       w = Math.max(1, Math.round(rect.width));
       h = Math.max(1, Math.round(rect.height));
       canvas.width = Math.round(w * dpr);
@@ -322,6 +450,7 @@ export default function Wire({
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       readColors();
       buildSprites();
+      buildWaves();
 
       horizonY = h * band[0];
       // Focal length chosen so the plane's NEAR edge lands at `band[1]`:
@@ -402,8 +531,26 @@ export default function Wire({
         }
       }
 
-      // Painter's order: far first, so nearer points draw over them.
-      pts.sort((a, b) => b.z - a.z);
+      // NEAR TO FAR, which is the reverse of what this used to do.
+      //
+      // Painter's order stopped mattering the moment the field went additive --
+      // addition commutes, so the draw order cannot change the result. What
+      // does need an order is the silhouette buffer, and it only works walking
+      // toward the horizon: you cannot know what a wave hides until you have
+      // drawn the wave.
+      pts.sort((a, b) => a.z - b.z);
+
+      // The stationary half of every phase, as a table index. Computed AFTER
+      // the sort so row `i` here is the same point as `pts[i]` in the loop.
+      phaseIdx = new Int32Array(pts.length * NW);
+      for (let i = 0; i < pts.length; i++) {
+        const p = pts[i];
+        const base = i * NW;
+        for (let j = 0; j < NW; j++) {
+          phaseIdx[base + j] =
+            (wK[j] * (wDX[j] * p.x + wDZ[j] * p.z) * LUT_SCALE) | 0;
+        }
+      }
     };
 
     const draw = (t: number) => {
@@ -434,100 +581,110 @@ export default function Wire({
       const nx = time * 0.055;
       const nz = time * 0.038;
 
-      for (const p of pts) {
-        let y = 0;
-        for (const c of COMPONENTS) {
-          y += c.amp * Math.sin((p.x * c.dx + p.z * c.dz) * c.k - base * c.sp);
+      // The moving half of every phase: constant per wave per frame.
+      for (let j = 0; j < NW; j++) {
+        wtIdx[j] = (wOmega[j] * time * LUT_SCALE) | 0;
+      }
+
+      for (let i = 0; i < pts.length; i++) {
+        const p = pts[i];
+        const base = i * NW;
+
+        // Gerstner displacement and the analytic surface normal, accumulated in
+        // one pass because they share the same sine and cosine.
+        let ox = 0;
+        let oy = 0;
+        let oz = 0;
+        let nx = 0;
+        let ny = 0;
+        let nz = 0;
+        for (let j = 0; j < NW; j++) {
+          const idx = phaseIdx[base + j] - wtIdx[j];
+          const S = SIN_LUT[idx & LUT_MASK];
+          const C = SIN_LUT[(idx + LUT_QUARTER) & LUT_MASK];
+          ox += wAX[j] * C;
+          oy += wAY[j] * S;
+          oz += wAZ[j] * C;
+          nx += wSX[j] * C;
+          ny += wSY[j] * S;
+          nz += wSZ[j] * C;
         }
 
-        // Two octaves of fBm on top of the swell. This is what puts structure
-        // between the crests — chop, texture, the parts of a real sea that are
-        // not any single wave.
-        const n1 = perlin2(p.x * 0.42 + nx, p.z * 0.42 + nz);
-        const n2 = perlin2(p.x * 0.95 - nx * 1.7, p.z * 0.95 + nz * 1.3);
-        y += n1 * 0.85 + n2 * 0.42;
-
-        // WAVE GROUPS. A very slow, very large-scale noise field modulating the
-        // amplitude, so some stretches of water are calm and others are rough
-        // and the boundary moves. Without this the sea is uniformly choppy
-        // everywhere, which is the one thing an ocean never is — and it is what
-        // "randomized height and width" actually describes.
-        const env = 0.42 + 0.78 * (perlin2(p.x * 0.07 + time * 0.014, p.z * 0.07) * 0.5 + 0.5);
-
-        y *= amplitude * env;
-
+        // A real arrival still disturbs the water, and it now disturbs the
+        // SURFACE rather than a brightness constant, so the swell lights itself
+        // through the same specular term as every other wave.
+        let ring = 0;
         if (swellR > 0) {
           const d = Math.abs(p.z - swellR);
-          if (d < 1.6) y += Math.cos((d / 1.6) * Math.PI * 0.5) * swellA * amplitude * 2.2;
+          if (d < 1.6) {
+            ring = Math.cos((d / 1.6) * Math.PI * 0.5) * swellA;
+            oy += ring * 0.42;
+          }
         }
 
-        const s = focal / p.z;
-        const sx = cx + p.x * s;
-        if (sx < -8 || sx > w + 8) continue;
-        const sy = horizonY + (camY - y) * s;
-        if (sy < -8 || sy > h + 8) continue;
+        // Depth is displaced too, so points really do ride toward and away from
+        // the camera rather than only up and down.
+        const wz = p.z + oz;
+        if (wz < 0.4) continue;
 
-        const alpha = p.alpha;
-        if (alpha < 0.012) continue;
+        const s = focal / wz;
+        const sx = cx + (p.x + ox) * s;
+        if (sx < -10 || sx > w + 10) continue;
+        const sy = horizonY + (camY - oy) * s;
+        if (sy < -10 || sy > h + 10) continue;
 
-        // Size straight off the projection, so nearer points really are bigger.
-        const size = Math.max(0.7, Math.min(3.2, s * 0.017 * p.scale));
-
-        // THE CREST FACTOR. This is what makes the motion drive the light.
+        // THE LIGHT COMES OFF THE SLOPE, NOT THE HEIGHT.
         //
-        // `y` is the point's wave height with the group envelope already
-        // applied, so dividing out `amplitude` alone leaves a number that is
-        // large on a crest, negative in a trough, and small EVERYWHERE inside a
-        // calm stretch. Squaring it concentrates the light onto the crest line
-        // instead of spreading it over the whole upper half of the wave.
-        //
-        // The consequence is that the glow is carried BY the water: a crest
-        // travelling across the field takes its bloom with it, and the calm
-        // bands between wave groups genuinely go dark. Before this, halo alpha
-        // was `intensity * fog * 0.16`, fixed at BUILD time, so it varied with
-        // depth and nothing else, and the sea moved underneath a stationary
-        // field of light. The swell from a real arrival feeds in here too, so a
-        // message landing on the bridge now lights the ring it travels on.
-        const lift = y / amplitude;
-        const crest = Math.min(1, Math.max(0, (lift - 0.15) / 1.7));
-        const crestGlow = crest * crest;
+        // N = (-nx, 1 - ny, -nz) is the Gerstner normal. Dotting it against a
+        // low half-vector and raising that to the twelfth power gives a
+        // specular response that is near zero on flat water and climbs steeply
+        // on a face turned toward the light -- so the bright regions are the
+        // FACES of the waves, which are areas that travel, rather than a
+        // constant-height contour, which is a line. The power is reached by
+        // squaring rather than by `Math.pow`, which at this call rate matters.
+        const nY = 1 - ny;
+        const inv = 1 / Math.sqrt(nx * nx + nY * nY + nz * nz);
+        const dot = (-nx * H_X + nY * H_Y + -nz * H_Z) * inv;
+        let spec = 0;
+        if (dot > 0) {
+          const d2 = dot * dot;
+          const d4 = d2 * d2;
+          spec = d4 * d4;
+        }
 
+        const size = Math.max(0.7, Math.min(3.4, s * 0.017 * p.scale));
         let fill = p.fill;
-        let a = alpha * (0.88 + 0.24 * crestGlow);
-        if (swellR > 0 && Math.abs(p.z - swellR) < 0.9) {
-          const f = 1 - Math.abs(p.z - swellR) / 0.9;
+        let a = p.alpha * (0.62 + 0.7 * spec);
+        if (ring > 0.02) {
           fill = crestSolid;
-          a = Math.min(0.95, alpha + f * 0.7);
+          a = Math.min(0.95, a + ring * 0.5);
         }
+        if (a < 0.012) continue;
 
-        // THE HALO: a pre-rendered radial sprite, not a rect.
-        //
-        // It used to be a second, larger `fillRect`, and that is exactly why the
-        // glow read as BOXY. A square of uniform alpha has no falloff, so every
-        // bright dot wore a visible 2.9x box, and on a dense crest those boxes
-        // tiled into a slab. A radial gradient is the shape a glow actually has.
-        //
-        // Additive still does the real work: dense parts of a crest bloom where
-        // neighbouring halos overlap, which is where the light comes from rather
-        // than from any single point. The halo also GROWS with the crest, so a
-        // wave brings a widening bloom with it rather than only a brightening.
-        const sprite =
-          glow && crestGlow > 0.12 && size > 0.95 ? haloSprites[p.hue] : undefined;
-        if (sprite) {
-          const hs = size * (3.2 + crestGlow * 2.4);
-          ctx.globalAlpha = alpha * HALO_PEAK * crestGlow;
-          ctx.drawImage(
-            sprite,
-            sx + size / 2 - hs / 2,
-            sy + size / 2 - hs / 2,
-            hs,
-            hs,
-          );
+        // The bloom, on the lit faces only. Additive, so where a face turns
+        // into the light and the dots crowd together at the crest, the overlap
+        // does the accumulating -- density and light rising together, which is
+        // what a wave actually does.
+        if (glow && spec > 0.12 && size > 0.9) {
+          const halo = haloSprites[p.hue];
+          if (halo) {
+            const hs = size * (2.6 + spec * 3.4);
+            ctx.globalAlpha = Math.min(0.6, p.alpha * HALO_PEAK * spec);
+            ctx.drawImage(halo, sx - hs / 2, sy - hs / 2, hs, hs);
+          }
         }
 
         ctx.globalAlpha = a;
-        ctx.fillStyle = fill;
-        ctx.fillRect(sx, sy, size, size);
+        const row = discSprites[p.hue];
+        const px = size < 1 ? 1 : size > MAX_DOT ? MAX_DOT : Math.round(size);
+        const sprite = row && row[px];
+        if (sprite) {
+          const half = px / 2;
+          ctx.drawImage(sprite, sx - half, sy - half, px, px);
+        } else {
+          ctx.fillStyle = fill;
+          ctx.fillRect(sx, sy, size, size);
+        }
       }
 
       ctx.globalAlpha = 1;
