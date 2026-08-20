@@ -78,18 +78,24 @@ interface Point {
   z: number;
   fog: number;
   scale: number;
-  rgb: string;
   /**
-   * Fully-formed `rgba(...)` strings, built once.
+   * SOLID `rgb(...)`, built once, with the alpha carried separately as a NUMBER.
    *
-   * A point's alpha is `intensity * fog`, and both are fixed at build — so the
-   * colour string never changes between frames. Composing it in the draw loop
-   * meant ~40k string allocations AND ~40k CSS colour parses per frame once the
-   * halo pass doubled the fills, which measured 37fps. Assigning a cached string
-   * is close to free. This was the entire cost; the extra rect was not.
+   * Composing a colour string in the draw loop meant ~40k string allocations AND
+   * ~40k CSS colour parses per frame once the halo pass doubled the fills, which
+   * measured 37fps. That was the entire cost; the extra rect was not.
+   *
+   * The alpha now VARIES per frame, because the wave drives it, so it can no
+   * longer be baked into the string. It is applied through `ctx.globalAlpha`
+   * instead, which is a float assignment with no parse behind it. A per-frame
+   * brightness therefore costs what a cached string cost, and the 37fps trap
+   * stays shut.
    */
   fill: string;
-  halo: string;
+  /** `intensity * fog`: the point's brightness ceiling, before the wave. */
+  alpha: number;
+  /** Index into the pre-rendered halo sprites, one per quantised hue. */
+  hue: number;
 }
 
 interface Packet {
@@ -175,6 +181,28 @@ function perlin2(x: number, y: number): number {
 const Z_NEAR = 1.0;
 const Z_FAR = 18;
 
+/**
+ * How many pre-rendered halo tints exist across the two side colours.
+ *
+ * The halo cannot be tinted per point at draw time without paying back the
+ * string cost this whole render was built to avoid, so the hue is quantised and
+ * one sprite is rendered per bucket. Fourteen steps across a two-colour spread
+ * is well below where banding is visible on a dot this small.
+ */
+const HUE_BUCKETS = 14;
+
+/** Halo sprite radius in CSS px. Rendered once, scaled down at draw time. */
+const HALO_SPRITE_R = 24;
+
+/**
+ * Peak halo alpha as a fraction of the point's own alpha, at a full crest.
+ *
+ * The old value was 0.16 applied to EVERY near point uniformly. This is larger
+ * per point and much dimmer overall, because it is now gated on the crest: most
+ * of the field carries no halo at all at any given moment.
+ */
+const HALO_PEAK = 0.55;
+
 export default function Wire({
   band = [0.42, 1],
   pitch = 7,
@@ -204,6 +232,7 @@ export default function Wire({
 
     const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)");
     let pts: Point[] = [];
+    let haloSprites: HTMLCanvasElement[] = [];
     let w = 0;
     let h = 0;
     let raf = 0;
@@ -216,6 +245,7 @@ export default function Wire({
 
     let dotColor = "255,255,255";
     let crestColor = "255,255,255";
+    let crestSolid = "rgb(255,255,255)";
     /**
      * Whether to bloom additively.
      *
@@ -237,11 +267,49 @@ export default function Wire({
       const s = getComputedStyle(canvas);
       dotColor = s.getPropertyValue("--wire-dot").trim() || "255,255,255";
       crestColor = s.getPropertyValue("--wire-crest").trim() || dotColor;
+      crestSolid = `rgb(${crestColor})`;
       const neutral = triplet(dotColor, [192, 208, 230]);
       colA = triplet(s.getPropertyValue("--wire-a").trim(), neutral);
       colB = triplet(s.getPropertyValue("--wire-b").trim(), neutral);
       const lumOf = (c: [number, number, number]) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
       glow = (lumOf(colA) + lumOf(colB)) / 2 > 128;
+    };
+
+    /**
+     * Render the halo ONCE per hue bucket, into offscreen canvases.
+     *
+     * Deliberately not `ctx.shadowBlur`: canvas shadows are re-rasterised on
+     * every draw call and would cost more than this entire render loop. A
+     * cached sprite blitted with `drawImage` is one call per point, the same
+     * budget the old rect had, and it is the only way to get a real radial
+     * falloff without per-frame path work.
+     *
+     * No hot centre: the core dot supplies the highlight. A bright sprite
+     * centre stacked on top of it under additive compositing is precisely what
+     * made the old glow read as neon rather than as light coming off water.
+     */
+    const buildSprites = () => {
+      const R = HALO_SPRITE_R;
+      haloSprites = [];
+      for (let i = 0; i < HUE_BUCKETS; i++) {
+        const m = i / (HUE_BUCKETS - 1);
+        const r = Math.round(colA[0] + (colB[0] - colA[0]) * m);
+        const g = Math.round(colA[1] + (colB[1] - colA[1]) * m);
+        const b = Math.round(colA[2] + (colB[2] - colA[2]) * m);
+        const sprite = document.createElement("canvas");
+        sprite.width = R * 2;
+        sprite.height = R * 2;
+        const sc = sprite.getContext("2d");
+        if (!sc) return;
+        const grad = sc.createRadialGradient(R, R, 0, R, R, R);
+        grad.addColorStop(0, `rgba(${r},${g},${b},0.62)`);
+        grad.addColorStop(0.22, `rgba(${r},${g},${b},0.26)`);
+        grad.addColorStop(0.52, `rgba(${r},${g},${b},0.07)`);
+        grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
+        sc.fillStyle = grad;
+        sc.fillRect(0, 0, R * 2, R * 2);
+        haloSprites.push(sprite);
+      }
     };
 
     const build = () => {
@@ -253,6 +321,7 @@ export default function Wire({
       canvas.height = Math.round(h * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       readColors();
+      buildSprites();
 
       horizonY = h * band[0];
       // Focal length chosen so the plane's NEAR edge lands at `band[1]`:
@@ -321,15 +390,14 @@ export default function Wire({
           const mix = (a: number, b: number) => Math.round(Math.min(255, (a + (b - a) * m) * lum));
 
           const rgb = `${mix(colA[0], colB[0])},${mix(colA[1], colB[1])},${mix(colA[2], colB[2])}`;
-          const a = intensity * fog;
           pts.push({
             x,
             z,
             fog,
             scale: 0.8 + j * 0.45,
-            rgb,
-            fill: `rgba(${rgb},${a.toFixed(3)})`,
-            halo: `rgba(${rgb},${(a * 0.16).toFixed(3)})`,
+            fill: `rgb(${rgb})`,
+            alpha: intensity * fog,
+            hue: Math.min(HUE_BUCKETS - 1, Math.round(m * (HUE_BUCKETS - 1))),
           });
         }
       }
@@ -399,39 +467,70 @@ export default function Wire({
         const sy = horizonY + (camY - y) * s;
         if (sy < -8 || sy > h + 8) continue;
 
-        const alpha = intensity * p.fog;
+        const alpha = p.alpha;
         if (alpha < 0.012) continue;
 
         // Size straight off the projection, so nearer points really are bigger.
         const size = Math.max(0.7, Math.min(3.2, s * 0.017 * p.scale));
 
-        // The only per-frame string work left, and it runs for a thin ring of
-        // points during the ~3 seconds after a real arrival.
+        // THE CREST FACTOR. This is what makes the motion drive the light.
+        //
+        // `y` is the point's wave height with the group envelope already
+        // applied, so dividing out `amplitude` alone leaves a number that is
+        // large on a crest, negative in a trough, and small EVERYWHERE inside a
+        // calm stretch. Squaring it concentrates the light onto the crest line
+        // instead of spreading it over the whole upper half of the wave.
+        //
+        // The consequence is that the glow is carried BY the water: a crest
+        // travelling across the field takes its bloom with it, and the calm
+        // bands between wave groups genuinely go dark. Before this, halo alpha
+        // was `intensity * fog * 0.16`, fixed at BUILD time, so it varied with
+        // depth and nothing else, and the sea moved underneath a stationary
+        // field of light. The swell from a real arrival feeds in here too, so a
+        // message landing on the bridge now lights the ring it travels on.
+        const lift = y / amplitude;
+        const crest = Math.min(1, Math.max(0, (lift - 0.15) / 1.7));
+        const crestGlow = crest * crest;
+
         let fill = p.fill;
+        let a = alpha * (0.88 + 0.24 * crestGlow);
         if (swellR > 0 && Math.abs(p.z - swellR) < 0.9) {
           const f = 1 - Math.abs(p.z - swellR) / 0.9;
-          fill = `rgba(${crestColor},${Math.min(0.95, alpha + f * 0.7)})`;
+          fill = crestSolid;
+          a = Math.min(0.95, alpha + f * 0.7);
         }
 
-        // THE NEON. A soft halo behind the core, drawn only on dark surfaces and
-        // only for points near enough to be worth it.
+        // THE HALO: a pre-rendered radial sprite, not a rect.
         //
-        // Deliberately not `ctx.shadowBlur`: canvas shadows are re-rasterised per
-        // draw call and would cost far more than the whole rest of this loop. A
-        // second, larger, much fainter rect under additive compositing gets the
-        // same read for one extra fill — and because it IS additive, dense parts
-        // of a crest bloom where the halos overlap, which is where the glow
-        // actually comes from rather than from any single point.
-        if (glow && size > 1.05) {
-          const hs = size * 2.9;
-          ctx.fillStyle = p.halo;
-          ctx.fillRect(sx - (hs - size) / 2, sy - (hs - size) / 2, hs, hs);
+        // It used to be a second, larger `fillRect`, and that is exactly why the
+        // glow read as BOXY. A square of uniform alpha has no falloff, so every
+        // bright dot wore a visible 2.9x box, and on a dense crest those boxes
+        // tiled into a slab. A radial gradient is the shape a glow actually has.
+        //
+        // Additive still does the real work: dense parts of a crest bloom where
+        // neighbouring halos overlap, which is where the light comes from rather
+        // than from any single point. The halo also GROWS with the crest, so a
+        // wave brings a widening bloom with it rather than only a brightening.
+        const sprite =
+          glow && crestGlow > 0.12 && size > 0.95 ? haloSprites[p.hue] : undefined;
+        if (sprite) {
+          const hs = size * (3.2 + crestGlow * 2.4);
+          ctx.globalAlpha = alpha * HALO_PEAK * crestGlow;
+          ctx.drawImage(
+            sprite,
+            sx + size / 2 - hs / 2,
+            sy + size / 2 - hs / 2,
+            hs,
+            hs,
+          );
         }
 
+        ctx.globalAlpha = a;
         ctx.fillStyle = fill;
         ctx.fillRect(sx, sy, size, size);
       }
 
+      ctx.globalAlpha = 1;
       ctx.globalCompositeOperation = "source-over";
     };
 
