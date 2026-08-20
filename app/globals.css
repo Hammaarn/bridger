@@ -242,7 +242,7 @@ a:hover {
   padding: 3px;
   border: 1px solid var(--line);
   border-radius: 999px;
-  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  background: color-mix(in srgb, var(--ink-900) 82%, transparent);
   backdrop-filter: blur(8px);
   font-family: var(--mono, ui-monospace, monospace);
   font-size: 11px;
@@ -262,7 +262,12 @@ a:hover {
 }
 
 .bg-switch a[data-on] {
-  color: var(--bg);
+  /* `--bg` does not exist in this stylesheet -- the ground is `--ink-900`.
+     An invalid var() makes an inherited property compute to `inherit`, so the
+     ACTIVE label was inheriting --text and rendering white on a white pill:
+     the selected option was the one you could not read. Caught in a screenshot,
+     not in review. */
+  color: var(--ink-900);
   background: var(--text);
 }
 

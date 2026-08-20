@@ -42,6 +42,27 @@ const CYCLE_S = 16;
 /** Radius of a spark's glow, in cells. */
 const SPARK_R = 3;
 
+/**
+ * THE SWEEP — a band of light travelling right to left across the field.
+ *
+ * It runs against the reading direction on purpose. Left-to-right rides along
+ * with the eye and disappears into the text; right-to-left is counter to it and
+ * registers as its own movement, which is what makes the wall feel alive rather
+ * than merely busy.
+ *
+ * WHY IT IS QUANTISED. Everything here repaints dirty cells only, and a sweep is
+ * the one effect that threatens that: a brightness varying continuously with x
+ * makes every cell change every frame, which is the full 10k-glyph repaint this
+ * design exists to avoid. But the sweep is a function of COLUMN ALONE — every
+ * cell in a column shares it — so its level is computed per column, quantised
+ * into steps, and a column is marked dirty only when it crosses a step
+ * boundary. A handful of columns cross per frame. The banding is invisible at
+ * 28 steps and the cost stays proportional to what actually moved.
+ */
+const SWEEP_SECONDS = 7.5;
+const SWEEP_WIDTH = 0.16;
+const SWEEP_STEPS = 28;
+
 interface Cell {
   ch: string;
   /** 0 = pure noise, 1 = fully part of the word. */
@@ -130,6 +151,10 @@ export default function LetterGlitch({
     let sparks: Spark[] = [];
     const touched = new Set<number>();
     let reveal = 0;
+    /** Last quantised sweep level per column, so only crossings repaint. */
+    let sweepBucket = new Int16Array(0);
+    /** Current sweep level per column, read by drawCell. */
+    let sweepLevel = new Float32Array(0);
 
     let colA: [number, number, number] = [116, 178, 255];
     let colB: [number, number, number] = [255, 176, 108];
@@ -212,6 +237,8 @@ export default function LetterGlitch({
 
       cols = Math.max(1, Math.ceil(w / CELL_W));
       rows = Math.max(1, Math.ceil(h / CELL_H));
+      sweepBucket = new Int16Array(cols).fill(-1);
+      sweepLevel = new Float32Array(cols);
 
       const mask = buildMask();
       cells = new Array(cols * rows);
@@ -237,14 +264,36 @@ export default function LetterGlitch({
       paintAll();
     };
 
-    const rgbOf = (cell: Cell): [number, number, number] => {
-      if (cell.locked) return colWord;
-      const m = cell.mix;
+    /**
+     * Push a colour away from grey.
+     *
+     * The two side hues are already saturated as tokens, but a glyph drawn at
+     * low alpha on black lands close to its own luminance and reads as ash. The
+     * fix is not more alpha — that drowns the headline — it is more DISTANCE
+     * from grey per unit of alpha. Everything below is that: the same hues,
+     * further from the middle.
+     */
+    const saturate = (c: [number, number, number], k: number): [number, number, number] => {
+      const g = 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
       return [
+        Math.max(0, Math.min(255, g + (c[0] - g) * k)),
+        Math.max(0, Math.min(255, g + (c[1] - g) * k)),
+        Math.max(0, Math.min(255, g + (c[2] - g) * k)),
+      ];
+    };
+
+    const rgbOf = (cell: Cell, sweep: number): [number, number, number] => {
+      if (cell.locked) return colWord;
+      // The two sides, and the sweep leaning the mix toward whichever side it
+      // is passing over — so the band reads as a change of COLOUR travelling,
+      // not only a change of brightness.
+      const m = Math.max(0, Math.min(1, cell.mix + sweep * 0.22 - 0.11));
+      const base: [number, number, number] = [
         colA[0] + (colB[0] - colA[0]) * m,
         colA[1] + (colB[1] - colA[1]) * m,
         colA[2] + (colB[2] - colA[2]) * m,
       ];
+      return saturate(base, 1.5 + sweep * 0.9);
     };
 
     const drawCell = (i: number) => {
@@ -258,9 +307,14 @@ export default function LetterGlitch({
       ctx.globalCompositeOperation = "source-over";
       ctx.clearRect(x, y, CELL_W, CELL_H);
 
-      const [rr, gg, bb] = rgbOf(cell);
-      let a = intensity * cell.dim * (cell.hot ? 2.6 : 1);
-      if (cell.locked) a = intensity * 0.95;
+      const sweep = sweepLevel[c] ?? 0;
+      const [rr, gg, bb] = rgbOf(cell, sweep);
+      let a = intensity * cell.dim * (cell.hot ? 2.9 : 1) * (1 + sweep * 2.6);
+      // The word takes the sweep too -- as BRIGHTNESS, not as hue. It keeps the
+      // neutral that makes it belong to neither side, but it lights up as the
+      // band crosses it, so the sweep passes over the whole field rather than
+      // parting around the one thing you are meant to look at.
+      if (cell.locked) a = intensity * (0.66 + 0.72 * sweep);
       a += cell.spark * 0.9;
       if (a <= 0.015) return;
 
@@ -313,7 +367,7 @@ export default function LetterGlitch({
       const cy = s.row * CELL_H + CELL_H / 2;
       const rad = CELL_W * SPARK_R;
       const cell = cells[s.row * cols + s.col];
-      const [rr, gg, bb] = rgbOf(cell);
+      const [rr, gg, bb] = rgbOf(cell, sweepLevel[s.col] ?? 0);
       const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, rad);
       g.addColorStop(0, `rgba(${rr | 0},${gg | 0},${bb | 0},${(level * 0.34).toFixed(3)})`);
       g.addColorStop(0.5, `rgba(${rr | 0},${gg | 0},${bb | 0},${(level * 0.1).toFixed(3)})`);
@@ -354,6 +408,24 @@ export default function LetterGlitch({
 
     const draw = (t: number) => {
       setFont();
+
+      // ── the sweep ───────────────────────────────────────────────────────
+      // Travels right to left. A raised cosine rather than a hard edge, and it
+      // wraps, so there is no seam to catch the eye on the way round.
+      const sPhase = ((t / 1000) % SWEEP_SECONDS) / SWEEP_SECONDS;
+      const head = 1 - sPhase; // 1 -> 0 : the right edge toward the left
+      for (let c = 0; c < cols; c++) {
+        const x = cols > 1 ? c / (cols - 1) : 0;
+        let d = Math.abs(x - head);
+        if (d > 0.5) d = 1 - d; // wrap, so the band re-enters from the right
+        const level = d < SWEEP_WIDTH ? 0.5 + 0.5 * Math.cos((d / SWEEP_WIDTH) * Math.PI) : 0;
+        sweepLevel[c] = level;
+        const bucket = (level * SWEEP_STEPS) | 0;
+        if (bucket !== sweepBucket[c]) {
+          sweepBucket[c] = bucket;
+          for (let r = 0; r < rows; r++) cells[r * cols + c].dirty = true;
+        }
+      }
 
       // ── the word's slow tide ────────────────────────────────────────────
       // A hold at each end, so it is not a permanent throb: the word arrives,
