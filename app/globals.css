@@ -227,6 +227,45 @@ a:hover {
   opacity: 0.85;
 }
 
+/* ── the background switch ───────────────────────────────────────────
+   Only rendered when `?bg=` is already in the URL, so this never meets a
+   visitor who did not ask for it. Deliberately plain: it is an instrument for
+   comparing two designs, and an instrument that competes with what it is
+   measuring is a bad instrument. */
+.bg-switch {
+  position: fixed;
+  left: 16px;
+  bottom: 16px;
+  z-index: 40;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  backdrop-filter: blur(8px);
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+.bg-switch a {
+  padding: 5px 12px;
+  border-radius: 999px;
+  color: var(--text-faint);
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.bg-switch a:hover {
+  color: var(--text);
+}
+
+.bg-switch a[data-on] {
+  color: var(--bg);
+  background: var(--text);
+}
+
 /* ── nav ─────────────────────────────────────────────────────────── */
 
 .nav {
