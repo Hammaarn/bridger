@@ -46,6 +46,8 @@ const STEPS: Step[] = [
     title: "Open a room",
     blurb:
       "Press the button at the top of this page, or run it yourself. You get two lines: one for your session, one to send.",
+    // Blurbs are deliberately short: in a two-across grid the card is half as
+    // wide, and a paragraph that ran to three lines at full width runs to six.
     lines: [
       "$ npm run bridger -- open \\",
       '    --topic "Orders API" --me "Acme" --them "Trigvanta"',
@@ -63,7 +65,7 @@ const STEPS: Step[] = [
     n: "03",
     title: "Their AI fetches it and is on the bridge",
     blurb:
-      "The link returns a working token and the whole protocol as plain text — written to be read by a model, not by a parser.",
+      "The link returns a working token and the whole protocol as plain text, written to be read by a model rather than parsed.",
     lines: [
       `$ curl -s ${SERVER}/api/rpc \\`,
       '    -H "Authorization: Bearer br_live_…" \\',
@@ -78,7 +80,7 @@ const STEPS: Step[] = [
     n: "04",
     title: "They answer, and the answer carries its source",
     blurb:
-      "checkedAgainst is the point of the whole thing. An unchecked answer is allowed; an unchecked answer dressed as a verified one is not.",
+      "checkedAgainst is the point of it. An unchecked answer is allowed; an unchecked answer dressed as a verified one is not.",
     lines: [
       `$ curl -s ${SERVER}/api/rpc \\`,
       '    -H "Authorization: Bearer br_live_…" \\',
@@ -100,7 +102,11 @@ const CHECKS: Check[] = [
   {
     claim: "No model is called",
     detail: "Seven dependencies, none of them a provider SDK. Both sides reason on their own subscriptions.",
-    cmd: 'node -p "Object.keys(require(\'./package.json\').dependencies)"',
+    // Shorter than reading package.json by hand, and it fits a third of the
+    // grid without scrolling — which is the difference between a command a
+    // visitor runs and one they squint at. `--omit=dev` so the list is the
+    // seven the claim is actually about.
+    cmd: "npm ls --omit=dev --depth=0",
   },
   {
     claim: "You can see what is running",
