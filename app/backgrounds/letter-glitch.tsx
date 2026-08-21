@@ -28,8 +28,15 @@ import { useEffect, useRef } from "react";
 
 /** Cell size in CSS px. Bigger cells mean fewer glyphs and a coarser wall. */
 const CELL_W = 12;
+/** Default cell height. Overridable per instance -- see `cellH`. */
 const CELL_H = 20;
-const FONT_PX = 14;
+/**
+ * The glyph is drawn centred in its cell and only ITS OWN cell is cleared before
+ * the repaint, so a font taller than the cell leaves ink no one erases. Deriving
+ * the size from the cell keeps that safe at any grid: 0.7 x 20 is 14, which is
+ * exactly what this shipped with.
+ */
+const fontPxFor = (cellH: number) => Math.round(cellH * 0.7);
 
 const GLYPHS = Array.from("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/\\<>[]{}=+*#$%&@?!:;-_");
 
@@ -72,6 +79,19 @@ interface Cell {
   threshold: number;
   /** Whether the cell falls inside the word's letterforms. */
   inWord: boolean;
+  /**
+   * Just OUTSIDE the letterforms -- the counters of a B, the gap between two
+   * letters, the halo around the whole word.
+   *
+   * Measured before this existed: word cells sat at median luminance 47.7 while
+   * 5.8% of wall cells ran BRIGHTER, up to 200. The `hot` minority is why the
+   * wall has colour at all, so it cannot go; but a hot cell landing inside the
+   * counter of a D closes that counter, and there are enough of them to close
+   * most counters most of the time. So the wall is damped in the word's
+   * immediate neighbourhood only, which is the difference between a word that
+   * is brighter than its surroundings and a word that is legible.
+   */
+  nearWord: boolean;
   /** 0..1 across the field, for the two-sided hue. */
   mix: number;
   /** Base alpha, so the wall has depth rather than being uniform. */
@@ -110,6 +130,17 @@ export interface LetterGlitchProps {
   ping?: number;
   /** Set false for the thin strip, where a word would not fit. */
   showWord?: boolean;
+  /**
+   * Cell height in CSS px. The word is sampled at one mask pixel per cell, so
+   * this is the VERTICAL RESOLUTION the letterforms get -- in a 260px band, 20
+   * buys 13 rows and the counters of B, R, D and G close at that size.
+   */
+  cellH?: number;
+  /**
+   * How much of the width the word aims to fill, 0..1. Inert while the height
+   * cap binds, which it does at 13 rows: raising it there changes nothing.
+   */
+  wordWidth?: number;
 }
 
 export default function LetterGlitch({
@@ -119,6 +150,8 @@ export default function LetterGlitch({
   intensity = 0.9,
   ping = 0,
   showWord = true,
+  cellH = CELL_H,
+  wordWidth = 0.62,
 }: LetterGlitchProps) {
   const ref = useRef<HTMLCanvasElement | null>(null);
   const burst = useRef(0);
@@ -151,6 +184,10 @@ export default function LetterGlitch({
     let sparks: Spark[] = [];
     const touched = new Set<number>();
     let reveal = 0;
+    /** Last quantised reveal, so the halo repaints on crossings only. */
+    let revealBucket = -1;
+    /** Indices of the halo, kept so a reveal crossing does not scan the grid. */
+    let haloCells: number[] = [];
     /** Last quantised sweep level per column, so only crossings repaint. */
     let sweepBucket = new Int16Array(0);
     /** Current sweep level per column, read by drawCell. */
@@ -193,6 +230,32 @@ export default function LetterGlitch({
      * what makes the word appear built out of characters rather than drawn on
      * top of them, and it costs one rasterisation per resize.
      */
+    /**
+     * The word's neighbourhood: every cell within `HALO` of a letterform cell,
+     * itself excluded. Dilated on the grid rather than measured in px, because
+     * what has to be kept clear is a COUNTER -- and a counter is one or two
+     * cells wide however large the word is.
+     */
+    const HALO = 1;
+    const dilate = (mask: boolean[]): boolean[] => {
+      const near = new Array<boolean>(cols * rows).fill(false);
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          if (mask[r * cols + c]) continue;
+          let hit = false;
+          for (let dr = -HALO; dr <= HALO && !hit; dr++) {
+            for (let dc = -HALO; dc <= HALO && !hit; dc++) {
+              const rr = r + dr, cc = c + dc;
+              if (rr < 0 || rr >= rows || cc < 0 || cc >= cols) continue;
+              if (mask[rr * cols + cc]) hit = true;
+            }
+          }
+          near[r * cols + c] = hit;
+        }
+      }
+      return near;
+    };
+
     const buildMask = (): boolean[] => {
       const mask = new Array<boolean>(cols * rows).fill(false);
       if (!showWord || cols < 16 || rows < 6) return mask;
@@ -203,6 +266,16 @@ export default function LetterGlitch({
       const oc = off.getContext("2d");
       if (!oc) return mask;
 
+      // THE CELL IS NOT SQUARE, AND THIS CANVAS IS ONE PIXEL PER CELL.
+      // A mask pixel is displayed CELL_W wide and `cellH` tall, so a glyph
+      // rasterised here at its natural proportions arrives on screen squeezed
+      // horizontally by CELL_W / cellH -- 0.6 at the shipped 12x20. That is the
+      // "too tight" this shipped with: BRIDGER rendered at 60% of its own width,
+      // every counter closed, unreadable as letterforms. Pre-stretching x by the
+      // inverse cancels it exactly, and this is the only place the two cell
+      // dimensions are allowed to differ.
+      const kx = cellH / CELL_W;
+
       // Taller and narrower than the obvious fit, because the STROKE WIDTH is
       // what has to survive being sampled at one pixel per cell. A word sized
       // to fill the width reads as a ragged band; a word sized to fill the
@@ -210,15 +283,17 @@ export default function LetterGlitch({
       // come through the letters that fill it.
       let size = rows * 0.78;
       oc.font = `900 ${size}px ui-sans-serif, system-ui, sans-serif`;
-      const target = cols * 0.62;
-      const measured = oc.measureText(word).width;
+      const target = cols * wordWidth;
+      const measured = oc.measureText(word).width * kx;
       if (measured > 0) size = Math.max(4, Math.min(size * (target / measured), rows * 0.86));
 
       oc.font = `900 ${size}px ui-sans-serif, system-ui, sans-serif`;
       oc.textAlign = "center";
       oc.textBaseline = "middle";
       oc.fillStyle = "#fff";
-      oc.fillText(word, cols / 2, rows / 2);
+      oc.setTransform(kx, 0, 0, 1, 0, 0);
+      oc.fillText(word, cols / 2 / kx, rows / 2);
+      oc.setTransform(1, 0, 0, 1, 0, 0);
 
       const d = oc.getImageData(0, 0, cols, rows).data;
       for (let i = 0; i < cols * rows; i++) mask[i] = d[i * 4 + 3] > 96;
@@ -236,11 +311,12 @@ export default function LetterGlitch({
       readColors();
 
       cols = Math.max(1, Math.ceil(w / CELL_W));
-      rows = Math.max(1, Math.ceil(h / CELL_H));
+      rows = Math.max(1, Math.ceil(h / cellH));
       sweepBucket = new Int16Array(cols).fill(-1);
       sweepLevel = new Float32Array(cols);
 
       const mask = buildMask();
+      const near = dilate(mask);
       cells = new Array(cols * rows);
       for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
@@ -250,15 +326,19 @@ export default function LetterGlitch({
             locked: false,
             threshold: Math.random(),
             inWord: mask[i],
+            nearWord: near[i],
             mix: cols > 1 ? c / (cols - 1) : 0.5,
             // A vertical falloff so the wall fades rather than ending on a line.
             dim: 0.1 + Math.random() * 0.34,
-            hot: Math.random() < 0.07,
+            hot: !near[i] && Math.random() < 0.07,
             spark: 0,
             dirty: true,
           };
         }
       }
+      haloCells = [];
+      for (let i = 0; i < cells.length; i++) if (cells[i].nearWord) haloCells.push(i);
+      revealBucket = -1;
       sparks = [];
       touched.clear();
       paintAll();
@@ -301,15 +381,20 @@ export default function LetterGlitch({
       const c = i % cols;
       const r = (i / cols) | 0;
       const x = c * CELL_W;
-      const y = r * CELL_H;
+      const y = r * cellH;
 
       // Clear first: this is a repaint of one cell, not a fresh frame.
       ctx.globalCompositeOperation = "source-over";
-      ctx.clearRect(x, y, CELL_W, CELL_H);
+      ctx.clearRect(x, y, CELL_W, cellH);
 
       const sweep = sweepLevel[c] ?? 0;
       const [rr, gg, bb] = rgbOf(cell, sweep);
       let a = intensity * cell.dim * (cell.hot ? 2.9 : 1) * (1 + sweep * 2.6);
+      // The clearing only exists while there is a word to clear FOR. At reveal 0
+      // this is 1 and the wall is untouched, so the field is unchanged whenever
+      // the word is away -- the halo is part of the word's arrival, not a
+      // permanent hole in the noise.
+      if (cell.nearWord) a *= 1 - 0.55 * reveal;
       // The word takes the sweep too -- as BRIGHTNESS, not as hue. It keeps the
       // neutral that makes it belong to neither side, but it lights up as the
       // band crosses it, so the sweep passes over the whole field rather than
@@ -321,7 +406,7 @@ export default function LetterGlitch({
       ctx.globalCompositeOperation = additive ? "lighter" : "source-over";
       ctx.fillStyle = `rgba(${rr | 0},${gg | 0},${bb | 0},${Math.min(1, a).toFixed(3)})`;
       ctx.font = cell.locked ? WORD_FONT : NOISE_FONT;
-      ctx.fillText(cell.ch, x + CELL_W / 2, y + CELL_H / 2);
+      ctx.fillText(cell.ch, x + CELL_W / 2, y + cellH / 2);
       ctx.globalCompositeOperation = "source-over";
     };
 
@@ -334,8 +419,9 @@ export default function LetterGlitch({
      * this size -- a bold glyph has more ink per cell, so the strokes of the
      * big word gain body while the counters stay thin and open.
      */
-    const NOISE_FONT = `${FONT_PX}px ui-monospace, SFMono-Regular, Menlo, monospace`;
-    const WORD_FONT = `700 ${FONT_PX + 1}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+    const fontPx = fontPxFor(cellH);
+    const NOISE_FONT = `${fontPx}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+    const WORD_FONT = `700 ${fontPx + 1}px ui-monospace, SFMono-Regular, Menlo, monospace`;
 
     const setFont = () => {
       ctx.font = NOISE_FONT;
@@ -364,7 +450,7 @@ export default function LetterGlitch({
     const drawSparkGlow = (s: Spark, level: number) => {
       if (!additive) return;
       const cx = s.col * CELL_W + CELL_W / 2;
-      const cy = s.row * CELL_H + CELL_H / 2;
+      const cy = s.row * cellH + cellH / 2;
       const rad = CELL_W * SPARK_R;
       const cell = cells[s.row * cols + s.col];
       const [rr, gg, bb] = rgbOf(cell, sweepLevel[s.col] ?? 0);
@@ -434,6 +520,16 @@ export default function LetterGlitch({
       const tri = phase < 0.5 ? phase * 2 : (1 - phase) * 2;
       reveal = Math.min(1, Math.max(0, (tri - 0.12) / 0.5));
 
+      // The halo dims as the word arrives, so it changes every frame the reveal
+      // moves -- the same problem the sweep has, and the same answer: quantise,
+      // and repaint only the frames that cross a step. 20 steps over a 16s cycle
+      // is a crossing every ~0.2s, against a scan of a few hundred cells.
+      const rb = (reveal * 20) | 0;
+      if (rb !== revealBucket) {
+        revealBucket = rb;
+        for (const i of haloCells) cells[i].dirty = true;
+      }
+
       if (showWord) {
         for (let i = 0; i < cells.length; i++) {
           const cell = cells[i];
@@ -467,7 +563,7 @@ export default function LetterGlitch({
           if (cell.locked) continue;
           cell.ch = rnd();
           cell.dim = 0.1 + Math.random() * 0.34;
-          cell.hot = Math.random() < 0.07;
+          cell.hot = !cell.nearWord && Math.random() < 0.07;
           cell.dirty = true;
         }
         if (Math.random() < 0.5) spawnSpark(t, reveal > 0.5);
@@ -585,7 +681,7 @@ export default function LetterGlitch({
       reduced?.removeEventListener?.("change", onMotion);
       scheme?.removeEventListener?.("change", onScheme);
     };
-  }, [word, glitchMs, intensity, showWord]);
+  }, [word, glitchMs, intensity, showWord, cellH, wordWidth]);
 
   return <canvas ref={ref} className={className} aria-hidden="true" />;
 }

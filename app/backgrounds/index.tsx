@@ -47,9 +47,13 @@ export interface BackgroundProps extends WireProps {
   word?: string;
   /** False on the thin strip, where a word has no room to form. */
   showWord?: boolean;
+  /** Cell height for the glitch grid -- the word's vertical resolution. */
+  cellH?: number;
+  /** Fraction of the width the glitch word aims to fill. */
+  wordWidth?: number;
 }
 
-export default function Background({ word, showWord, ...wire }: BackgroundProps) {
+export default function Background({ word, showWord, cellH, wordWidth, ...wire }: BackgroundProps) {
   const variant = useBackgroundVariant();
 
   if (variant === "glitch") {
@@ -58,6 +62,8 @@ export default function Background({ word, showWord, ...wire }: BackgroundProps)
         className={wire.className}
         word={word}
         showWord={showWord}
+        cellH={cellH}
+        wordWidth={wordWidth}
         intensity={wire.intensity}
         ping={wire.ping}
       />
