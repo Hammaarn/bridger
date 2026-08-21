@@ -464,7 +464,7 @@ function Create({ onMinted, onCancel }: { onMinted: (m: Minted) => void; onCance
         the thing you came here to fill in. Same material, quieter, which is the
         move the closing band already makes.
       */}
-      <LetterGlitch className="bg-sheet" showWord={false} intensity={0.5} />
+      <LetterGlitch className="bg-sheet" showWord={false} intensity={0.42} glitchMs={130} />
       <Nav />
       <div className="sheet-card">
         <h1>Open a room</h1>
@@ -476,7 +476,7 @@ function Create({ onMinted, onCancel }: { onMinted: (m: Minted) => void; onCance
             id="topic"
             value={topic}
             onChange={(e) => setTopic(e.target.value)}
-            placeholder="Partner API — round 8"
+            placeholder="Checkout API — payload shapes"
             className={badField === "topic" ? "bx-bad" : ""}
             maxLength={200}
             autoFocus
@@ -489,7 +489,7 @@ function Create({ onMinted, onCancel }: { onMinted: (m: Minted) => void; onCance
                 id="you"
                 value={you}
                 onChange={(e) => setYou(e.target.value)}
-                placeholder="Auden (Claude Code)"
+                placeholder="Acme (your AI)"
                 className={badField === "ownerLabel" ? "bx-bad" : ""}
                 maxLength={60}
               />
@@ -500,7 +500,7 @@ function Create({ onMinted, onCancel }: { onMinted: (m: Minted) => void; onCance
                 id="them"
                 value={them}
                 onChange={(e) => setThem(e.target.value)}
-                placeholder="Antigravity (Gemini)"
+                placeholder="Northwind (their AI)"
                 className={badField === "ownerLabel" ? "" : badField === "peerLabel" ? "bx-bad" : ""}
                 maxLength={60}
               />
@@ -559,7 +559,13 @@ interface InviteLink {
   replacedPreviousLink: boolean;
 }
 
-function TokenBox({ minted, onWatch }: { minted: Minted; onWatch: (t: string) => void }) {
+function TokenBox({
+  minted,
+  onWatch,
+}: {
+  minted: Minted;
+  onWatch: (t: string, invite?: InviteLink | null) => void;
+}) {
   /**
    * THE INVITE LINK, and why it is the primary handoff now.
    *
@@ -580,7 +586,27 @@ function TokenBox({ minted, onWatch }: { minted: Minted; onWatch: (t: string) =>
 
   const rpcEndpoint = minted.endpoint.replace(/\/api\/mcp$/, "/api/rpc");
 
-  async function makeInvite() {
+  /**
+   * Mint the link and go straight into the room.
+   *
+   * Erik's brother, S#279: "once you have created the room there should be a
+   * generate invite link that also takes you to the room instantly." He is
+   * right that this screen was a dead end -- you minted a link and then stood on
+   * a static page holding it. The link now travels with you and is displayed in
+   * the room, which is also where it belongs: the invite is a property of a room
+   * waiting for its second party, not of the one screen that happened to create
+   * it.
+   *
+   * It carries in memory, NOT in sessionStorage. The link mints a credential, so
+   * persisting it would put a token-bearing URL on disk next to the viewer token
+   * for no gain -- a reload half an hour later would find it expired anyway.
+   */
+  async function makeInviteAndEnter() {
+    const link = await makeInvite();
+    if (link) onWatch(minted.viewerToken, link);
+  }
+
+  async function makeInvite(): Promise<InviteLink | null> {
     setInviteBusy(true);
     setInviteError(null);
     try {
@@ -597,11 +623,13 @@ function TokenBox({ minted, onWatch }: { minted: Minted; onWatch: (t: string) =>
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
         setInviteError(body.error ?? `The server said ${res.status}.`);
-        return;
+        return null;
       }
       setInvite(body as InviteLink);
+      return body as InviteLink;
     } catch {
       setInviteError("Could not reach the bridge server.");
+      return null;
     } finally {
       setInviteBusy(false);
     }
@@ -690,7 +718,7 @@ It names the commit it is running and answers without a token.`;
         the thing you came here to fill in. Same material, quieter, which is the
         move the closing band already makes.
       */}
-      <LetterGlitch className="bg-sheet" showWord={false} intensity={0.5} />
+      <LetterGlitch className="bg-sheet" showWord={false} intensity={0.42} glitchMs={130} />
       <Nav />
       <div className="sheet-card bx-wide">
         <h1>{minted.room.topic}</h1>
@@ -813,9 +841,30 @@ It names the commit it is running and answers without a token.`;
           </div>
         </details>
 
-        <button type="button" className="bx-primary" onClick={() => onWatch(minted.viewerToken)}>
-          Watch this room
-        </button>
+        <div className="bx-close-actions">
+          <button
+            type="button"
+            className="bx-primary"
+            onClick={makeInviteAndEnter}
+            disabled={inviteBusy}
+          >
+            {inviteBusy ? "minting…" : "Generate link & open the room"}
+          </button>
+          <button type="button" className="link" onClick={() => onWatch(minted.viewerToken)}>
+            open the room without a link
+          </button>
+        </div>
+        {/*
+          Said plainly rather than discovered. Leaving this screen loses YOUR
+          connector -- the tokens above are shown once and are not recoverable,
+          including by us. That was already true of the old "Watch this room"
+          button; making the exit one click makes it likelier, so it gets a
+          sentence instead of a shrug.
+        */}
+        <p className="fine bx-close-note">
+          Your own connector is on this screen only. Copy it before you leave — a lost
+          token is replaced with <code>bridger rotate</code>, not recovered.
+        </p>
       </div>
     </main>
   );
@@ -823,7 +872,16 @@ It names the commit it is running and answers without a token.`;
 
 // ── view: room (three panels) ────────────────────────────────────
 
-function RoomView({ token, onForget }: { token: string; onForget: () => void }) {
+function RoomView({
+  token,
+  onForget,
+  invite,
+}: {
+  token: string;
+  onForget: () => void;
+  /** Present only just after creating a room; see `makeInviteAndEnter`. */
+  invite?: InviteLink | null;
+}) {
   const [data, setData] = useState<ExportPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [live, setLive] = useState(false);
@@ -1145,6 +1203,30 @@ function RoomView({ token, onForget }: { token: string; onForget: () => void }) 
         </div>
       </header>
 
+      {/*
+        THE INVITE, WHERE IT BELONGS.
+        A link is a property of a room that is waiting for its second party, not
+        of the one screen that happened to create it. Shown only while `invite`
+        is in memory, which is only just after creating a room -- the point at
+        which the other side definitionally has not joined.
+
+        There is no GENERATE button here, and that is a real limit rather than an
+        oversight: this view authenticates with the read-only VIEWER token, and
+        minting a credential from a read-only seat is exactly what `opInvite`
+        refuses. Re-issuing later is a participant action -- the CLI, or an rpc
+        call with the side token.
+      */}
+      {invite && (
+        <div className="bx-room-invite">
+          <div>
+            <strong>Waiting for {invite.forLabel}.</strong> Send them this — it is live for{" "}
+            {invite.linkExpiresInMinutes} minutes.
+          </div>
+          <code>{invite.joinUrl}</code>
+          <CopyButton value={invite.joinUrl}>copy link</CopyButton>
+        </div>
+      )}
+
       {error && <div className="error" style={{ margin: "12px 22px" }}>{error}</div>}
 
       <div className="bx-panels">
@@ -1338,6 +1420,7 @@ export default function Bridger() {
   const [view, setView] = useState<"gate" | "create" | "minted">("gate");
   const [minted, setMinted] = useState<Minted | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const [invite, setInvite] = useState<InviteLink | null>(null);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -1346,9 +1429,12 @@ export default function Bridger() {
     setReady(true);
   }, []);
 
-  const watch = (t: string) => {
+  const watch = (t: string, inv?: InviteLink | null) => {
     sessionStorage.setItem(STORAGE_KEY, t);
     setToken(t);
+    // Memory only: a link that mints a credential does not belong on disk, and
+    // it expires long before a later reload would want it.
+    if (inv !== undefined) setInvite(inv);
   };
 
   /**
@@ -1374,6 +1460,7 @@ export default function Bridger() {
   if (token) {
     return (
       <RoomView
+        invite={invite}
         token={token}
         onForget={() => {
           sessionStorage.removeItem(STORAGE_KEY);
