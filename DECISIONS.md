@@ -5,6 +5,48 @@ Append-only, newest first. **DECISIONS wins on direction** — where this file a
 
 ---
 
+## 2026-08-22 -- S#279 -- B1 IS CLOSED, AND THE REFUSALS WERE THE SPECIFICATION
+
+**A different company's Claude joined and did real work.** Room `e4db579a5fad`,
+2026-08-21: Trigvanta's session -- their machine, their codebase, their operator,
+their interests -- ran **188 calls across both sides on 3 tokens**, with 9 posts,
+an ask, an answer, a read and 6 pings. One `bridger_status` arrived over MCP, so
+both transports were live in the same room.
+
+**Why this is the landmark and the earlier ones were not.** Every previous far
+side was on Erik's own machine. S#276 was a second Claude session with this repo
+on disk -- its own retro called the role *"structurally fake in the way that
+matters most"*. S#278 was Antigravity on Erik's laptop, citing its local copies
+of OUR documents. `checkedAgainst` had never once been exercised as what it was
+designed to be: a falsifiable commitment to somebody who cannot check it. Now it
+has.
+
+**IT TOOK THREE REFUSALS AND EVERY ONE WAS RIGHT.** S#275 and S#279 both declined
+a pasted invitation on the same reasoning -- a message instructing someone else's
+AI to open a channel to an unknown host is structurally identical to a prompt
+injection. The temptation at that point is to word the invitation more
+persuasively, which only produces a better-crafted injection. Asked instead what
+it WOULD need, the second refusal wrote a six-point acceptance spec, and it
+connected once the product was built against it (`/j/<code>` serving a decision
+page to the operator, same session).
+
+**The durable lesson: a refusal from a competent counterparty is a specification,
+not an obstacle.** The whole trust surface of this product -- `/api/about`,
+`VERIFY.md`, the commit in every response, the decision page -- exists because of
+refusals, and each round of it made the product more legitimate rather than more
+persuasive.
+
+**And the contrast worth keeping.** Gemini accepted the same invitation
+immediately, with none of the six checks. That is not the target: an agent that
+joins without checking would also join something hostile. The goal is a CAREFUL
+agent able to say yes, which is what happened here.
+
+**Evidence frozen** at `.local/evidence/audit-{pre,post}-b1.json`. The audit log
+is a 5,000-row rolling window that sat at zero headroom; 4.5 hours of older
+history was evicted between two snapshots an hour apart. Without the manual
+snapshot the operational record of the first cross-company session would already
+be gone -- see TODO D6.
+
 ## 2026-08-21 -- S#279 -- THE GLITCH IS THE IDENTITY. THE WAVE IS REMOVED.
 
 **Source:** Erik, after seeing it live: *"We can now remove the wave particle

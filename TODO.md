@@ -411,6 +411,81 @@ the cut-list we put to the far side in the reopened `ACC-Q-004`.
 
 ---
 
+# D. FROM THE FIRST CROSS-COMPANY SESSION (2026-08-21/22)
+
+> Trigvanta's Claude connected and worked room `e4db579a5fad`. Everything here
+> is either Erik watching it happen or a row in the audit log; none of it is
+> speculation about what a partner might want.
+
+## D1. [!!] NOBODY CAN TELL WHO IS WHO
+
+There is no per-side colour anywhere in the room view, and no visual signal for
+who has connected. Two parties write into one record and the reader has to parse
+labels to work out which is which. The field already spends `--side-a` and
+`--side-b` on exactly this idea -- the background mixes the two parties' hues --
+and the room, where it would actually carry meaning, uses neither.
+
+**Assign each side a colour once, at the room level, and use it everywhere:**
+entry authorship, the side chips, the connection state, the invite panel. The
+tokens exist; nothing consumes them.
+
+## D2. [!!] THE CONVERSATION IS NOT SHAPED LIKE A CONVERSATION
+
+Erik: it should read like two people talking in Teams -- each side on its own
+side of the column, in its own bubble. Today the feed is a uniform list of
+entries, so the fact that this is a DIALOGUE between two parties is carried by
+metadata rather than by the layout.
+
+Pairs with D1: alignment says who is speaking before any text is read, and colour
+confirms it. Neither works alone.
+
+## D3. A PLANNING CLAUDE CANNOT USE THE BRIDGE AT ALL
+
+Erik: in plan mode their Claude could not write to the bridge.
+
+**Verified:** none of the 13 `bridger_*` MCP tools declares any annotation --
+`readOnlyHint`, `destructiveHint`, `openWorldHint` are absent across the whole
+surface (`grep -c` returns 0). A harness that gates tools during planning has
+nothing to go on and must assume every tool writes, which sweeps up
+`bridger_status`, `bridger_read`, `bridger_ping` and `bridger_whoami` -- all pure
+reads.
+
+**NOT verified, and it is the part that matters:** whether adding the annotations
+actually unblocks anything. That depends on the far side's harness, not on us,
+and it needs a live test with a planning session rather than a confident patch.
+Writing while planning may be correctly forbidden; being unable to READ is the
+part that looks like our bug.
+
+## D4. THE CREATE FLOW IS TOO MANY STEPS, TOO VAGUELY LABELLED
+
+Erik: what the setup gives you needs to be much simpler -- too many steps and
+vague descriptions of what each thing does. The minted screen hands over three
+tokens, a warning, an invite block, a fallback and an MCP section, and expects
+the reader to work out which of those they need.
+
+Design reference: Erik pointed at **https://x.ai/bot**, which I could not read --
+Cloudflare returns 403 to both WebFetch and headless Chrome, and working around a
+deliberate bot block is not something to do. **Needs a screenshot or the copy
+from Erik before this item is actionable.**
+
+## D5. `help` IS NOT AN OPERATION, AND SOMEBODY REACHED FOR IT
+
+One `help error` row in the audit for the session. An agent looked for a help
+verb, and the refusal does list `knownOps`, so it was recoverable -- but a
+transport whose whole pitch is "one POST, no docs to install" should answer the
+most obvious verb in it. Cheap.
+
+## D6. THE AUDIT WINDOW IS TOO SMALL TO HOLD A REAL SESSION
+
+`AUDIT_LOG_MAX` is 5,000 and the log sat at ZERO headroom throughout. One
+cross-company session plus a watch tab pushed 4.5 hours of history out between
+two snapshots taken an hour apart. The ledger is safe; the operational record is
+not. Either raise the cap, or make `bridger audit` able to archive before it
+rolls -- right now the only reason S#279's evidence survives is that a snapshot
+was taken by hand.
+
+---
+
 ## B6. Standing gaps carried from earlier sessions
 
 - ~~The purge CONSENT GATE in the CLI is not unit-tested.~~ **DONE S#278.** The

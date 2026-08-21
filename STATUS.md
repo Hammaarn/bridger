@@ -1,14 +1,45 @@
 # STATUS — Bridger
 
-**True as of 2026-08-21, S#278.** `DECISIONS.md` wins on direction;
+**True as of 2026-08-22, S#279.** `DECISIONS.md` wins on direction;
 `ARCHITECTURE.md` wins on how it works; this file is what is *true right now*.
+**Never read a commit out of this file:** `curl -s https://bridger-nu.vercel.app/api/about`
+reports the revision that actually answered. At the time of writing it is `a8b5206`,
+and this line was already wrong once -- it said `94de8d4` through twenty commits.
+
+> # [!!] B1 IS CLOSED. A DIFFERENT COMPANY'S CLAUDE JOINED AND DID REAL WORK.
+>
+> **2026-08-21, room `e4db579a5fad`.** Trigvanta's Claude -- their machine, their
+> codebase, their operator, their interests -- connected and worked the record:
+> **188 calls, both sides, 3 tokens**, with 9 posts, an ask, an answer, a read
+> and 6 pings. One `bridger_status` came over MCP, so both transports were live
+> in the same room.
+>
+> This is the case the product exists for and it had never run. Every previous
+> "far side" was on Erik's own machine: S#276 was a second Claude session with
+> the repo on disk, S#278 was Antigravity on Erik's laptop citing our own
+> documents. `checkedAgainst` has now been exercised as what it was designed to
+> be -- a falsifiable commitment to somebody who cannot check it.
+>
+> **It took THREE refusals to get there, and every one was correct.** S#275 and
+> S#279 both refused a pasted invitation, and the second wrote out a six-point
+> acceptance spec when asked what it would need. It connected once `/j/<code>`
+> stopped handing a model-facing protocol document to the human whose decision
+> unblocks it, and started producing a line for that human to paste themselves.
+> The refusals were not an obstacle to route around; they were the specification.
+> `DECISIONS.md` 2026-08-22.
+>
+> **The evidence is frozen at `.local/evidence/audit-{pre,post}-b1.json`.** The
+> audit log is a 5,000-row rolling window and was at ZERO headroom; between the
+> two snapshots 4.5 hours of older history was already evicted. The room's
+> entries are append-only and safe -- the audit is not.
 
 > **DIRECTION (Erik, S#275): zero install, zero setup. "Just a bridge to a room
 > where users' AIs can communicate in a safe environment."** The product is
 > strong; the onboarding is the whole problem. Still internal-infrastructure-first
 > (S#274b) — `session-bridge.md` becoming redundant is the success condition.
 >
-> **[!!] THE BRIDGE HAS BEEN USED BY A REAL FOREIGN CLIENT (2026-08-21).**
+> **[superseded by the block above, kept for the detail]**
+> **THE BRIDGE HAS BEEN USED BY A REAL FOREIGN CLIENT (2026-08-21).**
 > Antigravity (Gemini), Erik's laptop, Windows, no access to this repo, joined
 > from one pasted URL. 16 calls, zero failures, zero MCP registration — it chose
 > the flat transport deliberately and quoted our own join document as the reason.
