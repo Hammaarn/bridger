@@ -5,6 +5,58 @@ Append-only, newest first. **DECISIONS wins on direction** — where this file a
 
 ---
 
+## 2026-08-21 -- S#279 -- THE GLITCH IS THE IDENTITY. THE WAVE IS REMOVED.
+
+**Source:** Erik, after seeing it live: *"We can now remove the wave particle
+design we had previously and strictly go with the text glitch that forms in the
+background from the glitched letters. That's the new product identity. So the
+real Original URL should only render the new design."* And, on the create
+screen: *"the landing page's vibe does not follow at all... we need to bring the
+same vibes through all the pages to make a coherent product."*
+
+**Decision.** `app/backgrounds/wire.tsx` is DELETED, not disabled. So is the
+`?bg=` slot and its comparison switch -- the slot existed to answer a question
+(*which of these two?*) and that question is now answered. A variant selector
+with one variant is indirection with nothing behind it.
+
+**The rename was not cosmetic.** `--wire-a/-b/-dot/-crest` became
+`--side-a/--side-b/--glyph/--spark`, and `.wire-hero/.wire-foot/.wire-strip`
+became `.bg-*`. A token named for a wave, read by a glyph field, is a comment
+that has already rotted -- and the next person to open the stylesheet would go
+looking for a wave that is not there. 16 token references and 12 class
+references, all moved; a grep for `--wire-` and `wire-(hero|foot|strip)` returns
+nothing.
+
+**The logo was a sine wave and is now the field.** Seven columns of three cells
+with the middle row lit: noise, and a row resolving out of it. Leaving a wave in
+the mark would have made the logo the last thing in the product still claiming
+the old design -- and it is the first thing a visitor sees.
+
+**The sheets join the composition.** `create` and the minted screen were a 480px
+column of unstyled controls at the top of a flat-black viewport. They now carry
+the same field (word off -- BRIDGER at hero scale behind a four-field form
+fights the thing you came to fill in), the card has the same surface the landing
+page's panels have, and a short card centres so the empty space sits around it
+rather than all below it.
+
+**One bug found by capturing rather than reasoning:** `.bg-sheet` with
+`position: fixed; inset: 0` rendered as a 300x150 patch in the top-left corner.
+A `<canvas>` is a REPLACED element, so `width: auto` resolves to its intrinsic
+size instead of stretching to the inset box. Explicit `width/height: 100%`.
+
+**And one dead rule removed:** `.sheet-card.bx-wide` was declared twice; the
+second (760px) won, so the first was inert. Not introduced here -- found while
+adding a third, which would have been inert too.
+
+**Still open, and it is Erik's call.** On the hero the word forms in the same
+band the headline occupies, so the identity element is partly behind the type.
+Options are to move the word's band, drop the hero's word intensity, or accept
+it as texture. Not decided unilaterally: this is the composition of the first
+screen.
+
+**Not verified:** still Chrome headless only. No real monitor, phone, Safari or
+Firefox -- now four sessions running.
+
 ## 2026-08-21 -- S#279 -- THE HANDOFF IS A LINK, NOT A TOKEN
 
 **Source:** Erik, after his brother tested the page: *"when the room is created,

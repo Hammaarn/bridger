@@ -23,7 +23,7 @@
  * pushed until it governs the system.
  *
  * The dot field is the one exception, and it earns it. Its dots are spread
- * between `--wire-a` and `--wire-b` — the two SIDES' hues — with heavy per-dot
+ * between `--side-a` and `--side-b` — the two SIDES' hues — with heavy per-dot
  * scatter, so the wave is literally the two parties mixed together. That buys
  * the liveliness Erik asked for without introducing a second accent and without
  * touching `--seal`. Two things learned by magnifying it rather than by
@@ -77,16 +77,16 @@
   --alarm: #ff8a7a;
 
   /* Fed to the canvas as bare "r,g,b" so it can compose its own alpha.
-     `--wire-a` and `--wire-b` are the two SIDES' colours, and the dot field is
+     `--side-a` and `--side-b` are the two SIDES' colours, and the dot field is
      spread between them: cool on the left, warm on the right, with per-dot
      scatter so it never reads as a clean gradient. So the wave is literally the
      two parties mixing, and it gets its liveliness from hue variation instead
      of from a second accent — which keeps `--seal` reserved for provenance.
-     `--wire-dot` remains the neutral fallback if either is missing. */
-  --wire-dot: 192, 208, 230;
-  --wire-a: 116, 178, 255;
-  --wire-b: 255, 176, 108;
-  --wire-crest: 255, 184, 107;
+     `--glyph` remains the neutral fallback if either is missing. */
+  --glyph: 192, 208, 230;
+  --side-a: 116, 178, 255;
+  --side-b: 255, 176, 108;
+  --spark: 255, 184, 107;
 
   /* The still version of the wire: a fine dot lattice used as page texture. */
   --grid-dot: rgba(255, 255, 255, 0.06);
@@ -129,10 +129,10 @@
     --seal: #8f5415;
     --alarm: #b03a28;
 
-    --wire-dot: 40, 55, 80;
-    --wire-a: 28, 84, 150;
-    --wire-b: 150, 82, 20;
-    --wire-crest: 143, 84, 21;
+    --glyph: 40, 55, 80;
+    --side-a: 28, 84, 150;
+    --side-b: 150, 82, 20;
+    --spark: 143, 84, 21;
     --grid-dot: rgba(0, 0, 0, 0.07);
 
     --lift: 0 1px 0 rgba(255, 255, 255, 0.8), 0 12px 30px -20px rgba(0, 0, 0, 0.35);
@@ -211,21 +211,21 @@ a:hover {
 
 /* ── the wire ────────────────────────────────────────────────────── */
 
-.wire-hero,
-.wire-strip {
+.bg-hero,
+.bg-strip {
   display: block;
   width: 100%;
   pointer-events: none;
 }
 
-.wire-hero {
+.bg-hero {
   position: absolute;
   inset: 0;
   height: 100%;
   z-index: 0;
 }
 
-.wire-strip {
+.bg-strip {
   height: 46px;
   opacity: 0.85;
 }
@@ -235,45 +235,6 @@ a:hover {
    visitor who did not ask for it. Deliberately plain: it is an instrument for
    comparing two designs, and an instrument that competes with what it is
    measuring is a bad instrument. */
-.bg-switch {
-  position: fixed;
-  left: 16px;
-  bottom: 16px;
-  z-index: 40;
-  display: flex;
-  gap: 2px;
-  padding: 3px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--ink-900) 82%, transparent);
-  backdrop-filter: blur(8px);
-  font-family: var(--font-mono-stack);
-  font-size: 11px;
-  letter-spacing: 0.04em;
-}
-
-.bg-switch a {
-  padding: 5px 12px;
-  border-radius: 999px;
-  color: var(--text-faint);
-  text-decoration: none;
-  text-transform: uppercase;
-}
-
-.bg-switch a:hover {
-  color: var(--text);
-}
-
-.bg-switch a[data-on] {
-  /* `--bg` does not exist in this stylesheet -- the ground is `--ink-900`.
-     An invalid var() makes an inherited property compute to `inherit`, so the
-     ACTIVE label was inheriting --text and rendering white on a white pill:
-     the selected option was the one you could not read. Caught in a screenshot,
-     not in review. */
-  color: var(--ink-900);
-  background: var(--text);
-}
-
 /* ── nav ─────────────────────────────────────────────────────────── */
 
 .nav {
@@ -696,7 +657,7 @@ input.bx-bad {
   border-top: 1px solid var(--line);
 }
 
-.wire-foot {
+.bg-foot {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -844,7 +805,16 @@ input.bx-bad {
   visibility: hidden;
 }
 
+/* ── the sheets: create, and the minted screen ───────────────────────
+   Erik, S#279, looking at the create screen: "the landing page's vibe does not
+   follow at all". It did not. These views were a 480px column of unstyled form
+   controls at the top of a flat-black 1250px viewport, while the page that sent
+   you here is full-bleed, moving, and made of panels. Three things fix it and
+   none of them is a redesign: the same field behind (`.bg-sheet`), the card
+   given the SAME surface the landing page's panels have, and the short form
+   centred so the empty space sits around it rather than all below it. */
 .sheet {
+  position: relative;
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
@@ -852,11 +822,41 @@ input.bx-bad {
   padding: 0 0 72px;
 }
 
+/* Fixed rather than absolute: these views scroll, and a field that scrolled
+   with the content would read as a texture printed on the page instead of the
+   surface the page is sitting on. */
+.bg-sheet {
+  position: fixed;
+  inset: 0;
+  /* EXPLICIT, and `inset: 0` is not enough on its own. A <canvas> is a REPLACED
+     element, so `width: auto` resolves to its intrinsic 300x150 rather than
+     stretching to the inset box -- the field rendered as a 300px patch in the
+     top-left corner on the first capture of this screen. `.bg-hero` already
+     carries `height: 100%` for the same reason; it just never needed the width
+     because its parent is the hero. */
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* Everything that is not the field sits above it. */
+.sheet > *:not(.bg-sheet) {
+  position: relative;
+  z-index: 1;
+}
+
 .sheet-card {
   width: 100%;
   max-width: 480px;
-  margin-top: 42px;
-  padding: 0 24px;
+  /* Auto on both sides centres a SHORT card in the leftover space and collapses
+     to nothing on a tall one, so the minted screen is unaffected. */
+  margin: auto 0;
+  padding: 30px 26px 28px;
+  background: color-mix(in oklab, var(--ink-800) 90%, transparent);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  backdrop-filter: blur(10px);
 }
 
 .sheet-card.bx-wide {
@@ -1811,15 +1811,15 @@ input.bx-folder-name:focus {
     border: 1px solid CanvasText;
   }
 
-  .wire-hero,
-  .wire-strip {
+  .bg-hero,
+  .bg-strip {
     display: none;
   }
 }
 
 @media print {
-  .wire-hero,
-  .wire-strip,
+  .bg-hero,
+  .bg-strip,
   .bx-actions,
   .bx-room footer {
     display: none;
@@ -1970,7 +1970,7 @@ input.bx-folder-name:focus {
   font-family: var(--font-mono-stack);
   font-size: 12px;
   letter-spacing: 0.08em;
-  color: var(--wire-crest-solid, #f0c49c);
+  color: var(--spark-solid, #f0c49c);
   border: 1px solid var(--line-strong);
   border-radius: 8px;
   padding: 6px 9px;
