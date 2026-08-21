@@ -172,10 +172,17 @@ describe("chargeMint — the quota", () => {
   it("[!!] charges BEFORE deciding — a read-then-write limiter lets two concurrent calls both win", async () =>
     await withEnv(CLEAN, async () => {
       const store = new FakeStore();
-      // Fire every request for the day at once. An atomic incr means the
-      // verdicts are 3 allowed / N refused no matter how they interleave.
+      // Fire more than a day's worth at once. An atomic incr means the verdicts
+      // are exactly ROOMS_PER_DAY_PER_IP allowed / the rest refused no matter
+      // how they interleave.
+      //
+      // The fleet is DERIVED from the cap, not a literal. It used to be 8,
+      // chosen when the cap was 3, so raising the cap to 12 made this pass
+      // vacuously-then-fail: 8 calls against a cap of 12 are all allowed, and
+      // the assertion compared 8 to 12. A concurrency test whose fleet does not
+      // exceed the limit cannot observe the limit at all.
       const verdicts = await Promise.all(
-        Array.from({ length: 8 }, () => chargeMint(store, req(ip), T0)),
+        Array.from({ length: ROOMS_PER_DAY_PER_IP + 5 }, () => chargeMint(store, req(ip), T0)),
       );
       assert.equal(verdicts.filter((v) => v.ok).length, ROOMS_PER_DAY_PER_IP);
     }));
@@ -191,11 +198,22 @@ describe("chargeMint — the quota", () => {
   it("[!!] one IPv6 customer cannot buy a fresh quota by changing address", async () =>
     await withEnv(CLEAN, async () => {
       const store = new FakeStore();
-      const addrs = ["2001:db8:a:b::1", "2001:db8:a:b::2", "2001:db8:a:b::3", "2001:db8:a:b::4"];
+      // One address more than the cap, all inside a single /64. Sized from the
+      // constant for the same reason as the test above: a fixed list of four was
+      // written when the cap was 3, and stopped exercising anything the moment
+      // the cap moved past it.
+      const addrs = Array.from(
+        { length: ROOMS_PER_DAY_PER_IP + 1 },
+        (_, i) => `2001:db8:a:b::${i + 1}`,
+      );
       const verdicts = [];
       for (const a of addrs) verdicts.push(await chargeMint(store, req({ "x-real-ip": a }), T0));
       assert.equal(verdicts.filter((v) => v.ok).length, ROOMS_PER_DAY_PER_IP);
-      assert.equal(verdicts[3].ok, false, "the fourth address in one /64 must be refused");
+      assert.equal(
+        verdicts[verdicts.length - 1].ok,
+        false,
+        "one address past the cap, in the same /64, must be refused",
+      );
     }));
 
   it("resets on a new UTC day, and says when", async () =>
@@ -227,8 +245,13 @@ describe("chargeMint — the quota", () => {
   it("an unidentifiable caller shares one bucket rather than being unlimited", async () =>
     await withEnv(CLEAN, async () => {
       const store = new FakeStore();
+      // Past the cap, so "shares one bucket" is actually observable -- a run of
+      // 5 was written against a cap of 3 and proves nothing once the cap is 12.
       const verdicts = [];
-      for (let i = 0; i < 5; i++) verdicts.push(await chargeMint(store, req(), T0));
+      for (let i = 0; i < ROOMS_PER_DAY_PER_IP + 2; i++) {
+        verdicts.push(await chargeMint(store, req(), T0));
+      }
       assert.equal(verdicts.filter((v) => v.ok).length, ROOMS_PER_DAY_PER_IP);
+      assert.equal(verdicts.at(-1)?.ok, false, "an unidentifiable caller is capped, not exempt");
     }));
 });

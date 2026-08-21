@@ -115,8 +115,12 @@ GitHub", on the page whose job is to be trusted.
   item should not be re-carried.** The record is append-only and hash-chained;
   there is no delete operation anywhere in `lib/operations.ts` or `/api/rpc`,
   and adding one would break the property the product is built on. The only
-  removal that exists is `purge`, which destroys the whole room — and that room
-  is the open Trigvanta bridge (B1). The demo entries are part of the record.
+  removal that exists is `purge`, which destroys the whole room.
+  **[S#279 correction] The reason given here was wrong.** It said those entries
+  sit in the open Trigvanta bridge; a live `status` on `0c7a12ba09d2` returns
+  `totalEntries: 0`. That room has never been written to. Whichever room holds
+  the demo entries, it is not that one — and the conclusion (do not add a delete)
+  stands on the append-only property alone, which is the only support it needed.
 - Room `d437fff5b423` (Bridger x Antigravity) holds a contract and three seeded
   questions and is waiting on a fresh invite code — the S#277 one expired
   unredeemed. `npm run bridger -- invite --side b --ttl-minutes 60 --token-days 7`.

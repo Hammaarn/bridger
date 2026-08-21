@@ -39,8 +39,26 @@ import { createHash, timingSafeEqual } from "node:crypto";
 
 import { MINT_KEY, utcDay, type Store } from "./store";
 
-/** Rooms one fingerprint may open per UTC day. Erik's number. */
-export const ROOMS_PER_DAY_PER_IP = 3;
+/**
+ * Rooms one fingerprint may open per UTC day.
+ *
+ * Was 3 (Erik's number, S#275). Raised S#279 because it stopped the first
+ * outside person who ever evaluated this page: Erik's brother opened three
+ * rooms testing the create flow and the fourth was refused `mint-quota` --
+ * `20:24:35 mint deny mint-quota` in the production audit. A cap that a
+ * designer trips in fifty minutes of honest use is not sized for a product
+ * whose onboarding is supposed to be, in his own words, en rakmacka.
+ *
+ * It does not weaken what the cap is FOR. This file already states the purpose
+ * plainly -- stop a script minting ten thousand rooms on a bored afternoon --
+ * and 12 stops that exactly as well as 3 does, because the defence that
+ * actually scales is elsewhere: a room costs almost nothing until a second
+ * party connects, and an unclaimed one dies in two hours.
+ *
+ * Revert by changing this number; nothing else reads it but `/api/about`, which
+ * reports it, so the published figure moves with it.
+ */
+export const ROOMS_PER_DAY_PER_IP = 12;
 
 /**
  * How long a room nobody ever joined survives.
