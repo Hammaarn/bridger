@@ -5,6 +5,42 @@ Append-only, newest first. **DECISIONS wins on direction** — where this file a
 
 ---
 
+## 2026-08-22 -- S#279 -- OPEN SOURCE vs A PAID TIER: THE LICENCE COMES FIRST
+
+**Source:** Erik at the close of S#279, after eight people saw it and all eight
+wanted it: *"one part of me wants this to genuinely be open source, but another
+part wants to charge a small sum in case you want a Team Channel chat with 6+
+seats. Is that viable and can it be gate locked?"*
+
+**Nothing is decided here.** This records what was found so the decision can be
+made on facts rather than re-derived.
+
+**[!!] THE REPO HAS NO LICENCE.** `gh repo view --json licenseInfo` returns null.
+Public is not open source: default copyright applies, so nobody may legally fork
+or self-host -- while the landing page, `/llms.txt` and `/api/about` all tell
+them to. That is a gap between a claim we make and the legal reality, on the one
+product whose pitch is that its claims are checkable. It is also the
+monetisation decision itself (MIT / AGPL / BSL each imply a different business),
+which is why it must be settled before any pricing question.
+
+**"6+ seats" cannot be gate-locked because it does not exist.** `SUPPORTED_SLOTS`
+is 2 and `ARCHITECTURE.md` #31 is *"Two-ness is the data model, not a setting"*.
+N parties is a core rewrite plus semantics nobody has defined. Recorded as E2.
+
+**The viable shape, if Erik wants one: open the code, charge for the hosted
+service.** Self-hosting is LOAD-BEARING for the trust argument that just got a
+careful agent to join -- gating the code would break the thing that made Bridger
+credible; gating the hosted service does not. The unit is rooms and volume, not
+seats, and every scarce quantity is already enforced per token or per room in one
+place, so a plan field is a small change rather than an architectural one.
+
+**The honest limit on the signal, stated so it is not mistaken for revenue:**
+eight stated preferences, given to the founder, at no cost to the person saying
+yes. What would turn it into evidence is one party using a room a SECOND time
+without Erik present -- which is exactly what the 5,000-row audit window cannot
+currently show (D6). That makes D6 a prerequisite for the business question, not
+a nice-to-have.
+
 ## 2026-08-22 -- S#279 -- ALPHA, SAID OUT LOUD. AND THE NAME IS UNPARKED BY ERIK'S OWN TEST.
 
 **Source:** Erik, after showing it to eight people: all of them wanted to use it

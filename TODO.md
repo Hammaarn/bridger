@@ -1,20 +1,41 @@
 # TODO — Bridger
 
-Read `STATUS.md` first — the bridge is **RUNNING**, the repo is **PUBLIC**,
-`BRIDGER_PASTE_PATH=1` is **on**, and as of S#277 production runs `94de8d4`.
-**Never read a commit out of prose here:** `curl -s <server>/api/about` reports
-the revision that actually answered, and `/api/health` settles running-vs-stopped
-in one second. This header said "stopped" for two sessions after it stopped being
-true, and named a stale commit for one more.
+## START HERE (rewritten S#279 — the last header was two sessions and twenty
+## commits stale, which is the exact rot this file keeps warning about)
 
-**S#276 closed the invite-burn bug and got a far-side agent through a full round
-trip.** But read the qualification in `STATUS.md`: that agent was on the same
-machine with the repo on disk, so **the cross-company case the product exists for
-is still untested.** It is item B1 below and nothing outranks it.
+**Three commands before you believe anything in this file:**
 
-**S#277 was design-only** — eight commits, no protocol change, 291/291
-throughout. See `DECISIONS.md` 2026-08-20 for what was decided and what was left
-to Erik.
+```bash
+curl -s https://bridger-nu.vercel.app/api/about    # the commit that ACTUALLY answered
+curl -s https://bridger-nu.vercel.app/api/health   # killSwitch on|off
+git -C . log --oneline -5                          # what shipped last
+```
+
+**State at the close of S#279 (2026-08-22):** the bridge is RUNNING, the repo is
+PUBLIC, `BRIDGER_PASTE_PATH=1` is ON, and production was `a0c192e` when this was
+written — which is already a number to distrust rather than to use.
+
+**[!!] B1 IS CLOSED. The thing this product exists for has now happened.**
+Trigvanta's Claude — their machine, their codebase, their operator, their
+interests — worked room `e4db579a5fad`: 188 calls, both sides, 3 tokens, 9 posts,
+an ask, an answer, a read, 6 pings, and one `bridger_status` over MCP. Every
+earlier "far side" was on Erik's own machine. `DECISIONS.md` 2026-08-22.
+
+**Then eight people saw it and all eight wanted it.** First demand signal the
+project has ever had. Erik's framing: alpha, early, and *"a tool that makes sense
+as part of someone's standard kit when working together with AI."*
+
+### WHERE TO GO NEXT, in the order I would take them
+
+| # | What | Why it is first |
+|---|---|---|
+| 1 | **E1 — pick a licence** | The repo is PUBLIC with **no LICENSE file**, so legally nobody may self-host it, while three surfaces tell them to. It also decides the whole monetisation question. Blocking a claim we already make. |
+| 2 | **D6 — the audit window** | 5,000 rows, zero headroom; one session overflows it. You cannot prove repeat usage — the thing that turns eight yeses into evidence, and the thing a paid tier would bill for. |
+| 3 | **D1 + D2 — who is who, and bubbles** | One job. What those eight people hit within thirty seconds of a real room. Blocked on a screenshot of x.ai/bot from Erik. |
+| 4 | **C1 — `guidance` in the field** | Still the `[!!]` from S#278: our documents never update for a partner already on the bridge. |
+
+Lane D is what the first cross-company session taught us. Lane E is the business
+question Erik opened at the close of S#279. A/B/C are older and still true.
 
 > **DIRECTION (Erik, S#275): zero install, zero setup — "just a bridge to a room
 > where users' AIs can communicate in a safe environment."** The idea is strong;
@@ -483,6 +504,71 @@ two snapshots taken an hour apart. The ledger is safe; the operational record is
 not. Either raise the cap, or make `bridger audit` able to archive before it
 rolls -- right now the only reason S#279's evidence survives is that a snapshot
 was taken by hand.
+
+---
+
+# E. THE BUSINESS QUESTION (opened by Erik, S#279 close)
+
+> Erik: *"one part of me wants this to genuinely be open source, but another part
+> wants to charge a small sum in case you want a Team Channel chat with 6+ seats.
+> Is that viable and can it be gate locked?"*
+
+## E1. [!!] THERE IS NO LICENCE, AND THE PAGE ALREADY TELLS PEOPLE TO SELF-HOST
+
+`gh repo view Hammaarn/bridger --json licenseInfo` returns **null**. Public is
+not open source: with no LICENSE file, default copyright applies and nobody may
+legally fork, modify or run their own instance — while the landing page,
+`/llms.txt` and `/api/about` all instruct them to do exactly that
+(*"Run it entirely on your own machine first"*, *"run your own instance — it
+works fully offline, and then the only operator is you"*).
+
+That is a live gap between a trust claim we make and the legal reality, on the
+one product whose entire pitch is that its claims are checkable.
+
+**It is also the monetisation decision, which is why it is first.** MIT lets
+anyone host and sell it. AGPL forces published changes. BSL keeps commercial
+rights for a period. Pricing follows from that choice; it cannot precede it.
+
+## E2. "6+ SEATS" IS NOT A TIER — IT IS THE REWRITE ALREADY REFUSED
+
+`SUPPORTED_SLOTS = 2`, and `ARCHITECTURE.md` #31 is titled *"Two-ness is the data
+model, not a setting"*. `SideId = "a" | "b"` across six files; `otherSide()` is a
+boolean flip; `sides` is a fixed-shape object; entry ids are namespaced per side;
+"the peer" is singular in `whoami`, in the wait cursor and in the idle brake. The
+slot picker already shows 3 and 4 disabled WITH the reason.
+
+The unanswered semantics are the real cost, not the typing: does an answer close
+a question for everyone? does the brake trip per party or per room? who does a
+contract bind? **Nothing can be gate-locked here because there is nothing behind
+the gate.**
+
+## E3. THE UNIT IS ROOMS AND VOLUME, NOT SEATS
+
+Erik's instinct — bigger users should pay — is right; "seats" is just the wrong
+noun for this architecture. A company integrating with five partners runs five
+rooms. Everything scarce is already measured and already enforced per token or
+per room, in one place:
+
+| enforced today | value | worth paying to raise? |
+|---|---|---|
+| `perTokenPerDay` | 400 (200 on a link-minted token) | yes — C5: a blocked wait needs ~1,920/day |
+| `newRoomsPerDayPerAddress` | 12 | yes |
+| room idle TTL / `MAX_ENTRIES` | 30 days / 5,000 | yes — retention is a product |
+| `AUDIT_LOG_MAX` | 5,000 rows, overflows in one session | yes — and see D6 |
+
+**Gate-locking is cheap:** `TokenRecord.dailyCap` already exists per token,
+`DEFAULT_ROOM_DAILY_CAP` per room, `chargeMint` per address. A plan field read by
+those same checks is a small change, not an architectural one.
+
+**Honest caveat:** a self-hoster can lift every cap in their own instance, and
+should be able to — that is the OSS/hosted split working, not leaking. What is
+sold is that we run it, keep the history and stay up.
+
+## E4. NOT YET — MULTI-PARTY
+
+Parked, and the reason is now sharper than "nobody asked": the request came from
+an intuition about pricing rather than from anyone who has used a two-party room
+and hit the wall. Wait for that person.
 
 ---
 
