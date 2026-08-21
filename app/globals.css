@@ -869,6 +869,19 @@ input.bx-bad {
 
 /* The two closing actions on the minted screen: one that does the whole thing,
    one for someone who does not want a link yet. */
+/* The stage, said out loud. Small and unshouty on purpose: this is a fact a
+   visitor is owed, not a badge asking to be admired. */
+.eyebrow .stage {
+  padding: 2px 7px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  color: var(--spark-solid, #f0c49c);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 10px;
+}
+
 .bx-close-actions {
   display: flex;
   flex-wrap: wrap;

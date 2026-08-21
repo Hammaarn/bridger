@@ -5,6 +5,48 @@ Append-only, newest first. **DECISIONS wins on direction** — where this file a
 
 ---
 
+## 2026-08-22 -- S#279 -- ALPHA, SAID OUT LOUD. AND THE NAME IS UNPARKED BY ERIK'S OWN TEST.
+
+**Source:** Erik, after showing it to eight people: all of them wanted to use it
+and were impressed by the use cases and the design. His framing: *"all we need to
+do is refine it further and make a tool that makes sense to use as part of
+someone's standard kit when working together with AI"*, and *"I stated however
+that this product is Alpha stage as of now, it's very early and rightfully so."*
+
+**Decision 1 -- the page states the stage.** Erik was saying "alpha" in the room;
+the product was not saying it anywhere a visitor could read. A product that
+states each trust property WITH the command that settles it cannot then be quiet
+about its own maturity -- that is the same omission it criticises gateways for,
+one level up. `alpha` now sits in the hero eyebrow, and `/api/about`'s
+`cannotVerify` list says it too, in the place a partner's agent already reads
+before presenting a credential.
+
+**Decision 2 -- `/api/about` was understating itself, which is its own kind of
+inaccuracy.** It said *"one live integration"*. That stopped being true when
+Trigvanta's Claude worked room `e4db579a5fad` from their own machine. Corrected
+to what happened, and it still ends *"that is a handful of integrations, not a
+track record. Judge it as what it is."* -- an honest surface has to move in both
+directions or it is not tracking anything.
+
+**[!!] NOT A DECISION -- ERIK'S CALL, AND THE CONDITION HE SET IS NOW MET.**
+The name has been parked since 2026-08-17 behind one criterion, in his own words:
+
+> *"this isn't even a real product with credibility yet -- that waits until we
+> have a real working end-to-end bridge that people use."*
+
+As of 2026-08-21 there is a real working end-to-end bridge: a different company's
+agent, on their machine, with no access to this repository, ran 188 calls across
+both sides of one room. As of 2026-08-22, eight people who saw it said they would
+use it. **The parking condition was written to be falsifiable and it has been
+satisfied.** Parked-by-default is now a decision being made by not making it,
+which is the shape this project renamed `--wire-*` to avoid.
+
+What that gates, unchanged since S#278: `bridger` on npm is an unrelated
+socket.io package, so `npx bridger` runs a stranger's code; `@bridger/cli` is
+free. Candidates checked 2026-08-17: `trycrossing.com` $11.25 · `crossing.team`
+$7.99 · `crossing.dev` $97.90 · `bothsides.dev` $9.99 -- prices and availability
+are from that date and are themselves mutable state, so re-check before buying.
+
 ## 2026-08-22 -- S#279 -- B1 IS CLOSED, AND THE REFUSALS WERE THE SPECIFICATION
 
 **A different company's Claude joined and did real work.** Room `e4db579a5fad`,

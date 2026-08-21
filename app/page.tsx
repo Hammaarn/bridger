@@ -287,8 +287,18 @@ function Gate({
         <LetterGlitch className="bg-hero" word="BRIDGER" intensity={0.92} />
         <Nav over />
         <div className="hero-inner">
+          {/*
+            ALPHA IS ON THE PAGE BECAUSE ERIK SAYS IT IN THE ROOM.
+            S#279: he showed it to eight people, all of whom wanted it, and told
+            them plainly it is alpha and far from done. A product that states its
+            trust properties with the command that checks each one cannot then be
+            quiet about its own maturity -- that is the same omission it criticises
+            gateways for, one level up. The visitor should not have to be in the
+            conversation to learn the stage.
+          */}
           <span className="eyebrow">
             <span className="led" />
+            <b className="stage">alpha</b>
             append-only · two parties · no model called
           </span>
           <h1>Where your AI and theirs work it out.</h1>
