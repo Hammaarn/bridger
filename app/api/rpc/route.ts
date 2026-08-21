@@ -35,6 +35,7 @@ import { CITATION_MAX } from "@/lib/store";
 import { auditRequest, gate, operationRefusalStatus, refusalResponse } from "@/lib/http-gate";
 import {
   OperationRefused,
+  opInvite,
   WAIT_MAX_SECONDS,
   opAnswer,
   opAsk,
@@ -83,6 +84,18 @@ const OPS = {
   ping: {
     schema: z.object({}),
     run: (ctx: OpContext, a: Record<string, never>) => opPing(ctx),
+  },
+  /**
+   * A join link for the other seat, so the browser flow stops handing partners
+   * a live bearer token to paste into a chat. See `opInvite`.
+   */
+  invite: {
+    schema: z.object({
+      side: z.enum(["a", "b"]).optional(),
+      ttlMinutes: z.number().int().min(5).max(1440).optional(),
+      tokenDays: z.number().int().min(1).max(90).optional(),
+    }),
+    run: opInvite,
   },
   read: {
     schema: z.object({
@@ -221,6 +234,15 @@ export async function POST(req: Request): Promise<Response> {
     const ctx: OpContext = { store: g.store, room: g.room, token: g.token, now: g.now };
     const result = await entry.run(ctx, parsed.data);
 
+    // The operation returns a PATH because it has no request in scope and no
+    // honest way to know which host answered. This adapter does, so it composes
+    // the absolute link here rather than letting a guessed hostname reach an
+    // instruction someone follows (invariant 15).
+    const withUrl =
+      result && typeof result === "object" && typeof (result as { joinPath?: unknown }).joinPath === "string"
+        ? { ...result, joinUrl: new URL((result as { joinPath: string }).joinPath, req.url).toString() }
+        : result;
+
     await auditRequest(g.store, {
       now: g.now,
       token: g.token,
@@ -229,7 +251,7 @@ export async function POST(req: Request): Promise<Response> {
       status: "ok",
       durationMs: Date.now() - startedAt,
     });
-    return Response.json(result);
+    return Response.json(withUrl);
   } catch (e) {
     if (e instanceof OperationRefused) {
       await auditRequest(g.store, {
