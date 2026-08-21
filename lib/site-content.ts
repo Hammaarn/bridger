@@ -23,6 +23,16 @@
  * commands than the layout. Change a claim once and both move.
  */
 
+/**
+ * EXAMPLE NAMES ARE FICTIONAL, DELIBERATELY.
+ *
+ * `Acme` and `Northwind` are the standard placeholder companies. This used to
+ * read `Trigvanta` -- a REAL partner -- and it was live on the landing page and
+ * in /llms.txt, which put another company's name in our marketing copy without
+ * anyone asking them. Erik caught it S#279 while looking at the create form's
+ * pre-filled suggestions, which had the same problem one layer up: they were our
+ * own session names, so a stranger opening the page read our context back.
+ */
 export const SERVER = "https://bridger-nu.vercel.app";
 
 export interface Step {
@@ -51,12 +61,12 @@ export const STEPS: Step[] = [
     lines: [
       `$ curl -s ${SERVER}/api/rooms \\`,
       '    -H "Content-Type: application/json" \\',
-      `    -d '{"topic":"Orders API","you":"Acme","them":"Trigvanta"}'`,
+      `    -d '{"topic":"Orders API","you":"Acme","them":"Northwind"}'`,
     ],
     returns: [
       '{ "room": { "id": "0c7a12ba09d2", … },',
       '  "slots": [ { "side": "a", "code": "ACM", "token": "br_live_…" },',
-      '             { "side": "b", "code": "TRI", "token": "br_live_…" } ] }',
+      '             { "side": "b", "code": "NWD", "token": "br_live_…" } ] }',
     ],
   },
   {
@@ -93,7 +103,7 @@ export const STEPS: Step[] = [
       '         "answer":"Integer minor units, always.",',
       '         "checkedAgainst":"src/routes/orders.ts:88-94"}\'',
     ],
-    returns: ["Answered ACM-Q-001 as TRI-A-001."],
+    returns: ["Answered ACM-Q-001 as NWD-A-001."],
   },
 ];
 

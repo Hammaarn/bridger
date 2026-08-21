@@ -838,12 +838,83 @@ input.bx-bad {
   height: 100%;
   z-index: 0;
   pointer-events: none;
+  /* SOFTENED ON PURPOSE, and only here. Erik, S#279: "make the background more
+     interesting and a little more blurred so the eyes are drawn to the actual
+     box." On the hero the field IS the subject and stays sharp; on a form it is
+     depth behind the thing you came to fill in, and a sharp field of glyphs at
+     full contrast competes with the input you are supposed to be reading. */
+  filter: blur(2.5px);
 }
 
-/* Everything that is not the field sits above it. */
+/* A well of dark under the card, so the eye lands on it rather than wandering
+   the field. A radial rather than a flat scrim: a uniform overlay dims the
+   whole surface equally and just makes the background quieter, where this makes
+   the CENTRE quietest and leaves the edges alive. */
+.sheet::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  /* ABOVE the field, BELOW the card. `::before` counts as the first child, so
+     at an equal z-index the canvas -- which comes after it in DOM order --
+     paints straight over this and the well does nothing at all. */
+  z-index: 1;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse 62% 58% at 50% 48%,
+    var(--ink-900) 0%,
+    color-mix(in oklab, var(--ink-900) 82%, transparent) 38%,
+    transparent 72%
+  );
+}
+
+/* The two closing actions on the minted screen: one that does the whole thing,
+   one for someone who does not want a link yet. */
+.bx-close-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+}
+
+.bx-close-note {
+  margin: 12px 0 0;
+  max-width: 62ch;
+}
+
+/* The invite, carried into the room it belongs to. */
+.bx-room-invite {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 22px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 11px;
+  background: color-mix(in oklab, var(--ink-800) 88%, transparent);
+  font-size: 13.5px;
+}
+
+.bx-room-invite code {
+  flex: 1 1 320px;
+  min-width: 0;
+  padding: 8px 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--ink-900);
+  font-family: var(--font-mono-stack);
+  font-size: 12.5px;
+  word-break: break-all;
+}
+
+.bx-room-invite .bx-copy {
+  margin-left: 0;
+}
+
+/* Everything that is not the field sits above both it and the well. */
 .sheet > *:not(.bg-sheet) {
   position: relative;
-  z-index: 1;
+  z-index: 2;
 }
 
 .sheet-card {
