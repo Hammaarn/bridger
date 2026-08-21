@@ -38,6 +38,7 @@ describe("canonical — the serialisation the hash is computed over", () => {
     answers: null,
     why: null,
     checkedAgainst: null,
+  basis: null,
   };
 
   it("[!!] length-prefixes, so a boundary cannot be moved between two fields", () => {
