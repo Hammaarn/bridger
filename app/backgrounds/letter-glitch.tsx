@@ -12,7 +12,7 @@ import { useEffect, useRef } from "react";
  *
  * WHY THIS SHAPE FITS THE PRODUCT. Bridger is two companies' sessions writing
  * into one record. So the field is two-coloured — side A's hue on the left,
- * side B's on the right, the same `--wire-a`/`--wire-b` tokens the wire already
+ * side B's on the right, the same `--side-a`/`--side-b` tokens the wire already
  * spreads its dots between — and the WORD forms where they meet, in a single
  * neutral that belongs to neither side. Noise is two colours; agreement is one.
  * The word assembles cell by cell out of the churn, holds, and dissolves back.
@@ -211,9 +211,9 @@ export default function LetterGlitch({
 
     const readColors = () => {
       const s = getComputedStyle(canvas);
-      const neutral = triplet(s.getPropertyValue("--wire-dot").trim(), [192, 208, 230]);
-      colA = triplet(s.getPropertyValue("--wire-a").trim(), neutral);
-      colB = triplet(s.getPropertyValue("--wire-b").trim(), neutral);
+      const neutral = triplet(s.getPropertyValue("--glyph").trim(), [192, 208, 230]);
+      colA = triplet(s.getPropertyValue("--side-a").trim(), neutral);
+      colB = triplet(s.getPropertyValue("--side-b").trim(), neutral);
       colWord = neutral;
       bg = s.getPropertyValue("--bg").trim() || "#07090d";
       const lum = (c: [number, number, number]) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];

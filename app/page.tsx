@@ -48,7 +48,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { openQuestionIds } from "@/lib/question-state";
 import { classifyCitation, describeCitation, isUnlocated, isWideRange } from "@/lib/citation";
-import Background, { BackgroundSwitch } from "./backgrounds";
+import LetterGlitch from "./backgrounds/letter-glitch";
 import Demonstration from "./demo";
 
 interface Entry {
@@ -233,14 +233,23 @@ function Nav({ over = false }: { over?: boolean }) {
   return (
     <nav className={`nav ${over ? "nav-over" : ""}`} aria-label="Bridger">
       <a className="brand" href="/">
+        {/*
+          THE MARK IS THE FIELD, at mark scale.
+          It was a sine wave until S#279, when Erik settled the identity on the
+          letter-glitch and the wave was removed from the product entirely. A
+          logo that still drew a wave would be the last thing in the codebase
+          claiming the old design -- and the one a visitor sees first.
+          Seven columns of three cells, with the middle row lit: noise, and a row
+          resolving out of it. That is literally what the background does.
+        */}
         <svg viewBox="0 0 34 12" width="26" height="10" aria-hidden="true">
-          <path
-            d="M1 8.5C4 8.5 4 3.5 7.5 3.5S11 8.5 14.5 8.5 18 3.5 21.5 3.5 25 8.5 28.5 8.5 32 4.5 33 4"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.6"
-            strokeLinecap="round"
-          />
+          {[1, 6, 11, 16, 21, 26, 31].map((x, i) => (
+            <g key={x} fill="currentColor">
+              <rect x={x} y={1} width={3} height={2} opacity={0.22 + ((i * 7) % 5) * 0.06} />
+              <rect x={x} y={5} width={3} height={2} opacity={0.9} />
+              <rect x={x} y={9} width={3} height={2} opacity={0.2 + ((i * 3) % 4) * 0.07} />
+            </g>
+          ))}
         </svg>
         Bridger
       </a>
@@ -275,15 +284,7 @@ function Gate({
   return (
     <main className="gate" data-booting={booting ? "" : undefined}>
       <section className="hero">
-        <Background
-          className="wire-hero"
-          band={[0.6, 1.06]}
-          pitch={5}
-          period={17}
-          intensity={0.92}
-          amplitude={0.26}
-          word="BRIDGER"
-        />
+        <LetterGlitch className="bg-hero" word="BRIDGER" intensity={0.92} />
         <Nav over />
         <div className="hero-inner">
           <span className="eyebrow">
@@ -403,21 +404,15 @@ function Gate({
           direction, quieter.
         */}
         <div className="gate-foot">
-          <Background
-            className="wire-foot"
+          <LetterGlitch
+            className="bg-foot"
             word="BRIDGER"
             cellH={14}
-            wordWidth={0.70}
-            band={[0.26, 1.0]}
-            pitch={5}
-            period={21}
+            wordWidth={0.7}
             intensity={0.78}
-            amplitude={0.2}
-            reverse
           />
         </div>
       </div>
-      <BackgroundSwitch />
     </main>
   );
 }
@@ -460,6 +455,16 @@ function Create({ onMinted, onCancel }: { onMinted: (m: Minted) => void; onCance
 
   return (
     <main className="sheet">
+      {/*
+        The same field as the landing page, without the word.
+        Erik, S#279, looking at this screen: "the landing page's vibe does not
+        follow at all". It did not -- these views were a form on flat black
+        while the page that sent you here is full-bleed and moving. The word is
+        off deliberately: BRIDGER at hero scale behind a four-field form fights
+        the thing you came here to fill in. Same material, quieter, which is the
+        move the closing band already makes.
+      */}
+      <LetterGlitch className="bg-sheet" showWord={false} intensity={0.5} />
       <Nav />
       <div className="sheet-card">
         <h1>Open a room</h1>
@@ -676,6 +681,16 @@ It names the commit it is running and answers without a token.`;
 
   return (
     <main className="sheet">
+      {/*
+        The same field as the landing page, without the word.
+        Erik, S#279, looking at this screen: "the landing page's vibe does not
+        follow at all". It did not -- these views were a form on flat black
+        while the page that sent you here is full-bleed and moving. The word is
+        off deliberately: BRIDGER at hero scale behind a four-field form fights
+        the thing you came here to fill in. Same material, quieter, which is the
+        move the closing band already makes.
+      */}
+      <LetterGlitch className="bg-sheet" showWord={false} intensity={0.5} />
       <Nav />
       <div className="sheet-card bx-wide">
         <h1>{minted.room.topic}</h1>
@@ -1052,13 +1067,9 @@ function RoomView({ token, onForget }: { token: string; onForget: () => void }) 
           record and by nothing else.
         */}
         <div className="bx-top-wire">
-          <Background
-            className="wire-strip"
-            band={[0.12, 1.0]}
-            pitch={5}
-            period={24}
+          <LetterGlitch
+            className="bg-strip"
             intensity={0.55}
-            amplitude={0.14}
             ping={arrivals}
             showWord={false}
           />
