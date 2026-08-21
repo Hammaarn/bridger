@@ -788,6 +788,34 @@ input.bx-bad {
   font-weight: 600;
 }
 
+/* S#279: this panel answers a time-critical question -- someone is holding a
+   token they did not ask for -- so it keeps three lines and hands the full
+   argument to the checks below, which state each claim ONCE, with its command.
+   The two used to carry five of the same six claims, 1318px apart. */
+.bx-trust-quick {
+  margin-bottom: 14px !important;
+}
+
+.bx-trust-more {
+  margin-bottom: 4px;
+  font-size: 13px;
+}
+
+/* Resting colour is the ordinary text tone, not `--seal`: that token is spent
+   on PROVENANCE and nothing else (DECISIONS 2026-08-20), and a link is not
+   provenance. Seal on hover only, which is what every other link here does. */
+.bx-trust-more a {
+  color: var(--text-dim);
+  text-decoration: none;
+  border-bottom: 1px solid var(--line-strong);
+  padding-bottom: 1px;
+}
+
+.bx-trust-more a:hover {
+  color: var(--seal);
+  border-bottom-color: color-mix(in oklab, var(--seal) 55%, transparent);
+}
+
 .bx-trust-links {
   display: flex;
   flex-wrap: wrap;
@@ -807,6 +835,14 @@ input.bx-bad {
 }
 
 /* ── create / token box ──────────────────────────────────────────── */
+
+/* The page is fully server-rendered so that an agent fetching the URL receives
+   the argument, not an empty shell (S#279). A human should still not see the
+   gate flash before we know whether they are watching a room, so the first
+   paint is hidden rather than empty -- present in the DOM, absent to the eye. */
+.gate[data-booting] {
+  visibility: hidden;
+}
 
 .sheet {
   min-height: 100dvh;
@@ -1819,7 +1855,7 @@ input.bx-folder-name:focus {
    it is wide -- prose set to 1240px is unreadable. */
 .bx-demo-head {
   max-width: 620px;
-  margin-bottom: 30px;
+  margin-bottom: 22px;
 }
 
 .bx-demo-head h2 {
@@ -1834,38 +1870,99 @@ input.bx-folder-name:focus {
   max-width: 58ch;
 }
 
+/* ── the steps, as one accordion ─────────────────────────────────────
+   Was a 2x2 grid of cards, each carrying a full terminal frame: 641px, and a
+   void in card 02 where a one-line command sat in a frame sized for four. The
+   steps are SEQUENTIAL -- a reader needs 01 and fetches the rest on arrival --
+   so only one is open at a time and the section costs the height of one step
+   plus three rows. Erik's brother, S#279: the page is too spread. */
 .bx-steps {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: grid;
-  gap: 20px;
-  /* Two across. The commands are the widest thing on the page and they must not
-     wrap -- a wrapped shell line reads as two commands -- so three across would
-     mean scrolling every block horizontally instead of reading it. */
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.bx-steps > li {
   border: 1px solid var(--line);
   border-radius: 14px;
   background: color-mix(in oklab, var(--ink-800) 84%, transparent);
-  padding: 18px 18px 16px;
-  display: flex;
-  flex-direction: column;
+  overflow: hidden;
 }
 
-/* The terminal sits at the bottom of every card regardless of how long the
-   blurb above it ran, so the four blocks line up across the row. */
-.bx-steps > li .bx-term {
-  margin-top: auto;
+.bx-steps > li + li {
+  border-top: 1px solid var(--line);
 }
 
 .bx-step-head {
   display: flex;
   gap: 13px;
-  align-items: flex-start;
-  margin-bottom: 14px;
+  align-items: center;
+  width: 100%;
+  padding: 13px 16px;
+  background: transparent;
+  border: 0;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.bx-step-head:hover .bx-step-title {
+  color: var(--text);
+}
+
+.bx-step-title {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+/* A chevron drawn from two borders, so it needs no asset and inherits colour. */
+.bx-step-chev {
+  margin-left: auto;
+  width: 8px;
+  height: 8px;
+  border-right: 1.5px solid var(--text-faint);
+  border-bottom: 1.5px solid var(--text-faint);
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform 0.2s ease;
+}
+
+.bx-steps > li[data-open] .bx-step-chev {
+  transform: translateY(2px) rotate(-135deg);
+}
+
+/* 0fr -> 1fr animates a height nothing has measured, which is the one way to
+   open a panel without hard-coding its size. The panel stays in the DOM when
+   closed: a landing page's argument should survive being read by something
+   that does not run our JavaScript. */
+.bx-step-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.22s ease;
+}
+
+.bx-steps > li[data-open] .bx-step-body {
+  grid-template-rows: 1fr;
+}
+
+/* `min-height: 0` is load-bearing, not tidying. A grid item's AUTOMATIC MINIMUM
+   SIZE is its content, so a 0fr row does not collapse without it and the closed
+   panels leak their first line -- which is exactly what shipped for one capture
+   here. `overflow: hidden` alone does not do it. */
+.bx-step-body-in {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.bx-step-pad > p {
+  margin: 0 0 12px;
+  max-width: 74ch;
+  color: var(--text-dim);
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+
+.bx-step-pad {
+  padding: 0 16px 15px 55px;
 }
 
 .bx-step-n {
@@ -1880,17 +1977,35 @@ input.bx-folder-name:focus {
   line-height: 1;
 }
 
-.bx-step-head h3 {
-  margin: 0 0 5px;
-  font-size: 17px;
-  letter-spacing: -0.01em;
+/* ── a one-line command, without the frame ───────────────────────────
+   `.bx-term` exists to say "this is a shell", which a reader needs once rather
+   than nine times. On a single line its bar was ~50px of chrome over ~34px of
+   content. This is the line and a copy affordance. */
+.bx-cmd {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--ink-900);
+  padding: 6px 7px 6px 11px;
+  min-width: 0;
 }
 
-.bx-step-head p {
-  margin: 0;
-  color: var(--text-dim);
-  font-size: 13.5px;
-  line-height: 1.5;
+.bx-cmd code {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  font-family: var(--font-mono-stack);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text);
+  white-space: pre;
+}
+
+.bx-cmd-copy {
+  flex: 0 0 auto;
+  padding: 3px 8px;
 }
 
 /* ── terminal blocks ─────────────────────────────────────────────────
@@ -1985,8 +2100,8 @@ input.bx-folder-name:focus {
 }
 
 .bx-demo-note {
-  margin: 26px 0 0;
-  padding: 16px 18px;
+  margin: 18px 0 0;
+  padding: 13px 16px;
   border: 1px dashed var(--line);
   border-radius: 12px;
   color: var(--text-dim);
@@ -2000,14 +2115,14 @@ input.bx-folder-name:focus {
    list rather than in a footnote. */
 
 .bx-verify {
-  margin-top: 48px;
-  padding-top: 36px;
+  margin-top: 34px;
+  padding-top: 28px;
   border-top: 1px solid var(--line);
 }
 
 .bx-verify > header {
   max-width: 620px;
-  margin-bottom: 30px;
+  margin-bottom: 18px;
 }
 
 .bx-verify h2 {
@@ -2022,58 +2137,112 @@ input.bx-folder-name:focus {
   line-height: 1.6;
 }
 
-.bx-verify ul {
+/* Two columns, and the split is the argument: LEFT is the property, RIGHT is
+   the command that settles it, aligned down the page so the second column reads
+   as one list of things you can run. The prose keeps its own measure -- set to
+   the full 1240px it is unreadable. */
+.bx-checks {
   list-style: none;
   margin: 0;
   padding: 0;
+}
+
+.bx-checks > li {
   display: grid;
-  gap: 20px;
-  /* Three across: each of these is one short command, so they cost almost no
-     height once they stop queueing behind each other. */
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  align-items: start;
+  /* The left column is sized to the PROSE (~62ch), not to half the page --
+     splitting 1240px down the middle left a 120px trench between a claim and
+     the command that settles it, which is the pairing the block exists to
+     make. */
+  grid-template-columns: minmax(0, 500px) minmax(0, 1fr);
+  column-gap: 28px;
+  row-gap: 4px;
+  padding: 11px 0;
+  border-top: 1px solid var(--line);
 }
 
-.bx-verify li {
-  display: flex;
-  flex-direction: column;
+/* The wrapper exists only to keep the claim and its command together in the
+   markup; the grid above is what actually places them. */
+.bx-check-head {
+  display: contents;
 }
 
-.bx-verify li .bx-term {
-  margin-top: auto;
-}
-
-.bx-verify h3 {
-  margin: 0 0 6px;
+.bx-checks h3 {
+  grid-column: 1;
+  grid-row: 1;
+  margin: 0;
   font-size: 15px;
   letter-spacing: -0.01em;
 }
 
-.bx-verify li > p {
-  margin: 0 0 12px;
+.bx-checks > li > p {
+  grid-column: 1;
+  grid-row: 2;
+  margin: 0;
   color: var(--text-dim);
-  font-size: 14px;
+  font-size: 13.5px;
+  line-height: 1.55;
+  max-width: 62ch;
+}
+
+/* Hug the command instead of filling the column. A 25-character command in a
+   570px box IS the spread being complained about -- the box should be the size
+   of the thing it holds, and the column only exists to line them up. */
+.bx-checks .bx-cmd,
+.bx-check-nocmd {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: start;
+  justify-self: start;
+  max-width: 100%;
+}
+
+/* Said rather than left blank: an empty cell reads as an oversight, and this
+   block's whole point is that the awkward entries are stated too. */
+.bx-check-nocmd {
+  font-size: 12.5px;
   line-height: 1.6;
-  max-width: 68ch;
+  color: var(--text-faint);
+  padding-top: 4px;
 }
 
 .bx-against {
-  grid-column: 1 / -1;
+  display: block;
+  margin-top: 18px;
   border: 1px solid var(--line);
   border-radius: 12px;
-  padding: 16px 18px;
+  padding: 15px 18px;
   background: color-mix(in oklab, var(--ink-800) 60%, transparent);
+}
+
+.bx-against h3 {
+  margin: 0 0 5px;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+}
+
+.bx-against > p {
+  max-width: 88ch;
+  color: var(--text-dim);
+  font-size: 13.5px;
+  line-height: 1.55;
 }
 
 .bx-against > p {
   margin-bottom: 0 !important;
 }
 
-/* One column below the point where two would squeeze the commands. */
+/* The command column stops paying for itself once it is narrower than the
+   commands in it, so below that the spec sheet stacks. */
 @media (max-width: 1080px) {
-  .bx-steps,
-  .bx-verify ul {
+  .bx-checks > li {
     grid-template-columns: minmax(0, 1fr);
+    row-gap: 9px;
+  }
+
+  .bx-checks .bx-cmd,
+  .bx-check-nocmd {
+    grid-column: 1;
+    grid-row: auto;
   }
 }
 

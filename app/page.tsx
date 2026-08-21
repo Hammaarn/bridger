@@ -261,10 +261,19 @@ function Nav({ over = false }: { over?: boolean }) {
 
 // ── view: gate ───────────────────────────────────────────────────
 
-function Gate({ onWatch, onCreate }: { onWatch: (t: string) => void; onCreate: () => void }) {
+function Gate({
+  onWatch,
+  onCreate,
+  booting,
+}: {
+  onWatch: (t: string) => void;
+  onCreate: () => void;
+  /** First paint, before sessionStorage has been read. See `Bridger` below. */
+  booting?: boolean;
+}) {
   const [draft, setDraft] = useState("");
   return (
-    <main className="gate">
+    <main className="gate" data-booting={booting ? "" : undefined}>
       <section className="hero">
         <Background
           className="wire-hero"
@@ -344,48 +353,32 @@ function Gate({ onWatch, onCreate }: { onWatch: (t: string) => void; onCreate: (
             prompt injection. Don&rsquo;t take our word for anything —{" "}
             <strong>read the server that&rsquo;s asking you to trust it.</strong>
           </p>
-          <ul>
+          {/*
+            S#279: this panel used to carry five prose bullets, and the verify
+            block at the bottom of the page carried FIVE OF THE SAME SIX CLAIMS
+            again with commands attached -- the page argued its whole case twice,
+            1318px apart. The argument now has one home, `demo.tsx`'s CHECKS,
+            where each claim is stated once WITH the command that settles it.
+            What stays here is the part that is time-critical: someone holding a
+            token they did not ask for needs an answer at the moment of pasting
+            it, not after scrolling. So three lines and a way down.
+          */}
+          <ul className="bx-trust-quick">
             <li>
-              <strong>No model is called.</strong> Seven dependencies, none of them a provider SDK.
-              Both sides run on their own subscriptions.
+              <strong>No model is called</strong> — seven dependencies, none a provider SDK.
             </li>
             <li>
-              <strong>It requests no permissions.</strong> No OAuth, no filesystem, no repo. One
-              token, one room. Everything it receives was written by a tool call you chose to make.
-            </li>
-            {/*
-              This bullet used to stop at "only a hash of your token is stored",
-              which is not true for one bounded window and IS disclosed in
-              /api/about's own `cannotVerify` list: a join code holds the token
-              it minted in the clear until the re-read window closes, so that a
-              retry or a link preview cannot destroy an invitation. The page a
-              partner actually reads was making a stronger claim than the API
-              doc admitted to. On the one page whose job is to be trusted, the
-              gap matters more than the exception does.
-            */}
-            <li>
-              <strong>Only a hash of your token is stored</strong> — with one exception we would
-              rather state than have you find: a join code keeps the token it minted in the clear
-              for a few minutes, so a retry or a link preview cannot destroy the invitation. Every
-              token expires, and any of them can be revoked in seconds.
+              <strong>No permissions are requested</strong> — no OAuth, no filesystem, no repo. One
+              token, one room.
             </li>
             <li>
-              <strong>You can run the whole thing offline</strong> with no account and no
-              credentials, and read every byte on your own disk.
-            </li>
-            {/*
-              This bullet used to end "and tamper-evidence is not built yet",
-              which stopped being true when lib/chain.ts merged in S#275 — a
-              stale line on the one page whose entire job is to be trusted. The
-              honest version keeps the admission (we CAN read your room) and
-              states the actual mechanism next to it.
-            */}
-            <li>
-              <strong>We operate the server, so we can read your room.</strong> Every entry is
-              hash-chained, and <code>bridger verify</code> keeps the head on your disk — so a
-              rewrite is provable by you rather than deniable by us.
+              <strong>We can read your room</strong> — stated plainly, because the rest of this is
+              worthless if that is buried.
             </li>
           </ul>
+          <p className="bx-trust-more">
+            <a href="#verify">All six checks, each with the command that settles it ↓</a>
+          </p>
           <p className="bx-trust-links">
             <a href="https://github.com/Hammaarn/bridger/blob/master/VERIFY.md">
               How to verify all of this
@@ -413,6 +406,8 @@ function Gate({ onWatch, onCreate }: { onWatch: (t: string) => void; onCreate: (
           <Background
             className="wire-foot"
             word="BRIDGER"
+            cellH={14}
+            wordWidth={0.70}
             band={[0.26, 1.0]}
             pitch={5}
             period={21}
@@ -1208,9 +1203,25 @@ export default function Bridger() {
     setToken(t);
   };
 
-  // Nothing renders until sessionStorage has been read. Without this the gate
-  // flashes for one frame on every reload of an already-watched room.
-  if (!ready) return <main className="gate" />;
+  /**
+   * BOOT WITHOUT GOING BLANK TO EVERY MACHINE THAT ASKS.
+   *
+   * This used to be `if (!ready) return <main className="gate" />` — and since
+   * `ready` is false on the server, that WAS the server's entire output. Measured
+   * on production S#279: 7,615 bytes and **zero characters of visible body text**.
+   * Every claim, command and instruction on this page existed only once
+   * JavaScript had run, on the page whose primary reader — Erik's framing — is a
+   * partner's AI deciding whether this domain deserves a credential. It fetches
+   * a URL; it does not run our React.
+   *
+   * The guard's REASON was sound: without it the gate flashes for a frame on
+   * every reload of an already-watched room. But that wants VISIBILITY gated,
+   * not EXISTENCE. The gate is rendered here in full — so it is in the HTML for
+   * anything that reads HTML — and `.gate[data-booting]` hides it for the one
+   * frame before the token is known. Same tree on the server and on the first
+   * client render, so nothing to mismatch on hydration.
+   */
+  if (!ready) return <Gate booting onWatch={watch} onCreate={() => setView("create")} />;
 
   if (token) {
     return (

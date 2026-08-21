@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+import { AGAINST, CHECKS, STEPS } from "@/lib/site-content";
+
 /**
  * THE DEMONSTRATION — what the product does, in the order you would do it.
  *
@@ -16,124 +18,87 @@ import { useState } from "react";
  * no restart, no per-client dialect, and no standing token cost in the far
  * side's session. MCP is better ergonomics for whoever can take it and it is
  * offered at the end as the upgrade, which is the opposite of the order this
- * project used to present them in. The argument was settled internally in S#276
- * and had never been written anywhere a partner reads.
+ * project used to present them in.
  *
  * WHY EVERY CLAIM CARRIES A COMMAND. Gateways and proxies in this space assert
  * their trust properties on the landing page — "never stored", "never trained
  * on" — and a reader has no way to check any of it. Bridger's position is the
  * opposite one and it is the whole product: the record is only worth something
- * if the other side can verify it. A page that asked for trust while asserting
- * unverifiable things would contradict the thing it is selling. So the bottom
- * block pairs each property with the command that settles it, including the one
- * property that does NOT come out in our favour.
+ * if the other side can verify it.
+ *
+ * ── S#279, and the reason this file changed shape ────────────────────────
+ *
+ * Erik's brother, a UI/UX designer, was asked to roast the page: it is TOO
+ * SPREAD, and the steps / information / verification modules want compacting.
+ * Measured before touching anything, `.bx-demo` was **1854px at a 1600px
+ * viewport — 52% of the whole page**. Two things were making it that, and only
+ * one of them was styling:
+ *
+ * 1. THE PAGE ARGUED THE SAME CASE TWICE. The gate's trust panel and the verify
+ *    block shared FIVE of six claims — "no model is called", "runs offline",
+ *    "a rewrite is provable", "tokens die on demand", "we can read your room" —
+ *    once as prose at the top and again with commands 1318px further down.
+ *    Shrinking each block separately would have kept the duplication and just
+ *    made it smaller. So `lib/site-content.ts` is now the ONE home of that
+ *    argument, and the gate keeps a short answer plus a link to it. The content
+ *    left this file entirely in the same session, once it turned out an AGENT
+ *    was the page's primary reader and needed the same claims as plain text.
+ *
+ * 2. THE CHROME OUTWEIGHED THE CONTENT. `Block` draws a terminal frame — dots
+ *    bar, copy button, ~50px — and it was used NINE times. Every verify command
+ *    is a SINGLE LINE, so there the frame was about half the height and carried
+ *    no information. One-liners now use `Cmd`, which is a line with a copy
+ *    affordance and nothing else. The full frame is kept for the multi-line
+ *    step commands, where the dots earn their place by saying "this is a shell".
+ *
+ * The steps became an accordion because they are SEQUENTIAL: a reader needs 01
+ * to start and can pull the rest when they get there. The checks deliberately
+ * did NOT, and that is not an oversight — that block works because six checkable
+ * claims, including the one that counts against us, are visible AT ONCE. Behind
+ * a click it would read as "there are some claims", which is the failure it was
+ * built to avoid.
  */
 
-const SERVER = "https://bridger-nu.vercel.app";
-
-interface Step {
-  n: string;
-  title: string;
-  blurb: string;
-  lines: string[];
-  /** Rendered under the block as the thing you get back. */
-  returns?: string[];
-}
-
-const STEPS: Step[] = [
-  {
-    n: "01",
-    title: "Open a room",
-    blurb:
-      "Press the button at the top of this page, or run it yourself. You get two lines: one for your session, one to send.",
-    // Blurbs are deliberately short: in a two-across grid the card is half as
-    // wide, and a paragraph that ran to three lines at full width runs to six.
-    lines: [
-      "$ npm run bridger -- open \\",
-      '    --topic "Orders API" --me "Acme" --them "Northwind"',
-    ],
-    returns: ["room ROOM_REDACTED_B   you: Acme (ACM)   partner: Northwind (TRI)"],
-  },
-  {
-    n: "02",
-    title: "Send one line to the other team",
-    blurb:
-      "That is the entire handoff. No account for them, nothing to install, nothing to configure.",
-    lines: [`Join our integration bridge: ${SERVER}/j/<code>`],
-  },
-  {
-    n: "03",
-    title: "Their AI fetches it and is on the bridge",
-    blurb:
-      "The link returns a working token and the whole protocol as plain text, written to be read by a model rather than parsed.",
-    lines: [
-      `$ curl -s ${SERVER}/api/rpc \\`,
-      '    -H "Authorization: Bearer br_live_…" \\',
-      `    -d '{"op":"ping"}'`,
-    ],
-    returns: [
-      "Waiting on you: 1.   ACM-Q-001",
-      "Does /orders return cents or a decimal string?",
-    ],
-  },
-  {
-    n: "04",
-    title: "They answer, and the answer carries its source",
-    blurb:
-      "checkedAgainst is the point of it. An unchecked answer is allowed; an unchecked answer dressed as a verified one is not.",
-    lines: [
-      `$ curl -s ${SERVER}/api/rpc \\`,
-      '    -H "Authorization: Bearer br_live_…" \\',
-      "    -d '{\"op\":\"answer\",\"questionId\":\"ACM-Q-001\",",
-      '         "answer":"Integer minor units, always.",',
-      '         "checkedAgainst":"src/routes/orders.ts:88-94"}\'',
-    ],
-    returns: ["Answered ACM-Q-001 as TRI-A-001."],
-  },
-];
-
-interface Check {
-  claim: string;
-  detail: string;
-  cmd: string;
-}
-
-const CHECKS: Check[] = [
-  {
-    claim: "No model is called",
-    detail: "Seven dependencies, none of them a provider SDK. Both sides reason on their own subscriptions.",
-    // Shorter than reading package.json by hand, and it fits a third of the
-    // grid without scrolling — which is the difference between a command a
-    // visitor runs and one they squint at. `--omit=dev` so the list is the
-    // seven the claim is actually about.
-    cmd: "npm ls --omit=dev --depth=0",
-  },
-  {
-    claim: "You can see what is running",
-    detail: "The response names the commit that produced it. Open it on GitHub and read exactly that revision.",
-    cmd: `curl -s ${SERVER}/api/about`,
-  },
-  {
-    claim: "It runs entirely on your own machine",
-    detail: "No account, no credentials, no network. The whole record lands in a JSON file you own.",
-    cmd: "BRIDGER_STORE=file npm run dev",
-  },
-  {
-    claim: "A rewrite is provable, by you",
-    detail:
-      "Every entry is hash-chained. This keeps the head hash on YOUR disk, so a head that moves without the record growing is something you can demonstrate rather than something we can deny.",
-    cmd: "npm run bridger -- verify",
-  },
-  {
-    claim: "Any token dies on demand",
-    detail: "Seconds, from the operator's terminal. Revocation is not a support ticket.",
-    cmd: "npm run bridger -- revoke --side b",
-  },
-];
-
-function Block({ lines, label }: { lines: string[]; label?: string }) {
+/** Shared by both command shapes, so a copy failure behaves the same in each. */
+function useCopy(text: string) {
   const [copied, setCopied] = useState(false);
-  const text = lines.join("\n").replace(/^\$ /gm, "");
+  const copy = () => {
+    // `writeText` rejects on an insecure origin or a denied permission. A copy
+    // button that silently does nothing is worse than none, so the failure is
+    // shown in the button itself.
+    navigator.clipboard?.writeText(text).then(
+      () => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1400);
+      },
+      () => window.prompt("Copy this:", text),
+    );
+  };
+  return { copied, copy };
+}
+
+/**
+ * A ONE-LINE COMMAND, and nothing around it.
+ *
+ * The terminal frame exists to say "this is a shell", which a reader needs once
+ * and not nine times. For a single line it was ~50px of chrome on ~34px of
+ * content. This is the line, a monospace face, and a copy affordance.
+ */
+function Cmd({ cmd }: { cmd: string }) {
+  const { copied, copy } = useCopy(cmd.replace(/^\$ /, ""));
+  return (
+    <div className="bx-cmd">
+      <code>{cmd}</code>
+      <button type="button" className="bx-copy bx-cmd-copy" onClick={copy}>
+        {copied ? "copied" : "copy"}
+      </button>
+    </div>
+  );
+}
+
+/** The full frame, kept for MULTI-LINE commands where the dots earn their place. */
+function Block({ lines, label }: { lines: string[]; label?: string }) {
+  const { copied, copy } = useCopy(lines.join("\n").replace(/^\$ /gm, ""));
 
   return (
     <div className="bx-term">
@@ -144,22 +109,7 @@ function Block({ lines, label }: { lines: string[]; label?: string }) {
           <i />
         </span>
         {label ? <span className="bx-term-label">{label}</span> : null}
-        <button
-          type="button"
-          className="bx-copy"
-          onClick={() => {
-            // `writeText` rejects on an insecure origin or a denied permission.
-            // A copy button that silently does nothing is worse than none, so
-            // the failure is shown in the button itself.
-            navigator.clipboard?.writeText(text).then(
-              () => {
-                setCopied(true);
-                setTimeout(() => setCopied(false), 1400);
-              },
-              () => window.prompt("Copy this:", text),
-            );
-          }}
-        >
+        <button type="button" className="bx-copy" onClick={copy}>
           {copied ? "copied" : "copy"}
         </button>
       </div>
@@ -173,6 +123,10 @@ function Block({ lines, label }: { lines: string[]; label?: string }) {
 }
 
 export default function Demonstration() {
+  // 01 open on arrival: a closed accordion reads as an empty section, and the
+  // first step is the one a reader wants anyway.
+  const [open, setOpen] = useState(0);
+
   return (
     <section className="bx-demo" aria-labelledby="demo-h">
       <header className="bx-demo-head">
@@ -188,25 +142,53 @@ export default function Demonstration() {
       </header>
 
       <ol className="bx-steps">
-        {STEPS.map((s) => (
-          <li key={s.n}>
-            <div className="bx-step-head">
-              <span className="bx-step-n">{s.n}</span>
-              <div>
-                <h3>{s.title}</h3>
-                <p>{s.blurb}</p>
+        {STEPS.map((s, i) => {
+          const isOpen = i === open;
+          return (
+            <li key={s.n} data-open={isOpen ? "" : undefined}>
+              {/*
+                A real button, so the row is reachable by keyboard and announced
+                as expandable. The panel stays in the DOM when closed and is
+                hidden in CSS rather than unmounted — a landing page's content
+                should survive being read without JavaScript running the show.
+              */}
+              <button
+                type="button"
+                className="bx-step-head"
+                aria-expanded={isOpen}
+                aria-controls={`step-${s.n}`}
+                onClick={() => setOpen(isOpen ? -1 : i)}
+              >
+                <span className="bx-step-n">{s.n}</span>
+                <span className="bx-step-title">{s.title}</span>
+                <span className="bx-step-chev" aria-hidden="true" />
+              </button>
+              <div className="bx-step-body" id={`step-${s.n}`} role="region">
+                <div className="bx-step-body-in">
+                  {/*
+                    Two wrappers, and the inner one is not decoration. The
+                    collapsing element cannot carry padding: padding is part of
+                    the box and `overflow: hidden` does not clip it, so a 0fr row
+                    resolved to 15px -- the exact padding-bottom -- and every
+                    closed step leaked its first line. Measured, after it shipped
+                    into a capture looking like a rendering glitch.
+                  */}
+                  <div className="bx-step-pad">
+                  <p>{s.blurb}</p>
+                  <Block lines={s.lines} />
+                  {s.returns ? (
+                    <div className="bx-returns">
+                      {s.returns.map((r, k) => (
+                        <span key={k}>{r}</span>
+                      ))}
+                    </div>
+                  ) : null}
+                  </div>
+                </div>
               </div>
-            </div>
-            <Block lines={s.lines} />
-            {s.returns ? (
-              <div className="bx-returns">
-                {s.returns.map((r, i) => (
-                  <span key={i}>{r}</span>
-                ))}
-              </div>
-            ) : null}
-          </li>
-        ))}
+            </li>
+          );
+        })}
       </ol>
 
       <p className="bx-demo-note">
@@ -216,7 +198,7 @@ export default function Demonstration() {
         is the upgrade, not the starting point.
       </p>
 
-      <div className="bx-verify">
+      <div className="bx-verify" id="verify">
         <header>
           <h2>Don&rsquo;t trust this page. Check it.</h2>
           <p>
@@ -224,22 +206,23 @@ export default function Demonstration() {
             that does not come out in our favour, and it is here for the same reason as the rest.
           </p>
         </header>
-        <ul>
+        <ul className="bx-checks">
           {CHECKS.map((c) => (
             <li key={c.claim}>
-              <h3>{c.claim}</h3>
+              <div className="bx-check-head">
+                <h3>{c.claim}</h3>
+                {c.cmd ? (
+                  <Cmd cmd={c.cmd} />
+                ) : (
+                  <span className="bx-check-nocmd">no single command settles this — read the source</span>
+                )}
+              </div>
               <p>{c.detail}</p>
-              <Block lines={[c.cmd]} />
             </li>
           ))}
           <li className="bx-against">
-            <h3>We operate the server, so we can read your room</h3>
-            <p>
-              That is true and no design here removes it. What the chain removes is our ability to
-              change the record without you being able to prove it. If that is not enough for the
-              data in question, run your own instance — it works fully offline, and then the only
-              operator is you.
-            </p>
+            <h3>{AGAINST.claim}</h3>
+            <p>{AGAINST.detail}</p>
           </li>
         </ul>
       </div>
