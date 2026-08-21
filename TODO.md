@@ -40,6 +40,44 @@ Both were worth doing. Neither was this.
 
 # A. LEFT TO BUILD
 
+## A0. ~~THE BROWSER FLOW COULD NOT INVITE ANYONE~~ — BUILT S#279
+
+Join codes shipped S#276 and were **CLI-only** — nothing in `app/api/*` or
+`lib/operations.ts` exposed invite. So the flow an outsider actually uses had
+one handoff: the raw `br_live_...` token on the minted screen. We had built the
+better path and hidden it from everyone who arrives at the page.
+
+Now `opInvite` (both transports, invariant 11) plus a button on the minted
+screen. The link is the primary handoff; the token block is demoted into a
+`<details>` rather than removed. A second link supersedes the first unredeemed
+one; a REDEEMED one is left alone because the far side may be mid-retry.
+Refuses outright when `BRIDGER_PASTE_PATH` is off rather than minting a link
+that 404s. `DECISIONS.md` 2026-08-21.
+
+**Verified by driving it:** old link 404 no token, live link 200 / 10,560 bytes
+/ real credential. Ablation-proven. 313/313.
+
+**Still open here:** the MCP tool returns `joinPath` only — that adapter has no
+`Request` and therefore no honest way to name the host. If an MCP caller ever
+needs an absolute link, the answer is an operator-set origin, not a guess.
+
+## A8. THE QUOTA IS INVISIBLE UNTIL YOU TRIP IT — S#279
+
+Erik's brother opened three rooms and the fourth was refused; the cap was raised
+3 -> 12 the same session. The refusal itself reads well (*"That is 12 rooms
+today from this connection…"*), but **nothing tells you where you stand before
+it fires**. The server already knows — `MintVerdict` carries `used`, `limit` and
+`resetsAt`. A `GET /api/rooms` returning that, shown on the create screen, is
+the whole fix. Not built.
+
+**Related, unresolved:** the mint refusal is `terminal: true` at **HTTP 429**,
+which contradicts the S#276 ladder (terminal -> 403). `refusal-status.test.ts`
+enforces that rule over `DENY_STATUS`, and this route builds its response by
+hand and never consults that table — it is the one route that never calls
+`authorize()` (ARCHITECTURE #30), so the invariant does not reach it. Arguably
+429 + `Retry-After` is correct HTTP for a limit that resets at midnight and the
+`terminal` flag is the wrong one. Erik's call which way it moves.
+
 ## A1. ~~ONBOARDING — the paste path is not the recommended path anywhere~~ — DONE S#278
 
 Closed. The flat path is now the default in `README.md` (a "which path to give a

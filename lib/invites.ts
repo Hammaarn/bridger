@@ -78,6 +78,7 @@ import {
   INVITE_KEY,
   INVITE_SPENT_KEY,
   PASTE_PATH_DAILY_CAP,
+  ROOM_INVITE_KEY,
   coerceJson,
   type Store,
 } from "./store";
@@ -175,6 +176,54 @@ export function parseInvite(raw: unknown): InviteRecord | null {
       ? { reReadableUntil: r.reReadableUntil }
       : {}),
   };
+}
+
+/**
+ * Mint an invite that REPLACES whatever unredeemed one that side already had.
+ *
+ * The CLI never needed this: an operator running `bridger invite` twice knows
+ * they did it and knows which line they pasted. A button does not have that
+ * property -- it gets pressed twice because nothing visible happened the first
+ * time, and then two codes are live for one seat and the operator cannot tell
+ * which of them they sent. Each of those codes is a separate credential waiting
+ * to be minted, so this is a blast-radius question as much as a UX one.
+ *
+ * ORDER MATTERS. The old code is deleted BEFORE the new one is written, so a
+ * failure between the two leaves zero live invites rather than two. Losing an
+ * invite costs one button press; a second live credential for a seat you
+ * thought you had re-issued is the failure you cannot see.
+ *
+ * A code that has already been REDEEMED is deliberately not touched. It is
+ * inside its re-read window and the far side may still be fetching it -- the
+ * exact retry that killed the first partner demo. Superseding only replaces an
+ * invitation nobody has taken up.
+ */
+export async function mintInviteReplacing(
+  store: Store,
+  room: RoomRecord,
+  side: SideId,
+  now: Date,
+  opts: { ttlSeconds?: number; tokenTtlSeconds?: number } = {},
+): Promise<{ code: string; expiresAt: string; replaced: boolean }> {
+  const pointer = ROOM_INVITE_KEY(room.id, side);
+  const previous = await store.get(pointer);
+  let replaced = false;
+
+  if (typeof previous === "string" && previous) {
+    const old = parseInvite(await store.get(INVITE_KEY(previous)));
+    // Untouched if it has been redeemed: someone may be re-reading it right now.
+    if (old && !old.token) {
+      await store.del(INVITE_KEY(previous));
+      replaced = true;
+    }
+  }
+
+  const ttl = opts.ttlSeconds ?? INVITE_TTL_SECONDS;
+  const minted = await mintInvite(store, room, side, now, opts);
+  await store.set(pointer, minted.code);
+  // The pointer must never outlive what it points at.
+  await store.expire(pointer, ttl);
+  return { ...minted, replaced };
 }
 
 export async function mintInvite(

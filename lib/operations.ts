@@ -42,10 +42,18 @@ import {
   resetWaste,
   canWrite,
   resetIdleStreak,
+  otherSide,
   VIEWER_REFUSAL,
   type RoomRecord,
+  type SideId,
   type TokenRecord,
 } from "./room-registry";
+import {
+  INVITE_REREAD_SECONDS,
+  INVITE_TTL_SECONDS,
+  PASTE_TOKEN_TTL_SECONDS,
+  mintInviteReplacing,
+} from "./invites";
 import {
   BLOCKED_CALL_DISCOUNT,
   BLOCKED_CALL_MS,
@@ -755,4 +763,85 @@ export async function opPing(ctx: OpContext) {
       ? `${awaitingYou.length} question(s) are waiting on you. Answer each with bridger_answer, then stop — you have already been given everything there is to see.`
       : "Nothing is waiting on you. Do not call again; report to your operator and stop.",
   };
+}
+
+/**
+ * MINT A JOIN LINK FOR THE OTHER SEAT.
+ *
+ * WHY THIS EXISTS AS AN OPERATION RATHER THAN A ROUTE. Until S#279 invites were
+ * CLI-only, so the browser flow -- the one an outsider actually uses -- had no
+ * way to produce one. Its only handoff was the raw `br_live_...` token printed
+ * on the minted screen, which means the recommended way to invite a partner was
+ * to paste a live credential into a chat message. That is precisely the artefact
+ * a partner's AI is right to refuse: Trigvanta's Claude declined exactly that in
+ * S#275 and its reasoning was correct. A `/j/<code>` URL is not a credential, it
+ * is short-lived, and it hands over the whole protocol as text.
+ *
+ * It lives here and not in `app/api/rpc/route.ts` because of invariant 11: every
+ * guard belongs to the operations, never to an adapter, or the two transports
+ * fork and the drift is silent.
+ *
+ * IT RETURNS A PATH, NOT A URL. An operation has no request in scope and
+ * therefore no honest way to know which host answered -- inventing one would put
+ * a hostname we guessed into an instruction someone follows. The adapter, which
+ * does hold the request, composes the absolute link. That is the same division
+ * `app/j/[code]/route.ts` already uses.
+ */
+export async function opInvite(
+  ctx: OpContext,
+  args: { side?: SideId; ttlMinutes?: number; tokenDays?: number },
+) {
+  requireWrite(ctx.token);
+
+  // Invariant 15: instructions we hand a partner must be runnable as written.
+  // `/j/<code>` lives behind BRIDGER_PASTE_PATH, so with the flag off this
+  // would mint a real code behind a link that 404s for whoever received it --
+  // a working credential and a dead door. Refuse instead, and say which.
+  if (process.env.BRIDGER_PASTE_PATH !== "1") {
+    throw new OperationRefused(
+      "Join links are switched off on this bridge, so a link minted here would 404 for whoever you sent it to. Ask the operator to set BRIDGER_PASTE_PATH=1, or hand the token over directly.",
+      true,
+    );
+  }
+
+  // Default to the OTHER seat, because inviting is what you do to a partner.
+  // Your own side stays permitted: a token lost with a laptop is a real case,
+  // and you already hold that seat's credential, so it grants nothing new.
+  const side = args.side ?? otherSide(ctx.token.side);
+
+  const ttlMinutes = clampInt(args.ttlMinutes, 5, 24 * 60, INVITE_TTL_SECONDS / 60);
+  const tokenDays = clampInt(args.tokenDays, 1, 90, PASTE_TOKEN_TTL_SECONDS / 86400);
+
+  const { code, expiresAt, replaced } = await mintInviteReplacing(
+    ctx.store,
+    ctx.room,
+    side,
+    ctx.now,
+    { ttlSeconds: ttlMinutes * 60, tokenTtlSeconds: tokenDays * 86400 },
+  );
+
+  return {
+    code,
+    joinPath: `/j/${code}`,
+    forSide: side,
+    // The room's own label for that seat. Not contained: it was written by this
+    // operator through `sanitiseRoomMetadata`, not by the far side.
+    forLabel: ctx.room.sides[side].label,
+    expiresAt,
+    linkExpiresInMinutes: ttlMinutes,
+    tokenExpiresInDays: tokenDays,
+    reReadableForMinutes: Math.round(INVITE_REREAD_SECONDS / 60),
+    replacedPreviousLink: replaced,
+    guidance:
+      `Send the link, not a token. It mints exactly one credential and then returns that same one to anyone who fetches it for ${Math.round(INVITE_REREAD_SECONDS / 60)} minutes, so a preview or a retry cannot destroy the invitation. After ${ttlMinutes} minutes an unredeemed link is dead.` +
+      (replaced
+        ? " The previous unredeemed link for this seat was replaced and no longer works."
+        : ""),
+  };
+}
+
+/** Bounded, integral, and never NaN — a tunable arriving from a caller. */
+function clampInt(v: number | undefined, lo: number, hi: number, fallback: number): number {
+  if (v === undefined || !Number.isFinite(v)) return Math.round(fallback);
+  return Math.min(hi, Math.max(lo, Math.round(v)));
 }

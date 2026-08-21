@@ -39,6 +39,7 @@ import { auditRequest, gate, refusalBody, refusalHeaders } from "@/lib/http-gate
 import { CITATION_MAX, createStore, type Store } from "@/lib/store";
 import {
   OperationRefused,
+  opInvite,
   WAIT_MAX_SECONDS,
   WAIT_DEFAULT_SECONDS,
   opAnswer,
@@ -327,6 +328,48 @@ const handler = createMcpHandler(
         }),
       },
       async (args, ctx) => run(() => opContract(ctxFrom(ctx), args)),
+    );
+
+    /**
+     * SAME RULE, DIFFERENT URL COMPOSITION -- and that is not a fork.
+     *
+     * Invariant 11 requires the guards to live in `lib/operations.ts` so the two
+     * transports cannot drift, and they do: the viewer gate, the paste-path
+     * check and the superseding all run in `opInvite` for both. What differs is
+     * only that the flat adapter holds a `Request` and can turn `joinPath` into
+     * an absolute link, while these tool callbacks receive auth context and no
+     * request at all. Rather than reconstruct a hostname from an environment
+     * variable and put a guess into an instruction someone follows, this
+     * transport returns the path and says what it is relative to.
+     */
+    server.registerTool(
+      "bridger_invite",
+      {
+        title: "Mint a join link for the other seat",
+        description:
+          "Produce a short-lived /j/<code> link you can send to your partner, instead of pasting a live bearer token into a chat message. The link mints exactly one credential and then returns that same one to anyone who fetches it for a few minutes, so a link preview or a retry cannot destroy the invitation. Minting again REPLACES the previous unredeemed link for that seat. The result is a PATH — join it to the server you are connected to. Requires a participant token; a viewer cannot invite.",
+        inputSchema: z.object({
+          side: z
+            .enum(["a", "b"])
+            .optional()
+            .describe("Which seat the link is for. Defaults to the other side — the partner you are inviting."),
+          ttlMinutes: z
+            .number()
+            .int()
+            .min(5)
+            .max(1440)
+            .optional()
+            .describe("How long an UNREDEEMED link stays alive. Default 30."),
+          tokenDays: z
+            .number()
+            .int()
+            .min(1)
+            .max(90)
+            .optional()
+            .describe("Life of the token the link mints. Default 7."),
+        }),
+      },
+      async (args, ctx) => run(() => opInvite(ctxFrom(ctx), args)),
     );
 
     server.registerTool(

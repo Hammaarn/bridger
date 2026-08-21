@@ -5,6 +5,64 @@ Append-only, newest first. **DECISIONS wins on direction** — where this file a
 
 ---
 
+## 2026-08-21 -- S#279 -- THE HANDOFF IS A LINK, NOT A TOKEN
+
+**Source:** Erik, after his brother tested the page: *"when the room is created,
+we need an invite link button generator. It should generate the token invitation
+link I can send the person I want to collaborate with."*
+
+**The gap, and it was worse than a missing button.** Join codes have existed
+since S#276 and were reachable **only from the CLI** -- verified, nothing in
+`app/api/*` or `lib/operations.ts` exposed invite. So the browser flow, the one
+an outsider actually uses, had exactly one handoff: the raw `br_live_...` token
+printed on the minted screen. The recommended way to invite a partner was to
+paste a live credential into a chat message, which is durable, forwardable and
+screenshot-able -- and is precisely the artefact a partner's AI is right to
+refuse. Trigvanta's Claude declined exactly that in S#275 and its reasoning was
+correct. We had built the better path and then hidden it from everyone who
+arrives at the page.
+
+**Decision.** `opInvite` in `lib/operations.ts`, surfaced as `{"op":"invite"}` on
+the flat transport and `bridger_invite` on MCP, and driven by a button on the
+minted screen. The link becomes the primary handoff; the token block is DEMOTED
+into a `<details>`, not deleted -- it works when a link cannot, and removing a
+working path to make a point is not an improvement.
+
+**Why it lives in operations and not in a route:** invariant 11. The viewer
+gate, the paste-path check and the superseding all run for both transports or
+they fork silently.
+
+**A second link SUPERSEDES the first.** The CLI never needed this -- an operator
+who runs `bridger invite` twice knows they did. A button does not have that
+property: it gets pressed again because nothing visible happened, and then two
+codes are live for one seat and the operator cannot tell which they sent. Each
+is a separate credential waiting to be minted, so this is blast radius as much
+as UX. A code that has already been REDEEMED is deliberately left alone: it is
+inside its re-read window and the far side may be mid-retry, which is the exact
+failure that killed the first partner demo (S#276).
+
+**It refuses when `BRIDGER_PASTE_PATH` is off** rather than minting a link that
+404s for whoever received it. Invariant 15: a real credential behind a dead door
+is the worst of both.
+
+**Deliberate asymmetry, recorded so it is not mistaken for drift:** the flat
+adapter composes an absolute `joinUrl` because it holds a `Request`; the MCP
+tool returns `joinPath` only. An operation has no honest way to know which host
+answered, and a guessed hostname inside an instruction someone follows is the
+thing invariant 15 exists to prevent.
+
+**Verified by DRIVING it, not by reading it.** Puppeteer created a room through
+the real form, pressed the real button twice, and then fetched both links as a
+partner would: the superseded link returns **404 with no token**, the live one
+returns **200, 10,560 bytes, a real credential and the protocol document**.
+Zero page errors. The superseding is ablation-proven -- mechanism off, that one
+test red, restored, 313/313 and the marker gone.
+
+**Code impact** (grep-verified): `lib/store.ts` (`ROOM_INVITE_KEY`),
+`lib/invites.ts` (`mintInviteReplacing`), `lib/operations.ts` (`opInvite`),
+`app/api/rpc/route.ts`, `app/api/mcp/route.ts`, `app/page.tsx`,
+`app/globals.css`, `lib/__tests__/invite-op.test.ts`.
+
 ## 2026-08-21 -- S#279 -- THE PAGE'S PRIMARY READER IS AN AGENT, AND IT WAS SERVING THEM NOTHING
 
 **Source:** Erik, S#279: *"making the whole page AI native and agent ready. Since

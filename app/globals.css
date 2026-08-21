@@ -2291,6 +2291,80 @@ input.bx-folder-name:focus {
   max-width: 54ch;
 }
 
+/* ── the invite link ─────────────────────────────────────────────────
+   The primary handoff since S#279. It is set in mono and given the full width
+   because the whole point is that a person copies it exactly -- and it is a URL
+   rather than a credential, so unlike the token below it is safe to have on
+   screen while someone else is looking. */
+.bx-invite {
+  padding: 16px 18px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.bx-invite-url {
+  display: block;
+  padding: 11px 13px;
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  background: var(--ink-900);
+  font-family: var(--font-mono-stack);
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text);
+  word-break: break-all;
+}
+
+.bx-invite-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0 9px;
+}
+
+/* `.bx-copy` carries `margin-left: auto` because in a terminal bar it has to
+   push itself to the right end. In a row of its own it fights the row: two
+   buttons each claiming the free space land at opposite edges of the card,
+   which is what shipped into the first drive of this screen. */
+.bx-invite-actions .bx-copy {
+  margin-left: 0;
+}
+
+.bx-invite .fine {
+  margin: 0;
+  max-width: 62ch;
+}
+
+/* Not shaped like the primary action: a failure here is recoverable (the flag
+   is off, the network dropped) and a refusal styled as a catastrophe makes a
+   caller abandon a task it could finish -- invariant 12, at the UI layer. */
+.bx-invite-error {
+  margin: 0;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-dim);
+}
+
+.bx-invite-make {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+/* Demoted, not hidden. The token block still works, and for a partner who needs
+   a credential outliving the link it is the right answer. */
+.bx-handoff-fallback {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+.bx-handoff-fallback .bx-handoff-head {
+  border-bottom: 0;
+  padding: 4px 0 10px;
+  align-items: center;
+}
+
 .bx-handoff-body {
   margin: 0;
   padding: 16px 18px 18px;

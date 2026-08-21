@@ -546,7 +546,72 @@ function Create({ onMinted, onCancel }: { onMinted: (m: Minted) => void; onCance
 
 // ── view: minted (the token box) ─────────────────────────────────
 
+interface InviteLink {
+  joinUrl: string;
+  forLabel: string;
+  linkExpiresInMinutes: number;
+  tokenExpiresInDays: number;
+  replacedPreviousLink: boolean;
+}
+
 function TokenBox({ minted, onWatch }: { minted: Minted; onWatch: (t: string) => void }) {
+  /**
+   * THE INVITE LINK, and why it is the primary handoff now.
+   *
+   * This screen's only way to invite anyone used to be the raw `br_live_...`
+   * token below — so the recommended action was to paste a live credential into
+   * a chat message, which is durable, forwardable and screenshot-able. It is
+   * also the exact artefact a partner's AI is right to refuse: Trigvanta's
+   * Claude declined precisely that in S#275 and its reasoning was correct.
+   *
+   * A `/j/<code>` link is not a credential. It dies in minutes, it mints exactly
+   * one token, and it hands the far side the whole protocol as a document. The
+   * mechanism has existed since S#276 and was reachable only from the CLI, which
+   * is to say: not reachable by anyone who arrived at this page.
+   */
+  const [invite, setInvite] = useState<InviteLink | null>(null);
+  const [inviteBusy, setInviteBusy] = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+
+  const rpcEndpoint = minted.endpoint.replace(/\/api\/mcp$/, "/api/rpc");
+
+  async function makeInvite() {
+    setInviteBusy(true);
+    setInviteError(null);
+    try {
+      const res = await fetch(rpcEndpoint, {
+        method: "POST",
+        headers: {
+          // Side A's own token: inviting is a participant action, and the
+          // server re-checks that rather than trusting this screen.
+          Authorization: `Bearer ${minted.slots[0].token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ op: "invite" }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setInviteError(body.error ?? `The server said ${res.status}.`);
+        return;
+      }
+      setInvite(body as InviteLink);
+    } catch {
+      setInviteError("Could not reach the bridge server.");
+    } finally {
+      setInviteBusy(false);
+    }
+  }
+
+  const inviteMessage = invite
+    ? `Join our integration bridge for "${minted.room.topic}":
+
+${invite.joinUrl}
+
+Give that URL to your AI. It returns a working token and the whole protocol in
+one document — nothing to install, no account, nothing to configure. The link is
+live for ${invite.linkExpiresInMinutes} minutes.`
+    : "";
+
   const antigravity = useMemo(
     () =>
       JSON.stringify(
@@ -649,13 +714,59 @@ It names the commit it is running and answers without a token.`;
             <div>
               <h2>Send this to them</h2>
               <p className="fine">
-                The entire handoff. No account, no install, no config file — and it costs their
-                session nothing when it is idle.
+                A link rather than a token. It dies in minutes, mints exactly one credential, and
+                hands their AI the whole protocol in one document — so the message you send stays
+                worthless to anyone who finds it later.
               </p>
             </div>
-            <CopyButton value={pasteBlock}>copy the whole block</CopyButton>
+            <button
+              type="button"
+              className="bx-primary bx-invite-make"
+              onClick={makeInvite}
+              disabled={inviteBusy}
+            >
+              {inviteBusy ? "minting…" : invite ? "new link" : "generate invite link"}
+            </button>
           </div>
-          <pre className="bx-handoff-body">{pasteBlock}</pre>
+
+          {inviteError ? <p className="bx-invite-error">{inviteError}</p> : null}
+
+          {invite ? (
+            <div className="bx-invite">
+              <code className="bx-invite-url">{invite.joinUrl}</code>
+              <div className="bx-invite-actions">
+                <CopyButton value={invite.joinUrl}>copy link</CopyButton>
+                <CopyButton value={inviteMessage}>copy message</CopyButton>
+              </div>
+              <p className="fine">
+                For <strong>{invite.forLabel}</strong>. Live for {invite.linkExpiresInMinutes}{" "}
+                minutes; the token it mints lasts {invite.tokenExpiresInDays} days.
+                {invite.replacedPreviousLink
+                  ? " The previous link for this seat has stopped working."
+                  : null}
+              </p>
+            </div>
+          ) : null}
+
+          {/*
+            Kept, not deleted, and demoted rather than hidden. The token block
+            works when a link cannot -- a partner behind something that mangles
+            URLs, or one who wants a credential that outlives thirty minutes --
+            and removing a working path to make a point is not an improvement.
+          */}
+          <details className="bx-details bx-handoff-fallback">
+            <summary>Or hand over the token directly</summary>
+            <p className="fine">
+              Everything the link would have given them, inline. The tradeoff is that this message
+              contains a live credential, so it stays valid for as long as the token does — in the
+              chat, the inbox and the transcript.
+            </p>
+            <div className="bx-handoff-head">
+              <div />
+              <CopyButton value={pasteBlock}>copy the whole block</CopyButton>
+            </div>
+            <pre className="bx-handoff-body">{pasteBlock}</pre>
+          </details>
         </div>
 
         <details className="bx-details">

@@ -102,6 +102,22 @@ export const INVITE_KEY = (code: string) => `${NS}:invite:${code.toUpperCase()}`
  * broken.
  */
 export const INVITE_SPENT_KEY = (code: string) => `${NS}:invite:spent:${code.toUpperCase()}`;
+/**
+ * The one live invite for a side, so a second one SUPERSEDES the first.
+ *
+ * Added S#279 with the browser invite button. Without it, pressing the button
+ * twice leaves two working codes and the operator cannot tell which link they
+ * sent -- and each live code is a separate credential waiting to be minted for
+ * the same seat. One pointer per (room, side) makes "the link I just made" the
+ * only true answer, and bounds the number of outstanding credentials for a room
+ * at one per side rather than at whatever the caller's daily cap allows.
+ *
+ * It is a POINTER, not a record: it holds a code, and the code's own key holds
+ * the invite. It carries the same TTL as the invite it names, so it cannot
+ * outlive what it points at.
+ */
+export const ROOM_INVITE_KEY = (roomId: string, side: string) =>
+  `${NS}:room:${roomId}:invite:${side}`;
 /** One side's standing consent to purge the room. Expires; see `lib/purge.ts`. */
 export const PURGE_KEY = (roomId: string, side: string) => `${NS}:room:${roomId}:purge:${side}`;
 export const RATE_KEY = (tokenId: string, minute: string) => `${NS}:rl:${tokenId}:${minute}`;
