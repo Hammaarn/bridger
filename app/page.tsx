@@ -118,6 +118,29 @@ const POLL_MS = 4000;
  * open tabs from turning one outage into a stampede.
  */
 const POLL_MAX_MS = 30000;
+
+/**
+ * HOW SLOW THE POLL GETS WHEN THE ROOM IS QUIET, and why this exists.
+ *
+ * The interval above was reasoned about carefully against the PER-MINUTE limit
+ * and never against the per-DAY one. At 4s that is 15 requests a minute, 900 an
+ * hour, against a `perTokenPerDay` of 400 — so an open watch tab exhausted its
+ * own viewer token in about twenty-seven minutes and then showed a rate-limit
+ * error for the rest of the day. It did exactly that during the first live
+ * partner run, while the operator was watching the room it had just been given.
+ *
+ * The fix is not a bigger number. A room where nothing has happened for four
+ * minutes does not need fifteen requests a minute, and the product's own
+ * argument to its partners is that the other side is a human-paced team rather
+ * than a service. The poll now backs off when NOTHING CHANGED, not only when
+ * something failed, and snaps back to full speed the instant an entry lands.
+ *
+ * Budget: reaching this ceiling takes ~8 quiet ticks (about four minutes), then
+ * costs 30 calls an hour — roughly 240 across an eight-hour day against the 400
+ * cap, with room left for the operator to actually use the room.
+ */
+const POLL_IDLE_MAX_MS = 120000;
+const POLL_IDLE_GROWTH = 1.7;
 const STORAGE_KEY = "bridger.token";
 const TREE_KEY = (roomId: string) => `bridger.tree.${roomId}`;
 
@@ -764,9 +787,19 @@ function RoomView({ token, onForget }: { token: string; onForget: () => void }) 
     let delay = POLL_MS;
 
     const tick = async () => {
+      const before = lastSeq.current;
       const ok = await load(token);
       if (stopped) return;
-      delay = ok ? POLL_MS : Math.min(delay * 2, POLL_MAX_MS);
+      if (!ok) {
+        // An error backs off faster and to a lower ceiling: the goal there is to
+        // recover, not to idle.
+        delay = Math.min(Math.max(delay, POLL_MS) * 2, POLL_MAX_MS);
+      } else if (lastSeq.current !== before) {
+        // Something arrived. Back to full speed — the room is live again.
+        delay = POLL_MS;
+      } else {
+        delay = Math.min(delay * POLL_IDLE_GROWTH, POLL_IDLE_MAX_MS);
+      }
       timer = setTimeout(tick, delay);
     };
 

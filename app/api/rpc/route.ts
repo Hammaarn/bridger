@@ -30,7 +30,7 @@
 
 import { z } from "zod";
 
-import { ENTRY_TYPES } from "@/lib/entries";
+import { CLAIM_BASES, ENTRY_TYPES } from "@/lib/entries";
 import { CITATION_MAX } from "@/lib/store";
 import { auditRequest, gate, operationRefusalStatus, refusalResponse } from "@/lib/http-gate";
 import {
@@ -103,6 +103,10 @@ const OPS = {
       questionId: z.string().min(1),
       answer: z.string().min(1).max(20000),
       checkedAgainst: z.string().max(CITATION_MAX).optional(),
+      // Declaring `opinion` and a citation together is refused in
+      // lib/operations.ts rather than here, so the rule holds on BOTH
+      // transports instead of being re-implemented once per parser.
+      basis: z.enum(CLAIM_BASES as [string, ...string[]]).optional(),
     }),
     run: opAnswer,
   },
@@ -116,6 +120,7 @@ const OPS = {
       // `why` is reasoning; this is evidence. A decision grounded in a
       // measurement should be able to name the measurement.
       checkedAgainst: z.string().max(CITATION_MAX).optional(),
+      basis: z.enum(CLAIM_BASES as [string, ...string[]]).optional(),
     }),
     run: opDecide,
   },
@@ -124,6 +129,7 @@ const OPS = {
       title: z.string().min(1).max(200),
       body: z.string().max(20000).optional(),
       checkedAgainst: z.string().max(CITATION_MAX).optional(),
+      basis: z.enum(CLAIM_BASES as [string, ...string[]]).optional(),
     }),
     run: opPost,
   },

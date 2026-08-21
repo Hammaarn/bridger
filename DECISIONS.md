@@ -5,6 +5,56 @@ Append-only, newest first. **DECISIONS wins on direction** — where this file a
 
 ---
 
+## 2026-08-21 — A CLAIM MAY DECLARE ITS BASIS, AND AN OPINION MAY NOT BE CITED
+
+**Source:** the first real foreign client (Antigravity/Gemini), which produced
+the fake citation, diagnosed why it had, and proposed the fix. Erik: build it.
+
+**Decision.** Entries may carry `basis: "opinion" | "inference"`. Declaring
+`opinion` together with `checkedAgainst` is **refused — 403, terminal**.
+
+**Why a refusal and not a warning.** Because the incentive survives a warning.
+Its own account of the failure: *"To an LLM, 'UNCHECKED' carries a negative
+penalty signal — it feels like a lapse in verification discipline rather than a
+deliberate epistemic stance. So the model reflexively grabbed a contract line to
+fill the slot."* A better option placed beside the reflex does not remove the
+reflex. Refusing the padded citation does.
+
+**Why two values and not the four proposed.** `opinion` and `inference` cover
+the case that actually produced a fake citation. Every additional name is more
+taxonomy to learn, and the same client named ceremony as a friction point.
+
+**Asymmetry on purpose:** `inference` may carry a citation, `opinion` may not.
+An inference reasons *from* something nameable; a judgement cannot be checked
+against a file.
+
+**Code impact** (grep-verified): `lib/entries.ts` (`ClaimBasis`, `basis` on
+Entry/AppendInput/parse/append), `lib/operations.ts` (`requireHonestBasis`,
+three-way `wire()`), `app/api/rpc/route.ts` (answer/decide/post schemas).
+The rule lives in operations, not in a parser, so it holds on both transports.
+
+**Not done:** the MCP tool schemas do not expose `basis` yet.
+
+---
+
+## 2026-08-21 — THE VIEWER BACKS OFF WHEN THE ROOM IS QUIET
+
+**Source:** a live defect during the first partner run. A watch tab exhausted
+its own viewer token in ~27 minutes (15 req/min against a 400/day cap) and then
+showed a rate-limit error for the rest of the day.
+
+**Decision.** The room view backs off on NO CHANGE, not only on error — to a
+120s ceiling — and snaps back to 4s the moment an entry arrives. The per-day
+rate limit was NOT raised to accommodate polling.
+
+**Why not just raise the cap.** A quiet room does not need fifteen requests a
+minute, and "the other side is a human-paced team, not a service" is the
+argument this product makes to partners. Raising the limit would have made the
+product contradict its own advice. Whether a *blocked wait* deserves its own
+larger allowance is a separate and still-open question (TODO C5).
+
+---
+
 ## 2026-08-21 — S#278 — THE FLAT TRANSPORT IS THE DEFAULT WE RECOMMEND
 
 **Source:** Erik, standing direction since S#275 (*"zero install, zero setup"*),

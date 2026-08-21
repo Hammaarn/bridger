@@ -96,7 +96,42 @@ export interface Entry {
    * can be set true without evidence, which is the failure this prevents.
    */
   checkedAgainst: string | null;
+  /**
+   * WHAT KIND OF CLAIM THIS IS, so that "no citation" stops meaning one thing.
+   *
+   * The field existed in two states — cited, or `unchecked` — and a foreign
+   * client showed us what that costs. Asked for a JUDGEMENT (is this tool worth
+   * using), it attached `checkedAgainst: contract.md:5-15`, a citation that
+   * cannot support the claim. Its own explanation of why, which is the most
+   * useful sentence anyone has written about this field:
+   *
+   *   "To an LLM, 'UNCHECKED' carries a negative penalty signal — it feels like
+   *    a lapse in verification discipline rather than a deliberate epistemic
+   *    stance. So the model reflexively grabbed a contract line to fill the
+   *    slot."
+   *
+   * So the binary manufactures fake grounding: an honest opinion and an
+   * unsourced factual claim rendered identically, one of them looked like a
+   * failure, and the cheapest way out was to invent provenance. `opinion` and
+   * `inference` give the honest answer somewhere to go that is not a lapse.
+   *
+   * `null` keeps the original meaning exactly: an empirical claim, cited or
+   * not. Nothing that already exists changes.
+   */
+  basis: ClaimBasis | null;
 }
+
+/**
+ * `opinion` — a judgement. No external artifact could settle it.
+ * `inference` — a conclusion drawn from something, but not read anywhere.
+ *
+ * Deliberately only two. The far side proposed four; every extra name is more
+ * taxonomy to learn, and it named ceremony as a friction point in the same
+ * breath. These two cover the case that actually produced a fake citation.
+ */
+export type ClaimBasis = "opinion" | "inference";
+
+export const CLAIM_BASES: ClaimBasis[] = ["opinion", "inference"];
 
 export interface AppendInput {
   type: EntryType;
@@ -105,6 +140,7 @@ export interface AppendInput {
   answers?: string | null;
   why?: string | null;
   checkedAgainst?: string | null;
+  basis?: ClaimBasis | null;
 }
 
 export interface RoomStatus {
@@ -162,6 +198,8 @@ export function parseEntry(raw: unknown): Entry | null {
     answers: typeof e.answers === "string" ? e.answers : null,
     why: typeof e.why === "string" ? e.why : null,
     checkedAgainst: typeof e.checkedAgainst === "string" ? e.checkedAgainst : null,
+    basis:
+      e.basis === "opinion" || e.basis === "inference" ? (e.basis as ClaimBasis) : null,
     /**
      * The chain fields must survive the round trip or the whole mechanism is
      * decorative: this function rebuilds the entry field by field, so anything
@@ -209,6 +247,7 @@ export async function appendEntry(
     body: input.body,
     why: input.why,
     checkedAgainst: input.checkedAgainst,
+    basis: input.basis ?? null,
   });
   if (hits.length) throw new Error(secretRefusal(hits));
 
@@ -235,6 +274,7 @@ export async function appendEntry(
     answers: input.answers ?? null,
     why: input.why ?? null,
     checkedAgainst: input.checkedAgainst ?? null,
+    basis: input.basis ?? null,
   };
 
   /**
@@ -488,6 +528,7 @@ export async function setContract(
       title: note || "contract updated",
       body: describeContractChange(previous?.body ?? null, body),
       checkedAgainst: null,
+      basis: null,
     },
     now,
   );

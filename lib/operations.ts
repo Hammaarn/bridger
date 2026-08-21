@@ -30,6 +30,7 @@ import {
   setContract,
   setCursor,
   waitForNew,
+  type ClaimBasis,
   type Entry,
   type EntryType,
 } from "./entries";
@@ -109,9 +110,16 @@ export function wire(e: Entry) {
     body: contain(e.body, e.author),
     ...(e.answers ? { answers: e.answers } : {}),
     ...(e.why ? { why: contain(e.why, e.author) } : {}),
+    // Three readings now, not two. `opinion` is not a weaker `unchecked` — it
+    // is a different statement, and rendering them the same is what made an
+    // honest judgement look like a failure of discipline.
     checked: e.checkedAgainst
       ? `checked-against: ${contain(e.checkedAgainst, e.author)}`
-      : "unchecked",
+      : e.basis === "opinion"
+        ? "opinion — no citation expected"
+        : e.basis === "inference"
+          ? "inference — reasoned, not read"
+          : "unchecked",
     // How specific that citation is, in OUR words. Derived by our own regex
     // from their string, so unlike `checked` it carries nothing far-side and
     // needs no containment — which is exactly why it is safe to read.
@@ -341,11 +349,44 @@ export async function opAsk(ctx: OpContext, args: { title: string; body?: string
   return { posted: wire(entry), note: "The other side sees this at their next status check." };
 }
 
+/**
+ * A DECLARED OPINION MAY NOT CARRY A CITATION. Refused, not warned.
+ *
+ * The far side proposed this and its argument is the reason it is a hard
+ * refusal rather than a lint: a permissive version leaves the reflex intact,
+ * because the model's incentive to fill the slot does not go away just because
+ * a better option exists next to it. Its words: server-side rejection
+ * "actively breaks an LLM's reflexive habit of padding judgment calls with
+ * decorative file references."
+ *
+ * This project has learned the same thing twice from the other direction --
+ * `deny` bites and `ask` does not, prose in a document is a hope. A rule that
+ * only advises is a rule that holds until something is in a hurry.
+ *
+ * TERMINAL, because retrying the identical payload cannot succeed and a caller
+ * that treats it as retryable will loop on its own budget.
+ */
+export function requireHonestBasis(
+  basis: ClaimBasis | null | undefined,
+  checkedAgainst: string | null | undefined,
+): void {
+  if (basis === "opinion" && checkedAgainst) {
+    throw new OperationRefused(
+      "An entry declared as `opinion` must not carry `checkedAgainst`. A judgement " +
+        "cannot be checked against a file, and a citation attached to one is decoration " +
+        "that makes the whole ledger less trustworthy. Send the opinion without a " +
+        "citation, or drop `basis` if this is an empirical claim after all.",
+      true,
+    );
+  }
+}
+
 export async function opAnswer(
   ctx: OpContext,
-  args: { questionId: string; answer: string; checkedAgainst?: string },
+  args: { questionId: string; answer: string; checkedAgainst?: string; basis?: ClaimBasis },
 ) {
   requireWrite(ctx.token);
+  requireHonestBasis(args.basis, args.checkedAgainst);
   await noteProductive(ctx);
   const entry = await appendEntry(
     ctx.store,
@@ -357,6 +398,7 @@ export async function opAnswer(
       body: args.answer,
       answers: args.questionId,
       checkedAgainst: args.checkedAgainst ?? null,
+      basis: args.basis ?? null,
     },
     ctx.now,
   );
@@ -365,9 +407,10 @@ export async function opAnswer(
 
 export async function opDecide(
   ctx: OpContext,
-  args: { title: string; decision: string; why: string; checkedAgainst?: string },
+  args: { title: string; decision: string; why: string; checkedAgainst?: string; basis?: ClaimBasis },
 ) {
   requireWrite(ctx.token);
+  requireHonestBasis(args.basis, args.checkedAgainst);
   await noteProductive(ctx);
   const entry = await appendEntry(
     ctx.store,
@@ -390,6 +433,7 @@ export async function opDecide(
       // because nothing had been checked, but because there was nowhere to say
       // so, while ordinary notes binding nobody carried citations.
       checkedAgainst: args.checkedAgainst,
+      basis: args.basis ?? null,
     },
     ctx.now,
   );
@@ -398,9 +442,10 @@ export async function opDecide(
 
 export async function opPost(
   ctx: OpContext,
-  args: { title: string; body?: string; checkedAgainst?: string },
+  args: { title: string; body?: string; checkedAgainst?: string; basis?: ClaimBasis },
 ) {
   requireWrite(ctx.token);
+  requireHonestBasis(args.basis, args.checkedAgainst);
   await noteProductive(ctx);
   const entry = await appendEntry(
     ctx.store,
@@ -411,6 +456,7 @@ export async function opPost(
       title: args.title,
       body: args.body ?? "",
       checkedAgainst: args.checkedAgainst ?? null,
+      basis: args.basis ?? null,
     },
     ctx.now,
   );

@@ -211,6 +211,33 @@ was over-broad. One data point is not generalisation. Different question shape.
 
 # C. FROM THE FIRST REAL FAR SIDE (2026-08-21)
 
+## C0. ~~THE WATCH TAB EXHAUSTED ITS OWN TOKEN IN 27 MINUTES~~ — FIXED 2026-08-21
+
+Found live, during the first real partner run, while Erik was watching the room
+he had just handed over. The viewer token hit `perTokenPerDay` and the room view
+went to a rate-limit error for the rest of the day.
+
+`POLL_MS` was 4000 — 15 requests a minute. The code comment shows the PER-MINUTE
+limit was reasoned about carefully (viewers get 60/min, so 15 fits). **The
+per-day limit was never considered:** 900 an hour against a cap of 400 is
+exhausted in about twenty-seven minutes.
+
+Fixed by backing off when NOTHING CHANGED rather than only when something
+failed, snapping back to full speed the moment an entry lands. Ceiling 120s,
+reached after ~8 quiet ticks. Budget: ~240 calls across an eight-hour day
+against the 400 cap, with room left for the operator to use the room.
+
+Not fixed with a bigger number, deliberately: a room where nothing has happened
+for four minutes does not need fifteen requests a minute, and "the other side is
+a human-paced team, not a service" is the argument this product makes to its own
+partners.
+
+**One thing this did prove for free:** the CLI reported the refusal as
+`TERMINAL`, exited 1 and did not retry — B2's contract working in production, in
+a situation nobody staged.
+
+
+
 > Everything here is evidence, not opinion. Source: room `d437fff5b423`,
 > entries `AGX-A-001`, `AGX-A-004`, `AGX-N-001`, plus the audit log.
 
@@ -235,7 +262,34 @@ Field-updatable advice belongs there, not only in a static document handed out
 once. Concretely: when a caller uses `status`+`read` where `ping` would do,
 `guidance` should say so.
 
-## C2. `checkedAgainst` HAS TWO STATES AND NEEDS THREE
+## C2. ~~`checkedAgainst` HAS TWO STATES AND NEEDS THREE~~ — BUILT 2026-08-21
+
+Shipped as `basis`, with the far side's own design and its own argument for the
+hard version. `basis: "opinion"` carrying `checkedAgainst` is **refused, 403,
+terminal** — not warned. Its reasoning for why refusal rather than a lint:
+server-side rejection *"actively breaks an LLM's reflexive habit of padding
+judgment calls with decorative file references."* A permissive version leaves
+the reflex intact, because the incentive to fill the slot does not disappear
+just because a better option sits next to it. Same lesson this project learned
+twice from the other direction: `deny` bites, `ask` does not.
+
+Two values, not the four proposed: `opinion` (no artifact could settle it) and
+`inference` (reasoned, not read). `inference` MAY carry a citation — it reasons
+*from* something — and `opinion` may not. Every extra name is more taxonomy, and
+ceremony was its own complaint.
+
+`wire()` now renders three readings instead of two, so an honest judgement never
+again looks like a lapse in discipline.
+
+Verified end to end on the flat transport, not only in a unit test: opinion
+without a citation 200, opinion with one 403 `terminal:true`. Ablation-proven —
+refusal removed, tests red; restored, 303/303.
+
+**Still open:** the MCP tool schemas do not expose `basis` yet. The rule holds
+there anyway, because it lives in `lib/operations.ts` rather than in a parser,
+so an MCP caller cannot bypass it — they simply cannot declare an opinion yet.
+
+## C2 (original). `checkedAgainst` HAS TWO STATES AND NEEDS THREE
 
 Its verdict on whether the tool is worth using — a pure judgement — carried
 `checkedAgainst: contract.md:5-15`. The citation cannot support the claim.
