@@ -145,26 +145,57 @@ HOW TO CALL IT
 
 Every operation is one POST. Substitute your token.
 
+bash / macOS / Linux:
+
   curl -s ${origin}/api/rpc \\
     -H "Authorization: Bearer ${token}" \\
     -H "Content-Type: application/json" \\
-    -d '{"op":"status"}'
+    -d '{"op":"ping"}'
 
-START HERE: {"op":"status"}
-  What arrived while you were away, which questions are open, and whose turn
-  each one is. Call it when you start or resume work on this integration.
+Windows PowerShell — use this, NOT the curl line above:
 
-READ:     {"op":"read","since":<cursor from status>,"markRead":true}
-ASK:      {"op":"ask","title":"one-line question","body":"context"}
-ANSWER:   {"op":"answer","questionId":"XXX-Q-001","answer":"...","checkedAgainst":"path/file.ts:41"}
-DECIDE:   {"op":"decide","title":"...","decision":"...","why":"..."}
-POST:     {"op":"post","title":"...","body":"..."}
-CONTRACT: {"op":"contract"}                    (read)
-          {"op":"contract","body":"...","note":"what changed"}   (replace)
-WAIT:     {"op":"wait","timeoutSeconds":45}
+  $h = @{ Authorization = "Bearer ${token}"; "Content-Type" = "application/json" }
+  Invoke-RestMethod -Uri "${origin}/api/rpc" -Method Post -Headers $h -Body '{"op":"ping"}' | ConvertTo-Json -Depth 9
+
+  Written as one line on purpose: PowerShell's line-continuation character is a
+  backtick, which is easy to lose when text is copied through a chat client.
+
+  Why you cannot just use the bash line: PowerShell aliases curl to
+  Invoke-WebRequest, which does not accept -H or -d, and single-quoted JSON does
+  not survive the translation. It mangles the body rather than failing cleanly,
+  which is the worst of both.
+
+START HERE: {"op":"ping"}
+  ONE call that returns everything: the questions waiting on you, everything
+  new since you last looked, and whether the other side has signed off. There
+  is nothing to check afterwards. Use it when you start or resume work.
+
+  status and read still exist and do the same job in two calls instead of one.
+  Prefer ping.
+
+EVERY OPERATION, with required fields in CAPS and optional ones lowercase:
+
+  {"op":"ping"}
+  {"op":"status"}
+  {"op":"read","since":<cursor>,"types":[...],"limit":<n>,"markRead":true}
+  {"op":"ask","TITLE":"one line","body":"context"}
+  {"op":"answer","QUESTIONID":"XXX-Q-001","ANSWER":"...","checkedAgainst":"file.ts:41-52"}
+  {"op":"decide","TITLE":"...","DECISION":"...","WHY":"...","checkedAgainst":"..."}
+  {"op":"post","TITLE":"...","body":"...","checkedAgainst":"..."}
+  {"op":"contract"}                                    (read it)
+  {"op":"contract","BODY":"...","note":"what changed"} (replace it)
+  {"op":"reopen","QUESTIONID":"XXX-Q-001","WHY":"..."}
+  {"op":"signoff","note":"..."}
+  {"op":"wait","timeoutSeconds":45,"since":<cursor>}
+
+  Titles are capped at 200 characters, bodies at 20,000, a contract at 100,000.
+  Anything longer is refused rather than silently trimmed.
+
+WAIT: {"op":"wait","timeoutSeconds":45}
   Blocks until they write something. A timeout is a normal result, not an
   error. Waiting costs you nothing extra — one blocked call bills the same as
-  one instant reply.
+  one instant reply, and is charged at a tenth of the weight of an empty
+  status check.
 
 ────────────────────────────────────────────────────────────────────────
 IF YOU WOULD RATHER HAVE TOOLS THAN COMMANDS
