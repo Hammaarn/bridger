@@ -59,6 +59,9 @@
   --line: rgba(255, 255, 255, 0.08);
   --line-strong: rgba(255, 255, 255, 0.16);
 
+  /* The shared content width. See .gate-body. */
+  --measure: 1360px;
+
   /* Text. 16.6:1, 7.6:1 and 4.9:1 on --ink-900. */
   --text: #e9ebef;
   --text-dim: #99a0ad;
@@ -634,9 +637,16 @@ input.bx-bad {
   pointer-events: none;
 }
 
+/* ── the page measure ────────────────────────────────────────────────
+   940px on a 2545px display leaves ~800px dead on each side, and a four-step
+   walkthrough stacked in a single column turns something that should read at a
+   glance into a scroll. Both surfaces now share ONE wider measure, so the page
+   still has a single column edge rather than three competing ones -- widening
+   only the demo would have made the misalignment the thing you notice. */
+
 .gate-body {
   width: 100%;
-  max-width: 940px;
+  max-width: var(--measure);
   margin: 0 auto;
   padding: 64px 24px 88px;
   display: grid;
@@ -1800,14 +1810,16 @@ input.bx-folder-name:focus {
 .bx-demo {
   position: relative;
   width: 100%;
-  max-width: 940px;
+  max-width: var(--measure);
   margin: 0 auto;
-  padding: 8px 24px 96px;
+  padding: 8px 24px 88px;
 }
 
+/* The heading keeps a reading measure of its own even though the grid below
+   it is wide -- prose set to 1240px is unreadable. */
 .bx-demo-head {
-  max-width: 660px;
-  margin-bottom: 40px;
+  max-width: 620px;
+  margin-bottom: 30px;
 }
 
 .bx-demo-head h2 {
@@ -1827,21 +1839,33 @@ input.bx-folder-name:focus {
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 28px;
+  gap: 20px;
+  /* Two across. The commands are the widest thing on the page and they must not
+     wrap -- a wrapped shell line reads as two commands -- so three across would
+     mean scrolling every block horizontally instead of reading it. */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .bx-steps > li {
   border: 1px solid var(--line);
   border-radius: 14px;
   background: color-mix(in oklab, var(--ink-800) 84%, transparent);
-  padding: 22px 22px 20px;
+  padding: 18px 18px 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* The terminal sits at the bottom of every card regardless of how long the
+   blurb above it ran, so the four blocks line up across the row. */
+.bx-steps > li .bx-term {
+  margin-top: auto;
 }
 
 .bx-step-head {
   display: flex;
-  gap: 16px;
+  gap: 13px;
   align-items: flex-start;
-  margin-bottom: 16px;
+  margin-bottom: 14px;
 }
 
 .bx-step-n {
@@ -1865,9 +1889,8 @@ input.bx-folder-name:focus {
 .bx-step-head p {
   margin: 0;
   color: var(--text-dim);
-  font-size: 14px;
-  line-height: 1.55;
-  max-width: 62ch;
+  font-size: 13.5px;
+  line-height: 1.5;
 }
 
 /* ── terminal blocks ─────────────────────────────────────────────────
@@ -1938,7 +1961,9 @@ input.bx-folder-name:focus {
 .bx-term code {
   display: block;
   font-family: var(--font-mono-stack);
-  font-size: 13px;
+  /* Sized so the LONGEST command in each grid cell fits without scrolling. A
+     command clipped mid-URL reads as broken even though the block scrolls. */
+  font-size: 12.5px;
   line-height: 1.75;
   color: var(--text);
   white-space: pre;
@@ -1975,8 +2000,8 @@ input.bx-folder-name:focus {
    list rather than in a footnote. */
 
 .bx-verify {
-  margin-top: 64px;
-  padding-top: 44px;
+  margin-top: 48px;
+  padding-top: 36px;
   border-top: 1px solid var(--line);
 }
 
@@ -2002,7 +2027,20 @@ input.bx-folder-name:focus {
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 24px;
+  gap: 20px;
+  /* Three across: each of these is one short command, so they cost almost no
+     height once they stop queueing behind each other. */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+}
+
+.bx-verify li {
+  display: flex;
+  flex-direction: column;
+}
+
+.bx-verify li .bx-term {
+  margin-top: auto;
 }
 
 .bx-verify h3 {
@@ -2020,14 +2058,23 @@ input.bx-folder-name:focus {
 }
 
 .bx-against {
+  grid-column: 1 / -1;
   border: 1px solid var(--line);
   border-radius: 12px;
-  padding: 18px 20px;
+  padding: 16px 18px;
   background: color-mix(in oklab, var(--ink-800) 60%, transparent);
 }
 
 .bx-against > p {
   margin-bottom: 0 !important;
+}
+
+/* One column below the point where two would squeeze the commands. */
+@media (max-width: 1080px) {
+  .bx-steps,
+  .bx-verify ul {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 @media (max-width: 720px) {
@@ -2086,4 +2133,13 @@ input.bx-folder-name:focus {
   color: var(--text-dim);
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* Prose stays at a reading measure even though the grid around it is 1360px
+   wide -- body text set to the full column is 90+ characters a line. */
+.bx-trust li,
+.bx-trust > p,
+.panel > .sub,
+.panel .fine {
+  max-width: 64ch;
 }
