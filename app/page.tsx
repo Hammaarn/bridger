@@ -715,11 +715,30 @@ function RoomView({ token, onForget }: { token: string; onForget: () => void }) 
    */
   const [arrivals, setArrivals] = useState(0);
 
-  const load = useCallback(async (tok: string): Promise<boolean> => {
+  /**
+   * Three outcomes, not two, and the third one is the whole point.
+   *
+   * `STATUS.md` calls "does a real client stop on a terminal refusal?" the one
+   * question none of the tests can answer. Measured in production S#279, the
+   * answer was no, and the client that would not stop was OURS: this loop
+   * rescheduled after EVERY failure, so a 403 `daily-cap` -- which the server
+   * means as "this cannot succeed again today" -- was retried exactly like a
+   * dropped packet. It ran for five days and 2,479 denied calls, and because a
+   * quota REFUSAL burns a slot (ARCHITECTURE #32), the retries were spending the
+   * budget they were being refused for.
+   *
+   * The signal was already on the wire: terminal refusals carry `terminal: true`
+   * and moved to 403 in S#276 precisely so a client could tell. Nothing read it.
+   */
+  const load = useCallback(async (tok: string): Promise<"ok" | "retry" | "stop"> => {
     try {
       const res = await fetch("/api/export", { headers: { Authorization: `Bearer ${tok}` } });
       if (!res.ok) {
         const body = await res.json().catch(() => ({ error: res.statusText }));
+        // The body's own flag first; the status only as a fallback for a refusal
+        // that predates the field or is shaped by the platform rather than us.
+        const terminal =
+          body?.terminal === true || res.status === 403 || res.status === 401 || res.status === 410;
         setError(
           res.status === 401
             ? `Token rejected (${body.error ?? "unknown"}). It may have been revoked, rotated, or expired.`
@@ -729,10 +748,12 @@ function RoomView({ token, onForget }: { token: string; onForget: () => void }) 
               ? "Polling too fast — backing off and retrying automatically."
               : res.status === 503
                 ? "The registry is unreachable — the server cannot read its own token store."
-                : `Server said ${res.status}: ${body.error ?? ""}`,
+                : terminal
+                  ? `${body.error ?? `Server said ${res.status}.`} Retrying will not change this — reload once it is resolved.`
+                  : `Server said ${res.status}: ${body.error ?? ""}`,
         );
         setLive(false);
-        return false;
+        return terminal ? "stop" : "retry";
       }
       const payload = (await res.json()) as ExportPayload;
       const newest = payload.entries.at(-1)?.seq ?? 0;
@@ -744,11 +765,12 @@ function RoomView({ token, onForget }: { token: string; onForget: () => void }) 
       setData(payload);
       setError(null);
       setLive(true);
-      return true;
+      return "ok";
     } catch {
+      // A thrown fetch is the network, not the server's verdict -- retry.
       setError("Cannot reach the bridge server. Is it running?");
       setLive(false);
-      return false;
+      return "retry";
     }
   }, []);
 
@@ -783,9 +805,13 @@ function RoomView({ token, onForget }: { token: string; onForget: () => void }) 
 
     const tick = async () => {
       const before = lastSeq.current;
-      const ok = await load(token);
+      const outcome = await load(token);
       if (stopped) return;
-      if (!ok) {
+      // A refusal the server calls terminal ends the loop. The error stays on
+      // screen and a reload is the way back -- which is the correct cost, since
+      // every retry here was spending the budget it was being refused for.
+      if (outcome === "stop") return;
+      if (outcome === "retry") {
         // An error backs off faster and to a lower ceiling: the goal there is to
         // recover, not to idle.
         delay = Math.min(Math.max(delay, POLL_MS) * 2, POLL_MAX_MS);
