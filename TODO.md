@@ -134,7 +134,26 @@ witness network (gated on a real far-side round trip), the communication layer
 > Ordered by what a wrong answer would cost. The first item is the one the
 > product exists for and it has never run.
 
-## B1. [!!] A FAR SIDE THAT CANNOT READ OUR CODE
+## B1. [~] A FAR SIDE THAT CANNOT READ OUR CODE — HALF DONE 2026-08-21
+
+**The cross-machine half is DONE.** Antigravity (Gemini), on Erik's laptop, on
+Windows, with no access to this repo, joined from one pasted URL and did real
+work: 16 calls across two sessions, zero failures, zero MCP registration. Room
+`d437fff5b423`. Everything below in lane C came out of it.
+
+**The adversarial half is NOT.** It was Erik's own laptop and Erik's own
+operator judgement, and Antigravity had no codebase of its own — so it cited
+`content.md` and `contract.md`, its local copies of OUR documents. It cited
+things it could read. The asymmetric case the whole `checkedAgainst` argument
+rests on — us citing our repo to a party who cannot check it, with their own
+interests at stake — is still answered only in prose.
+
+Room `0c7a12ba09d2` (Trigvanta) remains the real test and side B's token is
+still unused.
+
+<details><summary>the original statement</summary>
+
+## B1 (original)
 
 The whole claim is *"the answer lives in their codebase, ask them directly"*.
 Every far side so far has been on this machine with the repo on disk, so
@@ -144,6 +163,8 @@ designed for — as a FALSIFIABLE COMMITMENT to someone who cannot check it.
 Room `0c7a12ba09d2` (Trigvanta) is still open and side B's token is still unused.
 Erik holds it. Nothing on this list is worth more than this.
 
+</details>
+
 ## B2. Does a real client STOP on a terminal refusal?
 
 `STATUS.md` calls this the question none of the 291 tests can answer. Fixed and
@@ -152,7 +173,20 @@ every client auto-retries). **On the MCP transport it is still unobserved:**
 `terminal` travels inside a JSON-RPC tool error's text, and what a given client
 does with that is unknown.
 
-## B3. Does Antigravity honour a narrowed `tools/list`?
+## B3. ~~Does Antigravity honour a narrowed `tools/list`?~~ — MOOT 2026-08-21
+
+It never registered MCP at all. Zero `tools/list`, zero `initialize`, zero
+`server/discover` across 16 calls. It chose the flat transport deliberately and
+quoted our own join document as the reason: *"the join document explicitly
+stated 'stay here unless you specifically want the tools', making flat RPC the
+clear intended default."* Its own conclusion: *"Flat RPC should definitely be
+the recommended default for foreign client bridges, with MCP reserved as an
+opt-in."*
+
+That is the S#278 default validated by a foreign client the same day it shipped.
+The narrowed-surface question stays open in principle but has no live case.
+
+## B3 (original). Does Antigravity honour a narrowed `tools/list`?
 
 The answerer role is the entire cost argument for a partner (~318 tokens vs
 ~1,800). `answererHandler` exists and is unit-tested. Whether a foreign client
@@ -174,6 +208,112 @@ was over-broad. One data point is not generalisation. Different question shape.
   unexercised.
 - **The token box**: see A5.
 - Reduced-motion, contrast (20/20 AA) and 60.6fps ARE measured and hold.
+
+# C. FROM THE FIRST REAL FAR SIDE (2026-08-21)
+
+> Everything here is evidence, not opinion. Source: room `d437fff5b423`,
+> entries `AGX-A-001`, `AGX-A-004`, `AGX-N-001`, plus the audit log.
+
+## C1. [!!] OUR DOCUMENTS DO NOT UPDATE IN THE FIELD
+
+The single most important thing this run taught us, and nobody had thought about
+it.
+
+We fixed `START HERE` to point at `ping` and deployed it. An hour later the same
+far side answered a new question using **`status` + `read`, five times each,
+never once calling `ping`.** It was working from `content.md` — its own local
+copy of our join document, saved at join time. Our fix never reached it.
+
+**So every improvement to the join document only reaches partners who join
+AFTER it.** Anyone already on the bridge keeps a frozen copy forever, and the
+better we make that document the wider the gap grows between new and existing
+partners.
+
+**The fix is already in the protocol and unused for this.** Every response
+carries a `guidance` field, delivered on every call. That is the live channel.
+Field-updatable advice belongs there, not only in a static document handed out
+once. Concretely: when a caller uses `status`+`read` where `ping` would do,
+`guidance` should say so.
+
+## C2. `checkedAgainst` HAS TWO STATES AND NEEDS THREE
+
+Its verdict on whether the tool is worth using — a pure judgement — carried
+`checkedAgainst: contract.md:5-15`. The citation cannot support the claim.
+
+This is our design fault, not its mistake. The field has exactly two states,
+cited or `UNCHECKED`, and `UNCHECKED` reads like an omission whether or not it
+was one. So the incentive is to always put something there, and the field decays
+into ceremony — which it named as a friction point in the same entry it
+performed it in.
+
+Candidate: a third state for reasoning that rests on nothing external
+(*judgement* / *inference*), so it does not sit next to a genuine unverified
+factual claim. Counter-argument: more taxonomy is more ceremony. Asked the far
+side directly (`ACC-Q-005`); decide on their answer, not ours.
+
+## C3. THE THREE PROPOSALS WORTH TAKING
+
+From `AGX-N-001`, unsolicited, after one session on the bridge.
+
+**C3a. Citation bundles.** Attach 5-10 lines of the actual interface alongside
+`checkedAgainst`, rather than a pointer to a file we can read and they cannot.
+This is a change to what an ANSWER IS, not a feature beside it, and it is the
+candidate fix for the *"foreign agent is still executing on blind trust"*
+problem it named. Highest value of the five.
+
+**C3b. Local daemon holding the wait, writing to a watched file.** A lightweight
+local process keeps `{"op":"wait"}` open and appends arrivals to
+`.bridger/inbox.json`; the harness's own file-watcher wakes the agent. Zero
+polling, zero standing context.
+
+**Erik proposed exactly this mechanism independently, roughly ten minutes before
+the note landed, with neither side having seen the other.** Two parties
+converging on one design with no contact is the strongest signal available that
+it is right.
+
+**C3c. Contract patching.** `contract` currently replaces the whole body, so
+concurrent updates clobber. A merge-patch operation on structured keys instead.
+
+Not taking: machine-readable `falsifiesIf` assertions (interesting, but it is a
+test framework growing inside a ledger), and the cross-platform CLI, which is
+already covered by A3 and the PowerShell fix.
+
+## C4. A PING CANNOT WAKE AN AI, AND THAT IS DELIBERATE
+
+Researched 2026-08-21 rather than assumed. `subscriptions/listen` is a real MCP
+method and clients do call it — Claude Code hits ours every 60 seconds. But a
+server notification updates CLIENT STATE; no client turns one into a model turn,
+because a server that could make your model run inference could burn your quota
+at will. The protection and the limitation are the same mechanism. The
+2026-07-28 spec moves further this way, away from held bidirectional streams
+toward stateless multi-round-trip requests.
+
+**So "ping the other side's AI" is not buildable. "Ping the other side's HUMAN"
+is, works with every client that will ever exist, and is honest about where the
+human actually sits.** Build that, plus C3b for harnesses that wake on a
+completed background task.
+
+## C5. BLOCKED WAITS ARE PRICED LIKE POLLING, AND THEY ARE NOT POLLING
+
+A blocked `wait` self-caps at 45s, so covering a day needs ~1,920 calls against
+a `perTokenPerDay` of **400** — about five hours. `WASTE_BUDGET_BYTES` (12,000)
+buys a similar ~5.5 hours.
+
+Both were sized against polling, which we want to discourage. But a blocked wait
+costs us almost nothing and costs the caller no context at all — it is the one
+behaviour we are trying to encourage, and it is rationed like the one we are
+trying to prevent. **A blocked wait wants its own, much larger allowance.**
+This subsumes A2, which is the same argument about one of the two constants.
+
+## C6. THE IDLE BRAKE NEVER FIRED, AND THAT IS DATA
+
+Sixteen calls across two sessions, and it stopped on its own both times —
+`MAX_IDLE_STREAK` (6) was never approached. Good behaviour made the machinery
+redundant in the only real case we have. That is one data point, not a case for
+removing it, but it belongs in the argument when C5 is decided. It is also on
+the cut-list we put to the far side in the reopened `ACC-Q-004`.
+
+---
 
 ## B6. Standing gaps carried from earlier sessions
 

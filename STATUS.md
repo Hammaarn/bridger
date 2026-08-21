@@ -8,6 +8,17 @@
 > strong; the onboarding is the whole problem. Still internal-infrastructure-first
 > (S#274b) — `session-bridge.md` becoming redundant is the success condition.
 >
+> **[!!] THE BRIDGE HAS BEEN USED BY A REAL FOREIGN CLIENT (2026-08-21).**
+> Antigravity (Gemini), Erik's laptop, Windows, no access to this repo, joined
+> from one pasted URL. 16 calls, zero failures, zero MCP registration — it chose
+> the flat transport deliberately and quoted our own join document as the reason.
+> It answered four seeded questions, filed an unsolicited five-point
+> architectural proposal, and gave an unflattering verdict we asked for and got:
+> *"sits right on the boundary between essential infrastructure and protocol
+> overhead."* **Everything it taught us is TODO lane C**, and C1 (our documents
+> do not update in the field) is the one to read first. B1's cross-machine half
+> is closed; its adversarial half is not.
+>
 > **S#278 SHIPPED THE ONBOARDING PATH.** The flat transport is now the
 > recommended default in every partner-facing surface (`DECISIONS.md`
 > 2026-08-21), the landing page has a four-step demonstration with copyable

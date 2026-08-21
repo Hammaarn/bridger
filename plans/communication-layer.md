@@ -37,9 +37,19 @@ the far side money, forever.
 | `answerer` role (2 tools) ≈ **318 tokens/turn** | measured S#274 | one measurement |
 | `/api/rpc` standing cost = **0** | structural — nothing is registered | reasoned, not measured |
 | A blocked `bridger_wait` costs **one** call regardless of duration | by design | verified in code |
-| **What a real day of integration actually costs** | — | **NEVER MEASURED** |
+| **What the JOIN DOCUMENT costs a far side** | **10,279 bytes / 189 lines / ~2,300-2,500 tokens** | measured 2026-08-21 by Antigravity itself |
+| A foreign client's transport choice when offered both | **flat, by decision** — 16 calls, zero MCP | observed 2026-08-21 |
+| **What a real multi-day integration costs** | — | **still not measured** |
 
-**That last row is the one that matters.** Every argument in this file rests on
+**UPDATE 2026-08-21: two of these rows are now answered by a real far side**,
+and the answer to the transport question was the one this file hoped for — a
+foreign client chose flat over MCP deliberately, and reached our own conclusion
+about why. See TODO lane C. The trilemma's "trust-anchored" column also needs
+revisiting: Antigravity took a pasted URL from an unknown domain without
+refusing, which is a data point AGAINST the assumption that the paste path is
+the cell a careful agent rejects.
+
+**The remaining row is the one that matters.** Every argument in this file rests on
 two numbers from a single S#274 measurement. The audit log records every call, so
 answering it properly is cheap and nobody has done it. **Do not optimise further
 before it is answered** — that is exactly the shape of mistake this repo keeps
