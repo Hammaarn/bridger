@@ -46,6 +46,7 @@ import {
   VIEWER_RATE_LIMIT_PER_MINUTE,
   DEFAULT_DAILY_CAP,
   DEFAULT_ROOM_DAILY_CAP,
+  VIEWER_DAILY_CAP,
   DEFAULT_TOKEN_TTL_DAYS,
   USAGE_KEY,
   ROOM_USAGE_KEY,
@@ -545,16 +546,42 @@ export async function authorize(store: Store | null, ctx: AuthContext): Promise<
       // 48h so a counter always outlives its own UTC day whenever it started;
       // the key name already scopes it to one day.
       if (perDay === 1) await store.expire(dayKey, 172_800);
-      if (perDay > token.dailyCap) return { ok: false, reason: "daily-cap" };
+      // The viewer's own, much larger ceiling -- the same reasoning that gave it
+      // a separate per-MINUTE limit, finally carried to the per-DAY one. A
+      // token that carries an explicitly narrowed `dailyCap` (a link-minted
+      // one) keeps it: that cap was chosen for how the credential TRAVELS, not
+      // for what the role can do.
+      const dailyCeiling =
+        token.role === "viewer" && token.dailyCap === DEFAULT_DAILY_CAP
+          ? VIEWER_DAILY_CAP
+          : token.dailyCap;
+      if (perDay > dailyCeiling) return { ok: false, reason: "daily-cap" };
 
-      // The aggregate ceiling, charged LAST so the narrowest limit is the one
-      // that gets reported: a caller over its own cap should be told "your
-      // token is done", not "the whole bridge is done", because those two
-      // refusals send its operator to different places.
-      const roomKey = ROOM_USAGE_KEY(room.id, day);
-      const roomPerDay = await store.incr(roomKey);
-      if (roomPerDay === 1) await store.expire(roomKey, 172_800);
-      if (roomPerDay > room.dailyCap) return { ok: false, reason: "room-daily-cap" };
+      // THE AGGREGATE CEILING, AND WHY A WATCHER IS NOT CHARGED TO IT.
+      //
+      // Charged LAST so the narrowest limit is the one reported: a caller over
+      // its own cap should hear "your token is done", not "the whole bridge is
+      // done", because those send its operator to different places.
+      //
+      // Viewers are excluded outright, and that is the half of the S#280
+      // incident that matters. The room budget is what the WORK runs on. Left
+      // in, a browser tab left open overnight spends the room's 600 and then
+      // both sides' agents are refused with `room-daily-cap` -- whose message
+      // tells them not even to ask for a replacement token. That converts an
+      // isolated annoyance (the watch tab stalls) into an outage of the actual
+      // integration, caused by somebody looking at it. Merely RAISING the
+      // viewer's own cap without this would have made tonight's failure worse,
+      // not better.
+      //
+      // Safe because a viewer cannot write, calls no model, is bounded by
+      // 60/minute and by `VIEWER_DAILY_CAP`, and exists only where an operator
+      // minted one.
+      if (token.role !== "viewer") {
+        const roomKey = ROOM_USAGE_KEY(room.id, day);
+        const roomPerDay = await store.incr(roomKey);
+        if (roomPerDay === 1) await store.expire(roomKey, 172_800);
+        if (roomPerDay > room.dailyCap) return { ok: false, reason: "room-daily-cap" };
+      }
     } catch {
       return { ok: false, reason: "registry-unavailable" };
     }

@@ -292,6 +292,30 @@ export const VIEWER_RATE_LIMIT_PER_MINUTE = 60;
 export const DEFAULT_DAILY_CAP = 400;
 
 /**
+ * The same hard stop, for a WATCHER, and it is a much larger number.
+ *
+ * Erik, S#280, after a friend's watch tab stalled: *"is the viewer token limit
+ * really needed"*. The answer the code already gave, three lines above
+ * `DEFAULT_DAILY_CAP` and never carried down to it:
+ *
+ *   "A viewer gets its own ceiling: it cannot write and calls no model, so the
+ *    loop this limit exists to stop cannot happen on it."
+ *
+ * That reasoning produced `VIEWER_RATE_LIMIT_PER_MINUTE` and then stopped. The
+ * DAILY cap kept charging a browser tab as if it were an agent -- and the
+ * published justification for these limits is *"they protect the CALLER; tokens
+ * burn in the caller's own session"*. **A browser has no model quota to burn.**
+ * For a viewer, 400/day was guarding against a harm that cannot occur, and the
+ * only thing it actually stopped was somebody watching their own room.
+ *
+ * Sized from the poll ceiling rather than picked: a tab settles at one call per
+ * 120s = 30/hour, so a full 24 hours is ~720 and a couple of tabs on one token
+ * is ~1,440. 3,000 covers that with room to spare and still bounds a leaked
+ * read-only credential, which the 60/minute ceiling already bounds by rate.
+ */
+export const VIEWER_DAILY_CAP = 3000;
+
+/**
  * Default hard stop per ROOM per UTC day — the aggregate ceiling.
  *
  * 600, not 800: deliberately BELOW two full token caps, so it binds. A bridge

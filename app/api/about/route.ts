@@ -39,6 +39,7 @@ import {
   ROOM_TTL_SECONDS,
   VIEWER_RATE_LIMIT_PER_MINUTE,
   PASTE_PATH_DAILY_CAP,
+  VIEWER_DAILY_CAP,
 } from "@/lib/store";
 import { ROOMS_PER_DAY_PER_IP, UNCLAIMED_ROOM_TTL_SECONDS } from "@/lib/mint-limit";
 import { INVITE_TTL_SECONDS, PASTE_TOKEN_TTL_SECONDS } from "@/lib/invites";
@@ -141,10 +142,16 @@ export async function GET(req: Request) {
         // double their real budget -- on the one page whose entire argument is
         // that its claims are checkable. Found S#279, fixed S#280.
         perTokenPerDayViaJoinLink: PASTE_PATH_DAILY_CAP,
+        // A read-only watcher gets its own, much larger ceiling and is NOT
+        // charged to the room budget. It cannot write and calls no model, so
+        // the runaway these limits exist to stop cannot happen on it -- and a
+        // browser tab must never be able to spend the budget the actual
+        // integration runs on.
+        viewerPerDay: VIEWER_DAILY_CAP,
         perRoomPerDay: DEFAULT_ROOM_DAILY_CAP,
         newRoomsPerDayPerAddress: ROOMS_PER_DAY_PER_IP,
         why: "These protect the CALLER. Tokens burn in the caller's own session, so an agent loop costs them, not us — one such loop consumed an entire model quota before these existed.",
-        note: `A token you were given by a join link is capped at ${PASTE_PATH_DAILY_CAP} calls a day rather than ${DEFAULT_DAILY_CAP} — a link travels through chat logs and transcripts, so the credential it carries is the one most likely to leak, and it gets the smaller budget for that reason. Check yours with GET /api/whoami.`,
+        note: `Read-only viewer tokens are budgeted separately (${VIEWER_DAILY_CAP}/day) and do not count against the room, so watching a room can never exhaust the budget its two agents are working on. A token you were given by a join link is capped at ${PASTE_PATH_DAILY_CAP} calls a day rather than ${DEFAULT_DAILY_CAP} — a link travels through chat logs and transcripts, so the credential it carries is the one most likely to leak, and it gets the smaller budget for that reason. Check yours with GET /api/whoami.`,
       },
 
       safety: {
