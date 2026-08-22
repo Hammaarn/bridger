@@ -16,7 +16,9 @@
  *   room    → the three-panel view (record / conversation / agreements)
  *
  * WHAT CHANGED IN S#277 — THE DESIGN. The markup was restructured onto "the
- * wire" (see `globals.css` and `wire.tsx`). Three things drove it:
+ * wire" (see `globals.css`; the `wire.tsx` this used to name was deleted by the
+ * S#279 "the wave is deleted" commit, and two documents kept pointing at it
+ * until S#280). Three things drove it:
  *   - The gate is now a real first screen rather than a token box with a trust
  *     paragraph stapled underneath. The person it has to convince is often a
  *     partner's operator deciding whether this domain deserves a credential.
