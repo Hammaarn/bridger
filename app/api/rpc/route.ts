@@ -150,6 +150,11 @@ const OPS = {
     schema: z.object({
       body: z.string().max(100000).optional(),
       note: z.string().max(200).optional(),
+      // C3c. Both transports get the same schema, in the same commit, because a
+      // capability that exists on one is a capability the other side cannot rely
+      // on -- and `basis` is still MCP-invisible for exactly that reason.
+      sections: z.record(z.string().min(1).max(200), z.string().max(100000).nullable()).optional(),
+      ifUnchangedSince: z.string().max(64).optional(),
     }),
     run: opContract,
   },

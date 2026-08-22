@@ -65,6 +65,7 @@ import {
   type Store,
 } from "./store";
 import { classifyCitation, describeCitation } from "./citation";
+import { describePatch, patchContract } from "./contract-patch";
 import { contain, CONTAINMENT_NOTE } from "./untrusted";
 import { recordPurgeConsent, withdrawPurgeConsent } from "./purge";
 
@@ -489,10 +490,36 @@ export async function opPost(
   return { posted: wire(entry) };
 }
 
-export async function opContract(ctx: OpContext, args: { body?: string; note?: string }) {
+export async function opContract(
+  ctx: OpContext,
+  args: {
+    body?: string;
+    note?: string;
+    sections?: Record<string, string | null>;
+    ifUnchangedSince?: string;
+  },
+) {
+  // C3c. Three ways to write, and they are not interchangeable:
+  //
+  //   body           replace the whole document  (what existed; still valid
+  //                  when one side is authoring the first draft)
+  //   sections       merge-patch by `## heading` (what the far side asked for)
+  //   ifUnchangedSince
+  //                  optimistic guard, usable with either
+  //
+  // Sending `body` and `sections` together is refused rather than resolved. A
+  // caller who sends both has two different intentions and we would be guessing
+  // which one; guessing at the contract is the one place it must never happen.
+  if (args.body !== undefined && args.sections !== undefined) {
+    throw new OperationRefused(
+      "Send either `body` (replace the whole contract) or `sections` (patch named " +
+        "sections), not both — they mean different things and I will not guess which you meant.",
+      true,
+    );
+  }
   // Split by intent, not by tool: reading the contract is a viewer's right,
   // replacing it is not. This one operation is both a read and a write.
-  if (args.body === undefined) {
+  if (args.body === undefined && args.sections === undefined) {
     const contract = await getContract(ctx.store, ctx.room.id);
     if (!contract) {
       return { body: "", updatedBy: null, updatedAt: null, note: "No contract agreed yet." };
@@ -506,9 +533,58 @@ export async function opContract(ctx: OpContext, args: { body?: string; note?: s
     };
   }
   requireWrite(ctx.token);
+
+  const current = await getContract(ctx.store, ctx.room.id);
+
+  // THE HALF THAT MAKES A LOST UPDATE IMPOSSIBLE RATHER THAN UNLIKELY.
+  // Sections shrink the clobber surface from the whole document to one section;
+  // they do not remove it, because the write is still read-modify-write. A
+  // caller that read the contract and is now editing it can pin what it read.
+  // Non-terminal on purpose: re-reading and re-sending is the correct response,
+  // and a terminal refusal would tell an agent to give up instead.
+  if (args.ifUnchangedSince !== undefined) {
+    const actual = current?.updatedAt ?? null;
+    if (actual !== args.ifUnchangedSince) {
+      throw new OperationRefused(
+        `The contract changed since you read it (you pinned ${args.ifUnchangedSince}, it is now ` +
+          `${actual ?? "unwritten"}). Read it again with bridger_contract and re-apply your change — ` +
+          `your edit was NOT written.`,
+        false,
+      );
+    }
+  }
+
+  let nextBody: string;
+  let summary: string;
+  if (args.sections !== undefined) {
+    const patched = patchContract(current?.body ?? "", args.sections);
+    if (patched.noop) {
+      // Reported, not written. A ledger entry saying the contract was updated
+      // when it was not is a true and useless record, and the contract is the
+      // one document where a spurious "changed" costs a reader real time.
+      return {
+        updated: false,
+        unchanged: true,
+        note: "Every section you sent already had exactly that content. Nothing was written.",
+      };
+    }
+    nextBody = patched.body;
+    summary = describePatch(patched);
+  } else {
+    nextBody = args.body as string;
+    summary = "replaced the whole contract";
+  }
+
   await noteProductive(ctx);
-  const entry = await setContract(ctx.store, ctx.room, ctx.token, args.body, args.note ?? "", ctx.now);
-  return { updated: true, logged: wire(entry) };
+  const entry = await setContract(
+    ctx.store,
+    ctx.room,
+    ctx.token,
+    nextBody,
+    args.note ? `${args.note} (${summary})` : summary,
+    ctx.now,
+  );
+  return { updated: true, summary, logged: wire(entry) };
 }
 
 /**
