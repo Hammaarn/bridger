@@ -39,9 +39,9 @@ as part of someone's standard kit when working together with AI."*
 C1 (guidance in the field) - C3c (contract patching). Three bugs nobody had
 filed came out of the first of those; see `DECISIONS.md` 2026-08-22 (S#280).
 
-**E1 (the licence) is still open and still Erik's**, but it is no longer the
-monetisation decision: pricing was deferred at S#280 while the licence gap was
-not. See `DECISIONS.md` 2026-08-22 (S#280).
+**E1 (the licence) is SETTLED as of S#280 -- Apache-2.0.** Pricing stays
+deferred and is unaffected: what would be sold is operation, retention and
+uptime, not the code.
 
 Lane D is what the first cross-company session taught us. Lane E is the business
 question Erik opened at the close of S#279 and answered in part at S#280.
@@ -796,7 +796,16 @@ actively prevent it — which is the bug that started this item.
 > wants to charge a small sum in case you want a Team Channel chat with 6+ seats.
 > Is that viable and can it be gate locked?"*
 
-## E1. [!!] THERE IS NO LICENCE, AND THE PAGE ALREADY TELLS PEOPLE TO SELF-HOST
+## E1. ~~THERE IS NO LICENCE~~ -- SETTLED S#280: Apache-2.0
+
+**SETTLED S#280. Apache-2.0, copyright Erik Hammarström.** `LICENSE` (canonical
+text, fetched and verified unmodified), `NOTICE`, `package.json`, `README.md`
+and `/api/about` all carry it. Chosen over MIT for the express patent grant, and
+over AGPL/BSL because both would have cost the self-serve funnel that the same
+session chose. **Section 6 protects the name**: the code may be forked, a fork
+may not be called Bridger. `DECISIONS.md` 2026-08-22 (S#280).
+
+<details><summary>the original gap, for the record</summary>
 
 `gh repo view Hammaarn/bridger --json licenseInfo` returns **null**. Public is
 not open source: with no LICENSE file, default copyright applies and nobody may
@@ -811,6 +820,8 @@ one product whose entire pitch is that its claims are checkable.
 **It is also the monetisation decision, which is why it is first.** MIT lets
 anyone host and sell it. AGPL forces published changes. BSL keeps commercial
 rights for a period. Pricing follows from that choice; it cannot precede it.
+
+</details>
 
 ## E2. "6+ SEATS" IS NOT A TIER — IT IS THE REWRITE ALREADY REFUSED
 

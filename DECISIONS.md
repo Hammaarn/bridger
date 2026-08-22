@@ -5,6 +5,55 @@ Append-only, newest first. **DECISIONS wins on direction** — where this file a
 
 ---
 
+## 2026-08-22 -- S#280 -- THE LICENCE IS APACHE-2.0, AND IT CLOSES A LIVE GAP
+
+**Source:** Erik, S#280: *"Lets fix that License stuff right away"* -- then chose
+Apache-2.0 with the copyright held personally, after the options were laid out.
+
+**THE GAP THIS CLOSES, and it was not cosmetic.** The repository was PUBLIC with
+`licenseInfo: null` and no LICENSE file, which under default copyright means all
+rights reserved: nobody could legally clone it, run it, or modify it. Meanwhile
+**four** surfaces instructed exactly that -- the landing page
+(`lib/site-content.ts`), the `/j/<code>` join page, and `/api/about` twice
+(*"run your own instance"* and *"Run it entirely locally first"*). `/api/about`
+also reported `license: "see repository"`, pointing at something that did not
+exist. On the one product whose entire argument is that its claims are
+checkable, the most-repeated instruction was unlicensed.
+
+**WHY APACHE-2.0 AND NOT THE OTHER THREE.**
+- **MIT** would have done the job. Apache adds an express PATENT grant, which is
+  what removes the last question in a corporate legal review -- and the buyer
+  here is a small team inside a company.
+- **It protects the name gaveled the same session.** Section 6 grants no rights
+  in trade names or product names. The code may be forked; the fork may not be
+  called Bridger. Nothing else on this list does that.
+- **AGPL-3.0 was rejected on its cost, not its politics.** It would stop a
+  closed competing host, and many companies ban it outright -- which attacks
+  precisely the self-serve funnel Erik chose at S#280 (*"let users use the
+  product... that will act as a funnel"*).
+- **BSL 1.1 was rejected because it is not open source.** "Read the source, run
+  it yourself" would need an asterisk, and that sentence IS the product.
+
+**The warranty disclaimer is the half that protects Erik**, and it is the half
+nobody thinks about. Bridger is infrastructure two companies route real work
+through; until today there was no AS-IS clause anywhere.
+
+**Pricing is untouched.** Deferring the pricing decision (S#280) costs nothing
+here: Apache-2.0 does not interfere with selling the hosted service, because
+what is sold is operation, retention and uptime -- not the code. A self-hoster
+lifting every cap in their own instance is the OSS/hosted split working, which
+`TODO.md` E3 already recorded.
+
+**Honest limit:** this is a licence choice, not legal advice. The text is the
+canonical one fetched from apache.org and verified unmodified (patent grant,
+trademark section, warranty disclaimer and appendix all present).
+
+**Code impact:** `LICENSE`, `NOTICE`, `package.json` (`license`, `author`),
+`/api/about` (`license`, `licenseUrl`, `licenseNote`). **Doc impact:**
+`README.md`, `TODO.md` E1, `STATUS.md`.
+
+---
+
 ## 2026-08-22 -- S#280 -- THE ROOM IS A DIALOGUE, THE ADVICE RIDES THE WIRE, AND THE CONTRACT STOPS CLOBBERING
 
 **Source:** Erik's direction (Teams chat), plus two items the first cross-company

@@ -2,6 +2,8 @@
   "name": "bridger",
   "version": "0.1.0",
   "private": true,
+  "license": "Apache-2.0",
+  "author": "Erik Hammarström",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

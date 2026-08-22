@@ -71,9 +71,14 @@ and this line was already wrong once -- it said `94de8d4` through twenty commits
 >
 > **PRICING IS DEFERRED, deliberately.** Build the product first, let usage
 > create the demand, add small-team business features when traffic justifies it.
-> **The LICENCE is NOT deferred by that** -- the repo is still `licenseInfo:
-> null` while three surfaces tell readers to self-host, and a funnel built on
-> people trying it themselves is the strategy most dependent on that being legal.
+>
+> **THE LICENCE IS SETTLED (S#280): Apache-2.0**, copyright Erik Hammarström.
+> It closed a live gap -- the repo was public with no licence at all while FOUR
+> surfaces told readers to run their own instance, so nobody was permitted to do
+> the thing the trust argument rests on. Permissive, express patent grant,
+> AS-IS warranty disclaimer, and **section 6 keeps the name**: the code may be
+> forked, a fork may not be called Bridger. Pricing is unaffected -- what would
+> be sold is operation, retention and uptime, not the code.
 
 ---
 
