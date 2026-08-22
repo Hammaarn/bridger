@@ -1128,10 +1128,28 @@ input.bx-bad {
 
 /* ── room ────────────────────────────────────────────────────────── */
 
+/**
+ * `height`, not `min-height`, and it is a fix rather than a tweak.
+ *
+ * The three panels have carried `overflow-y: auto` since they were built, which
+ * says they were meant to scroll independently. They never did: `min-height`
+ * lets this box GROW to fit its content, so `.bx-chat` always sized itself to
+ * every entry, its `overflow-y` never engaged, and the PAGE scrolled instead.
+ *
+ * Nobody noticed because -- exactly as B5 warned -- the room had only ever been
+ * rendered with a handful of entries. Measured S#280 at 30: the document scrolled
+ * 4,527px while `.bx-chat` reported scrollHeight === clientHeight, meaning any
+ * scroll handler attached to the panel could never fire.
+ *
+ * `min-height: 0` on the row is the other half: a flex child's default
+ * `min-height: auto` refuses to shrink below its content, which would defeat
+ * the bounded height above it.
+ */
 .bx-room {
-  min-height: 100dvh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .bx-top {
@@ -2995,4 +3013,96 @@ input.bx-folder-name:focus {
 
 .bx-card-head {
   flex-wrap: wrap;
+}
+
+/* ── DAY, UNREAD, AND CATCHING UP ────────────────────────────────────────────
+   The three Teams conventions the first pass left out. Each answers a question
+   a reader had no way to answer: what day is this, where did I stop, and what
+   arrived while I was reading further up. */
+.bx-day {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 0 2px;
+  font-family: var(--font-mono-stack);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.bx-day::before,
+.bx-day::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+/* The feed has always shown UTC (`timeOf` slices the ISO string). Saying so
+   once per day heading is the cheapest place to remove an ambiguity that hits
+   exactly the readers this product is for: two parties in different zones. */
+.bx-day-utc {
+  flex: none;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 0 4px;
+  font-size: 8.5px;
+  letter-spacing: 0.1em;
+}
+
+.bx-day-utc::before,
+.bx-day-utc::after {
+  content: none;
+}
+
+/* The unread line is the one thing here allowed to use the alarm colour: it is
+   the only marker in the feed that is about the READER rather than the record. */
+.bx-newline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0 4px;
+  font-family: var(--font-mono-stack);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--alarm);
+}
+
+.bx-newline::before,
+.bx-newline::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: color-mix(in oklab, var(--alarm) 45%, transparent);
+}
+
+.bx-jump {
+  position: sticky;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: block;
+  border: 1px solid color-mix(in oklab, var(--seal) 50%, var(--line-strong));
+  background: var(--ink-800);
+  color: var(--seal);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-family: var(--font-mono-stack);
+  font-size: 11px;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 45%);
+}
+
+.bx-jump:hover {
+  background: var(--ink-700);
+}
+
+/* The full-width plan board is capped so it can never squeeze the conversation
+   out of the viewport; past that it scrolls on its own. */
+.bx-board-wide {
+  flex: none;
+  max-height: 42dvh;
+  overflow-y: auto;
 }
