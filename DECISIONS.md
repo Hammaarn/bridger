@@ -5,6 +5,105 @@ Append-only, newest first. **DECISIONS wins on direction** — where this file a
 
 ---
 
+## 2026-08-22 -- S#280 -- THE ROOM IS A DIALOGUE, THE ADVICE RIDES THE WIRE, AND THE CONTRACT STOPS CLOBBERING
+
+**Source:** Erik's direction (Teams chat), plus two items the first cross-company
+session filed. Three deliverables, one session, all verified by driving them.
+
+### The two-rail feed, and why it is not a copy of Teams
+
+The feed drew ONE spine down the left: the hash-chain made visible. Alignment
+would have killed it, because a right-aligned bubble has nothing to hang from.
+So the chain became TWO RAILS, one per party in that side's hue. **That is not a
+compromise for the layout -- it is a truer drawing of the data model.** Entry ids
+are already namespaced per side (`CLA-N-005`, `JMS-Q-014`), so the record has
+always been two chains that interleave, and the single spine was the drawing
+that was wrong.
+
+**The type badge stays on every bubble.** This is the tension named before the
+work started: a bubble is a message, a Bridger entry is a typed record with a
+`basis` and a `checkedAgainst`. A chat shape that flattens `asks` / `decides` /
+`signs off` into "a message" has thrown away the reason this is a record. The
+badge leads the bubble for that reason, and provenance is never collapsed.
+
+**No compose box, and that is deliberate.** The browser still writes nothing
+into the record (Erik's call, S#277: *"The chat is watch only"*). Teams is the
+interaction reference for READING a dialogue. If the page is ever to post, that
+is a separate decision with its own authorship rules -- "who wrote this" is the
+property the whole ledger rests on.
+
+### Three bugs the work surfaced, none of them filed anywhere
+
+1. **`basis` was invisible.** Shipped S#279, plumbed through the data model, and
+   `grep -c basis app/page.tsx` returned **0**. Every honest `opinion` rendered
+   as *"unchecked -- nobody named what this rests on"*, and the stats counter
+   agreed, so **declaring an opinion RAISED your unchecked count.** That is the
+   precise pressure `basis` exists to remove, re-created one layer up.
+2. **Provenance rendered on answers only**, while the server accepts it on
+   `post` and `decide` -- and S#276 added it to `decide` deliberately, calling
+   that the most consequential entry type. Its citation was stored and shown
+   nowhere.
+3. **An entry whose body equalled its title rendered COMPLETELY BLANK.** The two
+   conditions were `!body.startsWith(title)` and `body !== title`; an identical
+   pair satisfies neither. `opAnswer` produces exactly that shape, so **answers
+   have been rendering without their answer text.** Found by looking at a
+   screenshot while all twelve DOM assertions were green -- which is the durable
+   lesson: the selector-level checks could not see an empty bubble, because a
+   bubble with a badge and a citation and no words has the same shape as a
+   healthy one.
+
+The markdown export carried bugs 1 and 2 too, and that matters more than the
+screen: that payload is what a partner's model reads.
+
+### The annotations claim less than the flag sounds like
+
+Thirteen tools, zero annotations, so a planning harness had to assume every tool
+writes. Classified by one question answered from `lib/operations.ts` rather than
+from the tool descriptions: does this append to the shared record?
+
+**`readOnlyHint: true` here means "appends nothing to the record the two parties
+share" -- NOT "has no effect".** There is no free call: every op spends quota and
+feeds the idle brake, `ping` always advances the cursor, and `read` does when
+`markRead` is set. A tool whose read-onlyness depends on an argument cannot say
+so statically, and `bridger_read` is that tool. The caveat is in the source
+because it is the kind of claim that would otherwise be read one notch stronger
+than it is.
+
+**D3 is NOT closed.** Whether this unblocks a real planning session depends on
+the far side's harness. That needs a partner, not a patch.
+
+### Guidance: ONE rule, from the one observed behaviour
+
+C1's finding was that our documents do not update in the field -- a partner keeps
+the copy saved at join time forever. `guidance` rides on every response and was
+used only by the idle brake; it now also carries advice.
+
+**The rule is deliberately singular.** A caller alternating `status` and `read`
+with a `ping` available and unused is told so, and **a ping anywhere in the
+window silences it permanently.** A rule that keeps firing after compliance is
+noise, and noise is what gets `guidance` ignored -- which would cost us the only
+channel that reaches a partner already on the bridge. When somebody hits a
+different wall in the field, that becomes the second rule, written from evidence
+the way this one was. Not a taxonomy invented up front.
+
+### The contract patch, and the half that actually fixes it
+
+Sections (`## heading` as the key, RFC 7386 semantics) shrink the clobber
+surface from the whole document to one section. **They do not remove it** -- the
+write is still read-modify-write, so two patches to the SAME section can still
+lose one. `ifUnchangedSince` is what makes a lost update impossible rather than
+unlikely, and it refuses NON-terminally because re-read-and-reapply is the
+correct response and a terminal refusal tells an agent to give up.
+
+`body` + `sections` together is **refused, not resolved**: a caller sending both
+has two different intentions, and the contract is the last place to guess.
+
+**Both transports in the same commit.** A capability that exists on one
+transport is one the other side cannot rely on. `basis` is still MCP-invisible
+for exactly that reason, and that is now a recorded gap rather than a precedent.
+
+---
+
 ## 2026-08-22 -- S#280 -- THE NAME IS BRIDGER. GAVELED. AND PRICING WAITS FOR THE PRODUCT.
 
 **Source:** Erik, S#280, answering the S#279 agenda directly.

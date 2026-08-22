@@ -77,13 +77,52 @@ and this line was already wrong once -- it said `94de8d4` through twenty commits
 
 ---
 
+## S#280 -- THE ROOM READS AS A DIALOGUE, AND THREE BUGS FELL OUT OF LOOKING AT IT
+
+Four items shipped: **D1 + D2 + D4's room half** (the dialogue), **D3's tool
+annotations**, **C1** (guidance in the field), **C3c** (contract patching).
+tsc 0, 324/324, build 0. `DECISIONS.md` 2026-08-22 (S#280) has the reasoning.
+
+**The feed is two rails, not one spine.** Each party gets a rail in its own hue
+and its bubbles hang off it -- a truer drawing of the record than the single
+spine was, since entry ids are already namespaced per side. Position says who is
+speaking; colour confirms it. The type badge and the provenance line stay on
+every bubble: a chat shape that flattened `asks` / `decides` / `signs off` into
+"a message" would have thrown away the reason this is a record.
+
+**Still watch-only.** The browser writes nothing into the ledger (Erik's S#277
+call). Teams is the reference for READING a dialogue, not for composing one.
+
+**Three bugs nobody had filed, all in code that looked fine:**
+1. `basis` shipped S#279 and the page never read it -- every honest `opinion`
+   rendered as "unchecked", so declaring one RAISED your unchecked count.
+2. Provenance rendered on answers only, though the server takes it on `post` and
+   `decide` too -- a decision's citation was stored and shown nowhere.
+3. **An entry whose body equalled its title rendered BLANK**, and `opAnswer`
+   produces exactly that shape -- so answers have been rendering without their
+   answer text. Found by looking at a screenshot while twelve DOM assertions
+   were green.
+
+**`contract` no longer clobbers.** `sections` patches by `## heading` (RFC 7386);
+`ifUnchangedSince` refuses a write whose base moved, non-terminally. Both
+transports. This is the mechanism the plan stage needs, so lane F is unblocked.
+
+**Two things this did NOT do.** D3 is `[~]`, not closed: whether the annotations
+unblock a real planning client depends on the far side's harness and is
+untested. And `basis` is still invisible to MCP callers -- the rule holds, but an
+MCP caller cannot declare an opinion.
+
+
 ## S#277 — THE DESIGN. Nothing about the protocol moved.
 
 **Prod runs `94de8d4`.** Eight commits, all visual. No route, no tool, no limit,
 no role and no storage key changed; 291/291 the whole way. If you are here for
 protocol behaviour, skip to the S#276 block — it is still current.
 
-**The system is "the wire"** — `app/wire.tsx` plus a rewritten `app/globals.css`.
+**The system is "the wire"** -- `app/globals.css` plus
+`app/backgrounds/letter-glitch.tsx`. (This said `app/wire.tsx` until S#280; that
+file was removed by the S#279 "the wave is deleted" commit and two documents
+kept pointing at it.)
 The register is INSTRUMENT (oscilloscope, flight recorder), chosen because the
 content is hashes, citations and tamper-evidence. Colour means exactly one thing:
 `--seal` is spent on PROVENANCE and nowhere else. The one exception is the dot

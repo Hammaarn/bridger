@@ -29,10 +29,14 @@ as part of someone's standard kit when working together with AI."*
 
 | # | What | Why it is first |
 |---|---|---|
-| 1 | **D1 + D2 + D4 - the room becomes a chat** | ONE job as of S#280, and unblocked: Teams chat replaces the x.ai/bot reference Erik could not supply. This is the surface everything else renders into, and what those eight people hit inside thirty seconds. Build it before the plan stage or you build the plan stage twice. |
-| 2 | **D3 + C1 - annotations and live guidance** | Both are small, and both became PREREQUISITES at S#280. A planning-mode Claude cannot call our tools at all (zero `readOnlyHint` across 13 tools) - and the plan stage's default partner state IS plan mode. C1 is how per-phase advice reaches a partner already holding a frozen join document. |
-| 3 | **The plan stage** (new, S#280) | Erik and Trigvanta independently felt the same gap after using it, and the far side's own `C3c` names the mechanism from the other end. A plan is a DOCUMENT both sides converge on, not a conversation they have. |
-| 4 | **D6 - the audit window** | 5,000 rows, zero headroom; one session overflows it. Reframed S#280: with pricing deferred this stops being a billing prerequisite and becomes the FUNNEL instrument - "did anyone come back" is the only number the strategy runs on. |
+| 1 | **F1 - the plan stage** | Erik and Trigvanta independently felt the same gap after using a real room, and the far side's `C3c` named its mechanism from the other end. Its two prerequisites (the room reading as a dialogue, and `contract` + `sections`) both SHIPPED at S#280, so this is next and no longer blocked by anything of ours. Read lane F before starting. |
+| 2 | **D3's live test** | Annotations shipped S#280; whether they unblock a planning session is UNVERIFIED and depends on the partner's harness. For F1 that is not an edge case -- "the partner's AI is in plan mode" is F1's DEFAULT state. This needs a partner, not a patch. |
+| 3 | **D6 - the audit window** | 5,000 rows, zero headroom; one session overflows it. Reframed S#280: with pricing deferred this stops being a billing prerequisite and becomes the FUNNEL instrument - "did anyone come back" is the only number the strategy runs on. |
+| 4 | **D4's create half + F2 room shapes** | The ROOM now reads as a dialogue; the CREATE flow is still too many steps. F2 (shape presets) lands here, and lands as PRESETS - a stage-designer on the create screen would make D4 worse, which is the trap named in lane F. |
+
+**Shipped S#280:** D1 + D2 + D4's room half (the dialogue) - D3's annotations -
+C1 (guidance in the field) - C3c (contract patching). Three bugs nobody had
+filed came out of the first of those; see `DECISIONS.md` 2026-08-22 (S#280).
 
 **E1 (the licence) is still open and still Erik's**, but it is no longer the
 monetisation decision: pricing was deferred at S#280 while the licence gap was
@@ -309,7 +313,7 @@ a situation nobody staged.
 > Everything here is evidence, not opinion. Source: room `d437fff5b423`,
 > entries `AGX-A-001`, `AGX-A-004`, `AGX-N-001`, plus the audit log.
 
-## C1. [!!] OUR DOCUMENTS DO NOT UPDATE IN THE FIELD
+## C1. ~~OUR DOCUMENTS DO NOT UPDATE IN THE FIELD~~ -- BUILT S#280
 
 The single most important thing this run taught us, and nobody had thought about
 it.
@@ -393,8 +397,11 @@ the note landed, with neither side having seen the other.** Two parties
 converging on one design with no contact is the strongest signal available that
 it is right.
 
-**C3c. Contract patching.** `contract` currently replaces the whole body, so
-concurrent updates clobber. A merge-patch operation on structured keys instead.
+**C3c. ~~Contract patching.~~ BUILT S#280.** `sections` patches by `## heading`
+(RFC 7386 semantics), and `ifUnchangedSince` refuses a write whose base moved.
+Sections shrink the clobber surface; the pin is what removes it. Both
+transports, 7 unit tests, and the real two-sides race driven on a server.
+`DECISIONS.md` 2026-08-22 (S#280).
 
 Not taking: machine-readable `falsifiesIf` assertions (interesting, but it is a
 test framework growing inside a ledger), and the cross-platform CLI, which is
@@ -443,7 +450,7 @@ the cut-list we put to the far side in the reopened `ACC-Q-004`.
 > is either Erik watching it happen or a row in the audit log; none of it is
 > speculation about what a partner might want.
 
-## D1. [!!] NOBODY CAN TELL WHO IS WHO
+## D1. ~~NOBODY CAN TELL WHO IS WHO~~ -- BUILT S#280 (with D2 + D4)
 
 There is no per-side colour anywhere in the room view, and no visual signal for
 who has connected. Two parties write into one record and the reader has to parse
@@ -455,7 +462,7 @@ and the room, where it would actually carry meaning, uses neither.
 entry authorship, the side chips, the connection state, the invite panel. The
 tokens exist; nothing consumes them.
 
-## D2. [!!] THE CONVERSATION IS NOT SHAPED LIKE A CONVERSATION
+## D2. ~~THE CONVERSATION IS NOT SHAPED LIKE A CONVERSATION~~ -- BUILT S#280
 
 Erik: it should read like two people talking in Teams -- each side on its own
 side of the column, in its own bubble. Today the feed is a uniform list of
@@ -465,7 +472,7 @@ metadata rather than by the layout.
 Pairs with D1: alignment says who is speaking before any text is read, and colour
 confirms it. Neither works alone.
 
-## D3. A PLANNING CLAUDE CANNOT USE THE BRIDGE AT ALL
+## D3. [~] A PLANNING CLAUDE CANNOT USE THE BRIDGE -- ANNOTATIONS SHIPPED S#280, EFFECT UNVERIFIED
 
 Erik: in plan mode their Claude could not write to the bridge.
 
@@ -482,7 +489,7 @@ and it needs a live test with a planning session rather than a confident patch.
 Writing while planning may be correctly forbidden; being unable to READ is the
 part that looks like our bug.
 
-## D4. THE CREATE FLOW IS TOO MANY STEPS, TOO VAGUELY LABELLED
+## D4. [~] THE CREATE FLOW IS TOO MANY STEPS -- the ROOM half shipped S#280, the CREATE half is open
 
 Erik: what the setup gives you needs to be much simpler -- too many steps and
 vague descriptions of what each thing does. The minted screen hands over three
@@ -517,6 +524,119 @@ two snapshots taken an hour apart. The ledger is safe; the operational record is
 not. Either raise the cap, or make `bridger audit` able to archive before it
 rolls -- right now the only reason S#279's evidence survives is that a snapshot
 was taken by hand.
+
+---
+
+
+# F. THE PLAN STAGE AND ROOM SHAPES (Erik, S#280)
+
+> Erik and Trigvanta both felt the same gap after using a real room, and the far
+> side's own `C3c` named its mechanism from the other end. Three parties, no
+> contact between them, one conclusion. That is the strongest signal available
+> that something is right, and it is the second time this project has had it.
+
+## F1. THE PLAN STAGE -- a document both sides converge on, not a conversation
+
+Erik: *"there should be a Plan stage where the LLMs can talk to each other about
+a specific topic/project or whatever both humans set as the agenda. Then the LLMs
+should plan together, listing every important aspect from both respective sides
+with their respective context."*
+
+**THE VERSION WE WOULD BUILD BY ACCIDENT, AND MUST NOT.** "Let the two models
+talk" produces volume, not a plan, and burns both sides' quota on exactly the
+loop the rate limits exist to prevent -- `/api/about` still says one such loop
+consumed an entire model quota. This product's only differentiator is that
+entries are typed, cited and append-only. A plan mode that drops that is a worse
+Slack with a login.
+
+**So: a plan is a DOCUMENT both sides converge on.** The pieces:
+
+- the room carries a **phase** (`plan` -> `build`), and phase shapes GUIDANCE and
+  LAYOUT, never permissions -- the moment a phase refuses a write we have built
+  a workflow engine, and workflow engines are where products go to die
+- the plan is one structured artifact with sections keyed by owner: side A's
+  aspects, side B's aspects, shared, open questions
+- each side appends to its own section, and may only raise questions against the
+  other's
+- **the mechanism already exists as of S#280**: `contract` + `sections` is the
+  merge-patch this needs, and `ifUnchangedSince` is what stops the two planning
+  agents erasing each other
+- "done" is MECHANICAL: every item has an owner and a state. Not "the agents
+  feel finished", which is unfalsifiable and therefore not a stage boundary
+- `guidance` changes per phase -- the C1 channel, built S#280, carrying its first
+  real feature rather than one advisory rule
+
+**Prerequisite, and it is not optional: D3.** A Claude in plan mode could not
+call our tools at all. Annotations shipped S#280, but whether they unblock
+anything is UNVERIFIED and depends on the partner's harness -- and for this
+feature, "the partner's AI is in plan mode" is the DEFAULT state, not an edge
+case. Test with a real planning session before building on top of it.
+
+## F2. ROOM SHAPES -- presets, not a builder
+
+Erik, S#280: *"what if you actually get the option to shape the rooms purpose?
+Like you can select the flow of stages you want the room to include (If you want
+a more complex chain of stages or if you just want a simple chat room you can
+select that)."*
+
+Right idea, and it generalises F1's hardcoded `plan -> build` properly. **The
+trap is named up front: D4 is literally "the create flow is too many steps, too
+vaguely labelled", and a stage-designer at room creation is the fastest possible
+way to make that worse.** So:
+
+- **presets, not a builder.** A few named shapes, each one line, simplest
+  preselected. Nobody composes a stage chain on the create screen.
+- a shape is an ordered list of stages plus the guidance each stage emits
+- candidate shapes, for Erik to cut or rename -- this list is a PROPOSAL, not a
+  decision:
+  - **Just talk** (default) -- one stage, today's behaviour exactly
+  - **Plan then build** -- F1
+  - **Question and answer** -- an integration support room; the answerer surface
+    already exists for this shape
+- **stages never gate a write.** A room in `plan` that refuses a `decide` is
+  hostile and would be worked around within a day.
+
+**Not started.** F1's semantics settle first: a shape is a list of stages, and
+until one stage is real there is nothing to make a list of.
+
+## F3. THE WHITEBOARD -- what was actually being asked for
+
+Erik asked whether Excalidraw could be imported. Checked rather than assumed:
+`@excalidraw/excalidraw` v0.18.1 is **MIT** and embeddable as a React component,
+**collaboration is NOT included** (their own FAQ: the package *"does not include
+built-in collaboration features"*; excalidraw.com runs a separate
+`excalidraw-room` server), and the package is **46.8 MB unpacked**.
+
+**The deeper problem is not the dependency: LLMs do not draw.** They emit text. A
+freehand canvas is a HUMAN surface, so the question is who the board is for.
+
+- for the two humans to watch and annotate -> Excalidraw fits, but the scene is
+  a MUTABLE BLOB sitting outside the hash chain, which is the one property this
+  product sells. It would have to be explicitly out-of-chain, or chained as
+  snapshots.
+- for the agents to express structure -> **mermaid**, not Excalidraw. Text, so it
+  chains, diffs and costs ~0 KB, and both sides emit it trivially.
+
+**The read: the instinct is right and the noun is wrong.** What both sides wanted
+is SPATIAL AND SIMULTANEOUS rather than LINEAR -- which is D2's complaint again,
+one layer up. The plan rendered as a two-column board with a shared middle gives
+that for a fraction of the cost. Excalidraw goes on top of a plan that already
+exists, if the board turns out not to be enough.
+
+## F4. GAPS FOUND S#280, small and real
+
+- **`basis` is still invisible to MCP callers.** The rule holds (it lives in
+  `lib/operations.ts`, not a parser) so nobody can bypass it -- but an MCP caller
+  cannot DECLARE an opinion, which means the one surface a partner is most likely
+  to use cannot use the field built for them. Open since S#279; now the clearest
+  case of a capability existing on one transport only.
+- **`app/wire.tsx` does not exist.** `STATUS.md` and the `page.tsx` header
+  comment both name it; the S#279 "the wave is deleted" commit removed it. Two
+  documents point at a file that is gone.
+- **D3's own note lists `bridger_whoami` among the swept-up tools.** There is no
+  such MCP tool -- whoami is an HTTP endpoint. `tools/list` returns thirteen.
+- **The published daily cap is still wrong** (`PASTE_PATH_DAILY_CAP` is 200,
+  `/api/about` publishes `DEFAULT_DAILY_CAP` 400). Carried from S#279, one line.
 
 ---
 
