@@ -216,7 +216,38 @@ export const ROOM_TTL_SECONDS = 30 * 24 * 60 * 60;
  * limits — but note STATUS.md still lists the free-tier ceiling as UNCHECKED,
  * so this is reasoned, not measured.
  */
-export const AUDIT_LOG_MAX = 5000;
+/**
+ * D6. Raised 5,000 -> 20,000 at S#280, and the number is the SMALLER half of the
+ * fix.
+ *
+ * The window sat at ZERO headroom through the first cross-company session: one
+ * room plus a watch tab evicted 4.5 hours of history between two snapshots taken
+ * an hour apart, and the only reason that evidence survives is a hand-taken
+ * copy. Four times the rows buys four times the room and changes nothing
+ * structural, because the structural problem is that this is ONE GLOBAL LIST --
+ * so a single busy room still evicts every other room's history, and the quiet
+ * returning partner is exactly the row that gets dropped.
+ *
+ * That is why `ROOM_ACTIVITY_KEY` exists below. Repeat usage is the number the
+ * whole funnel argument runs on, and it must not live in something evictable.
+ */
+export const AUDIT_LOG_MAX = 20000;
+
+/**
+ * PER-ROOM ACTIVITY THAT CANNOT BE EVICTED.
+ *
+ * One small record per room: how many calls it has served, when it first and
+ * last saw one, and which UTC days it was used on. It answers the one question
+ * the rolling audit structurally cannot -- **did anybody come back** -- and it
+ * answers it with a falsifiable definition rather than a feeling: a room with
+ * more than one entry in `days` was used on more than one day.
+ *
+ * Bounded on purpose. The day list is capped, the record is a few hundred bytes,
+ * and it expires with the room it describes, so this cannot become the thing
+ * that fills the database while claiming to measure it.
+ */
+export const ROOM_ACTIVITY_KEY = (roomId: string) => `${NS}:activity:${roomId}`;
+export const ROOM_ACTIVITY_DAYS_MAX = 90;
 /**
  * Calls per token per minute.
  *

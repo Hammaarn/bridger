@@ -2753,3 +2753,20 @@ input.bx-folder-name:focus {
 .panel .fine {
   max-width: 64ch;
 }
+
+/* A8. The quota, said before it is enforced rather than after. Quiet by
+   default -- it is a courtesy, not a warning -- and only raises its voice when
+   there is genuinely nothing left. */
+.bx-quota {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-dim);
+  border-left: 2px solid var(--line-strong);
+  padding-left: 11px;
+  margin-bottom: 4px;
+}
+
+.bx-quota.spent {
+  color: var(--alarm);
+  border-left-color: var(--alarm);
+}

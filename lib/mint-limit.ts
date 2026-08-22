@@ -185,7 +185,7 @@ export function isAdminRequest(req: Request): boolean {
 }
 
 /** Midnight UTC after `now`, ISO — what a refused caller is told to wait for. */
-function nextUtcMidnight(now: Date): string {
+export function nextUtcMidnight(now: Date): string {
   const d = new Date(now);
   d.setUTCHours(24, 0, 0, 0);
   return d.toISOString();
@@ -203,6 +203,33 @@ function nextUtcMidnight(now: Date): string {
  * A refused attempt therefore still burns a slot. That is deliberate: making
  * refusals free means a script can probe the boundary indefinitely at no cost.
  */
+/**
+ * READ the mint quota without spending it. A8.
+ *
+ * Erik's brother opened three rooms and the fourth was refused. The refusal
+ * itself reads well, but **nothing told him where he stood before it fired** --
+ * the server knew the whole time and the create screen never asked. A limit you
+ * only discover by hitting it is a limit that feels arbitrary.
+ *
+ * The critical difference from `chargeMint` is that this does NOT `incr`. A
+ * refused mint deliberately burns a slot (probing the boundary must cost
+ * something), so a peek that charged would mean opening the create screen used
+ * up your allowance -- the opposite of the fix.
+ */
+export async function peekMint(store: Store, req: Request, now: Date): Promise<MintVerdict> {
+  if (isAdminRequest(req)) return { ok: true, reason: "admin", used: 0, limit: null };
+
+  const ip = clientIp(req);
+  const bucket = ip ? ipBucket(ip) : "unknown";
+  const key = MINT_KEY(fingerprint(bucket), utcDay(now));
+
+  const used = Number(await store.get(key)) || 0;
+  if (used >= ROOMS_PER_DAY_PER_IP) {
+    return { ok: false, reason: "mint-quota", used, limit: ROOMS_PER_DAY_PER_IP, resetsAt: nextUtcMidnight(now) };
+  }
+  return { ok: true, reason: "within-quota", used, limit: ROOMS_PER_DAY_PER_IP };
+}
+
 export async function chargeMint(store: Store, req: Request, now: Date): Promise<MintVerdict> {
   if (isAdminRequest(req)) return { ok: true, reason: "admin", used: 0, limit: null };
 

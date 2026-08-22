@@ -36,7 +36,12 @@
 import { gate, refusalResponse } from "@/lib/http-gate";
 import { canWrite, clearRegistryCache, createRoom, issueToken, writeAudit } from "@/lib/room-registry";
 import { MAX_TOPIC, RoomTextRejected, sanitiseRoomMetadata, sanitiseRoomText } from "@/lib/room-text";
-import { UNCLAIMED_ROOM_TTL_SECONDS, chargeMint } from "@/lib/mint-limit";
+import {
+  UNCLAIMED_ROOM_TTL_SECONDS,
+  chargeMint,
+  peekMint,
+  nextUtcMidnight,
+} from "@/lib/mint-limit";
 import { KILL_SWITCH, ROOM_KEY, ROOM_TTL_SECONDS, createStore } from "@/lib/store";
 
 export const runtime = "nodejs";
@@ -73,6 +78,45 @@ function originAllowed(req: Request): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * A8. WHERE YOU STAND, BEFORE YOU TRY.
+ *
+ * The create screen asked for a room and found out about the daily cap only by
+ * being refused. The server has always known: `MintVerdict` carries `used`,
+ * `limit` and `resetsAt`, and nothing ever read them except the refusal.
+ *
+ * Deliberately unauthenticated, and deliberately not a leak: it reports the
+ * caller's OWN bucket back to the caller, which is a number they can already
+ * discover by opening rooms until one is refused. What it changes is the cost
+ * of discovering it.
+ */
+export async function GET(req: Request) {
+  const now = new Date();
+  const store = createStore();
+  if (!store) {
+    return Response.json({ error: "The registry is unreachable." }, { status: 503 });
+  }
+  const verdict = await peekMint(store, req, now);
+  return Response.json(
+    {
+      rooms: {
+        usedToday: verdict.used,
+        limit: verdict.limit,
+        remaining: verdict.limit === null ? null : Math.max(0, verdict.limit - verdict.used),
+        resetsAt: verdict.ok ? nextUtcMidnight(now) : verdict.resetsAt,
+        // `limit: null` is the admin case, and "unlimited" and "zero left" must
+        // never render the same on the screen that consumes this.
+        unlimited: verdict.limit === null,
+      },
+      note:
+        verdict.limit === null
+          ? "No cap applies to this connection."
+          : `Rooms are counted per connection per UTC day. Opening one that nobody joins costs a slot, and an abandoned room releases nothing back.`,
+    },
+    { headers: { "cache-control": "no-store" } },
+  );
 }
 
 export async function POST(req: Request) {
