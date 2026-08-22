@@ -91,7 +91,7 @@ that 404s. `DECISIONS.md` 2026-08-21.
 `Request` and therefore no honest way to name the host. If an MCP caller ever
 needs an absolute link, the answer is an operator-set origin, not a guess.
 
-## A8. THE QUOTA IS INVISIBLE UNTIL YOU TRIP IT — S#279
+## A8. ~~THE QUOTA IS INVISIBLE UNTIL YOU TRIP IT~~ -- BUILT S#280 (the 429/terminal half is still Erik's)
 
 Erik's brother opened three rooms and the fourth was refused; the cap was raised
 3 -> 12 the same session. The refusal itself reads well (*"That is 12 rooms
@@ -509,14 +509,14 @@ hold: a chat bubble is a message, a Bridger entry is a typed record with `basis`
 and `checkedAgainst` -- if the bubble hides the citation it removes the point.**
 `DECISIONS.md` 2026-08-22 (S#280).
 
-## D5. `help` IS NOT AN OPERATION, AND SOMEBODY REACHED FOR IT
+## D5. ~~`help` IS NOT AN OPERATION~~ -- BUILT S#280
 
 One `help error` row in the audit for the session. An agent looked for a help
 verb, and the refusal does list `knownOps`, so it was recoverable -- but a
 transport whose whole pitch is "one POST, no docs to install" should answer the
 most obvious verb in it. Cheap.
 
-## D6. THE AUDIT WINDOW IS TOO SMALL TO HOLD A REAL SESSION
+## D6. ~~THE AUDIT WINDOW IS TOO SMALL TO HOLD A REAL SESSION~~ -- BUILT S#280
 
 `AUDIT_LOG_MAX` is 5,000 and the log sat at ZERO headroom throughout. One
 cross-company session plus a watch tab pushed 4.5 hours of history out between
@@ -625,6 +625,17 @@ exists, if the board turns out not to be enough.
 
 ## F4. GAPS FOUND S#280, small and real
 
+- ~~**`basis` is still invisible to MCP callers.**~~ CLOSED S#280 -- the field is
+  on `bridger_answer`, `bridger_decide` and `bridger_post`, with a compile-time
+  guard so the literal enum cannot drift from `ClaimBasis`.
+- ~~**`app/wire.tsx` does not exist.**~~ CLOSED S#280 -- both pointers corrected.
+- ~~**D3's note lists `bridger_whoami`.**~~ CLOSED S#280 -- corrected in place.
+- ~~**The published daily cap is wrong.**~~ CLOSED S#280 -- `/api/about` now
+  publishes `perTokenPerDayViaJoinLink` alongside the default, and says why the
+  link-minted token gets the smaller budget.
+
+<details><summary>the original four, for the record</summary>
+
 - **`basis` is still invisible to MCP callers.** The rule holds (it lives in
   `lib/operations.ts`, not a parser) so nobody can bypass it -- but an MCP caller
   cannot DECLARE an opinion, which means the one surface a partner is most likely
@@ -637,6 +648,8 @@ exists, if the board turns out not to be enough.
   such MCP tool -- whoami is an HTTP endpoint. `tools/list` returns thirteen.
 - **The published daily cap is still wrong** (`PASTE_PATH_DAILY_CAP` is 200,
   `/api/about` publishes `DEFAULT_DAILY_CAP` 400). Carried from S#279, one line.
+
+</details>
 
 ---
 

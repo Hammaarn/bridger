@@ -77,6 +77,31 @@ and this line was already wrong once -- it said `94de8d4` through twenty commits
 
 ---
 
+## S#280b -- FIVE MORE, NONE OF THEM NEEDING A DECISION
+
+`help` is an operation (D5) - `basis` reaches MCP callers (F4) - `/api/about`
+publishes the real join-link cap - the create screen shows your room quota
+BEFORE it refuses you (A8) - and every room keeps a tally the audit window
+cannot evict (D6). tsc 0, 331/331, build 0.
+
+**The op table has one source now.** `lib/op-nature.ts` answers "what is this
+op" once, and both the MCP annotations and the flat transport's `help` derive
+from it. `app/api/rpc/route.ts` already warned that a divergence between the two
+transports "would be a bug nobody notices for months"; this is that warning
+acted on before it happened rather than after.
+
+**D6's number is the smaller half.** 5,000 -> 20,000 rows buys headroom and
+changes nothing structural: the audit is ONE GLOBAL LIST, so a busy room evicts
+every other room's history and the quiet returning partner is the row that gets
+dropped. Each room now keeps its own uncapped record, and "came back" has a
+falsifiable definition -- more than one UTC day. `bridger usage` reads it: the
+audit window supplies DISCOVERY, the tally supplies TRUTH.
+
+**Writing the check found a real flaw in it**: `lastAt` was assigned rather than
+maximised, so an out-of-order row drove "last used" backwards. Unreachable in
+production, which is exactly why it would have survived.
+
+
 ## S#280 -- THE ROOM READS AS A DIALOGUE, AND THREE BUGS FELL OUT OF LOOKING AT IT
 
 Four items shipped: **D1 + D2 + D4's room half** (the dialogue), **D3's tool
