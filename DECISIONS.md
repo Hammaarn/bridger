@@ -59,6 +59,23 @@ trademark section, warranty disclaimer and appendix all present).
 **Source:** Erik's direction (Teams chat), plus two items the first cross-company
 session filed. Three deliverables, one session, all verified by driving them.
 
+> **[!!] CORRECTED LATER THE SAME SESSION (S#280).** Elsewhere in this entry I
+> wrote that D1 was wrong to say there was no per-side colour, and that the
+> signal existed and was merely too faint to read. **That is wrong, and D1 was
+> right.** `--side-a` and `--side-b` were each defined TWICE in the same
+> `:root` -- as hex colours, then overwritten fourteen lines later by bare
+> `r, g, b` triplets for the canvas. Every use of them as a COLOUR therefore
+> resolved to `116, 178, 255`, which is not a colour, so every such declaration
+> was invalid and silently dropped. The rules existed; nothing they asked for
+> ever rendered. Fixed by renaming the canvas tokens to `--side-a-rgb`.
+>
+> **The mistake is the part worth keeping:** I read the CSS rules and reported
+> what they SAID, instead of measuring what they PRODUCED -- and then used that
+> reading to overrule a filed finding. Reading a rule is not reading a computed
+> value. It was found by asking the browser for `borderLeftColor` and getting
+> `currentColor` back.
+
+
 ### The two-rail feed, and why it is not a copy of Teams
 
 The feed drew ONE spine down the left: the hash-chain made visible. Alignment
