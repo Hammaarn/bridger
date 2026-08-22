@@ -82,6 +82,34 @@ and this line was already wrong once -- it said `94de8d4` through twenty commits
 
 ---
 
+## S#280h -- MOTION, ON THE AESTHETIC RATHER THAN ON TOP OF IT
+
+Erik asked for transitions "fitting to the whole aesthetic". The register is
+INSTRUMENT, so **nothing overshoots anywhere** -- a value that springs past its
+reading and comes back is what an instrument must never do. Three durations
+(`--t-tap` 70ms / `--t-ui` 150ms / `--t-move` 240ms) and `--ease-out` for
+arrivals.
+
+Controls depress on press, faster than they hover. **A new entry enters from its
+own side**, so the motion carries the same "who spoke" the colour does.
+
+**Two real bugs came out of the expander:**
+1. `-webkit-line-clamp` cannot be transitioned -- opening was a jump-cut. Now
+   `max-height` plus a fade mask.
+2. Transitioning `max-height` to a big constant LOOKS like a snap: the element
+   hits its natural height long before max-height reaches 200em. Measured 90ms
+   into a 240ms transition, already final. It animates to the MEASURED height
+   now.
+
+**And the control was lying.** It decided by character count, so on a wide
+screen it offered to "show all 860 characters" when all 860 were visible. It
+measures now, with a ResizeObserver, because the same text clamps on a laptop
+and does not on a monitor.
+
+Reduced-motion is now PROVEN, not assumed: the same probe reads 480px mid-flight
+normally and 546px (snapped) under `prefers-reduced-motion`.
+
+
 ## S#280g -- THE COLOUR NEVER RENDERED, AND COMPACT ARRIVED
 
 Erik on the live room: *"there is a lack of color coding... its very hard to
