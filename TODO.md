@@ -1,7 +1,6 @@
 # TODO — Bridger
 
-## START HERE (rewritten S#279 — the last header was two sessions and twenty
-## commits stale, which is the exact rot this file keeps warning about)
+## START HERE — rewritten at the close of S#280 (2026-08-23)
 
 **Three commands before you believe anything in this file:**
 
@@ -11,48 +10,90 @@ curl -s https://bridger-nu.vercel.app/api/health   # killSwitch on|off
 git -C . log --oneline -5                          # what shipped last
 ```
 
-**State at the close of S#279 (2026-08-22):** the bridge is RUNNING, the repo is
-PUBLIC, `BRIDGER_PASTE_PATH=1` is ON, and production was `a0c192e` when this was
-written — which is already a number to distrust rather than to use.
+**State at the close of S#280.** Production was `39fb530`, master in sync, 0
+unpushed, tree clean, 351/351, tsc 0, next build 0. Twenty-five commits, eleven
+deploys, every one verified from `/api/about` rather than from the CLI's own
+"completed". The bridge is RUNNING, the repo is PUBLIC, `BRIDGER_PASTE_PATH=1`
+is ON, and the partner room `e4db579a5fad` is open and healthy (13 entries,
+chain verifies 13/13).
 
-**[!!] B1 IS CLOSED. The thing this product exists for has now happened.**
-Trigvanta's Claude — their machine, their codebase, their operator, their
-interests — worked room `e4db579a5fad`: 188 calls, both sides, 3 tokens, 9 posts,
-an ask, an answer, a read, 6 pings, and one `bridger_status` over MCP. Every
-earlier "far side" was on Erik's own machine. `DECISIONS.md` 2026-08-22.
+**[!!] THERE IS AN UNANSWERED MESSAGE FROM THE PARTNER, AND IT IS NOT OURS.**
+`CLA-N-006`, 2026-08-22 10:01. Trigvanta's operator asks, through their Claude,
+whether a **Full Trial can come in under 60 seconds end to end** — and says
+plainly that "no" is a useful answer, because it tells them to change their own
+UX rather than keep asking JudgeMySite to shave capture. They have already done
+the arithmetic (capture ~32-34s, synthesis ~150s constant, floor ~190-200s), so
+this is not "fix the capture bug". **It is a JudgeMySite architecture and
+business question. It belongs to that lane, not this one.**
 
-**Then eight people saw it and all eight wanted it.** First demand signal the
-project has ever had. Erik's framing: alpha, early, and *"a tool that makes sense
-as part of someone's standard kit when working together with AI."*
+### WHAT SHIPPED IN S#280, grouped rather than listed
 
-### WHERE TO GO NEXT, in the order I would take them
+- **PRODUCT DIRECTION SETTLED (Erik):** the name is **Bridger**, gaveled. Pricing
+  **deferred** behind a funnel argument. **The licence is Apache-2.0** — which
+  closed a live gap: the repo was public with no licence while FOUR surfaces
+  told readers to self-host, so nobody was permitted to do the thing the trust
+  argument rests on.
+- **THE ROOM BECAME A DIALOGUE** (D1+D2+D4's room half): turns, alignment,
+  bubbles, per-side rails, presence chips, agent marks, day separators, an
+  unread line, following that never steals the scroll, collapsible rails, and
+  motion built on the instrument register.
+- **THE PLAN STAGE (F1)** — a document both sides converge on, not a
+  conversation they have. Items with owners and states, completion COMPUTED,
+  one enforced rule (only the owner may agree), phase shaping guidance and
+  layout but never permissions, and a three-column board that is also F3's
+  answer.
+- **THE EVIDENCE INDEX** — numbered citations resolving to a derived source
+  list, with the citation count nothing had shown before.
+- **PROTOCOL:** `contract` + `sections` merge-patch with `ifUnchangedSince`
+  (C3c), `identify`, `help` (D5), tool annotations (D3), `basis` on MCP,
+  field guidance on the wire (C1), and a per-room tally the audit cannot evict
+  (D6).
+- **REAL DEFECTS FOUND AND FIXED:** the viewer burned 400 calls/day and was
+  shown a machine code; `/api/export` hand-rolled its refusal; the panels had
+  never scrolled; **the per-side colour system had never rendered at all**;
+  answers rendered without their answer text; `basis` was invisible to the UI;
+  a watcher could starve the participants' room budget.
 
-| # | What | Why it is first |
+### WHERE TO GO NEXT
+
+**Needs a PARTNER, not a patch — and these are the top of the list:**
+
+| # | What | Why |
 |---|---|---|
-| 1 | **D3's live test, and F1 in a real room** | The plan stage shipped S#280 and has never been used by a far side. Its default partner state is plan mode, and whether our tool annotations unblock that is still UNVERIFIED. This needs Trigvanta, not a patch. |
-| 2 | **B5 at scale** | The panels never scrolled until S#280 (`min-height` let the box grow, so the PAGE scrolled). Found at 30 entries. Nothing else in the room has been looked at past a handful of entries either. |
-| 3 | **D3's live test** | Annotations shipped S#280; whether they unblock a planning session is UNVERIFIED and depends on the partner's harness. For F1 that is not an edge case -- "the partner's AI is in plan mode" is F1's DEFAULT state. This needs a partner, not a patch. |
-| 3 | **D6 - the audit window** | 5,000 rows, zero headroom; one session overflows it. Reframed S#280: with pricing deferred this stops being a billing prerequisite and becomes the FUNNEL instrument - "did anyone come back" is the only number the strategy runs on. |
-| 4 | **D4's create half + F2 room shapes** | The ROOM now reads as a dialogue; the CREATE flow is still too many steps. F2 (shape presets) lands here, and lands as PRESETS - a stage-designer on the create screen would make D4 worse, which is the trap named in lane F. |
+| 1 | **F1 in a real room, and D3's live test** | The plan stage has never been touched by a far side, and its DEFAULT partner state is plan mode. Whether our tool annotations unblock that depends on Trigvanta's harness and is UNVERIFIED. |
+| 2 | **B1's adversarial half**, B2, B4 | Still owed from earlier sessions. |
 
-**Shipped S#280:** D1 + D2 + D4's room half (the dialogue) - D3's annotations -
-C1 (guidance in the field) - C3c (contract patching). Three bugs nobody had
-filed came out of the first of those; see `DECISIONS.md` 2026-08-22 (S#280).
+**Claude can do solo:**
 
-**E1 (the licence) is SETTLED as of S#280 -- Apache-2.0.** Pricing stays
-deferred and is unaffected: what would be sold is operation, retention and
-uptime, not the code.
+| # | What | Why |
+|---|---|---|
+| 3 | **B5 at scale** | The panels never scrolled until S#280 — `min-height` let the box grow so the PAGE scrolled, found only at 30 entries. Nothing else in the room has been looked at past a handful. No real monitor, no phone, no Safari, no Firefox, five sessions running. |
+| 4 | **D4's create half** | The ROOM reads as a dialogue now; the CREATE flow is still too many steps. |
+| 5 | **C3a citation bundles, C3b the local daemon** | The far side's other two proposals, both still untaken. |
+| 6 | **F4 housekeeping** | `wire()` wraps your OWN side's text in untrusted-partner markers; room `d437fff5b423` needs a fresh invite code. |
 
-Lane D is what the first cross-company session taught us. Lane E is the business
-question Erik opened at the close of S#279 and answered in part at S#280.
-A/B/C are older and still true.
+**Needs ERIK — every one is a decision, none is work:**
 
-> **DIRECTION (Erik, S#275): zero install, zero setup - "just a bridge to a room
-> where users' AIs can communicate in a safe environment."** The idea is strong;
-> the ONBOARDING is the product problem. Still internal-infrastructure-first
-> (S#274b). **The name is GAVELED as Bridger (S#280)** - `DECISIONS.md`
-> 2026-08-22.
+1. **`--side-b` is warm orange and so is `--seal`** (reserved for provenance).
+   Two meanings on one hue. A5 already asks whether `--seal` moves; this is the
+   argument for it.
+2. **`@bridger/cli`** — publish or not. Claims a public identifier permanently;
+   `package.json` still carries `private: true` as the guard.
+3. **A2/C5 — the blocked-wait allowance.** A blocked wait is rationed like the
+   polling it exists to replace.
+4. **The mint refusal is `terminal: true` at HTTP 429**, contradicting the S#276
+   ladder. Changing it changes a contract a partner may build against.
+5. **F2's preset list** — cut or rename *Just talk* / *Plan then build* /
+   *Question and answer* and F2 is buildable.
+6. **Vendor logos** — swap the agent monogram for real marks? A trademark call
+   about other companies' brands, and one function to change.
+7. **F5** — did the two-party limit actually get in your way with Trigvanta, or
+   was it a good screenshot? That un-parks or re-parks multi-party (E2/E4).
 
+> **DIRECTION (Erik, S#275): zero install, zero setup — "just a bridge to a room
+> where users' AIs can communicate in a safe environment."** Still
+> internal-infrastructure-first (S#274b). The name is **gaveled as Bridger**
+> (S#280). Pricing is deferred; the licence is not, and is settled.
 ---
 
 ## WHERE WE ARE — S#277 (2026-08-20)
