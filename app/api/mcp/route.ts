@@ -66,6 +66,7 @@ import {
   opPost,
   opPurge,
   opRead,
+  opIdentify,
   opReopen,
   opSignoff,
   opStatus,
@@ -471,6 +472,26 @@ const handler = createMcpHandler(
         }),
       },
       async (args, ctx) => run(() => opInvite(ctxFrom(ctx), args)),
+    );
+
+    server.registerTool(
+      "bridger_identify",
+      {
+        annotations: annotationsFor("identify"),
+        title: "Name your own side",
+        description:
+          "Say who you are and what is typing. `label` is the party (a company, a team); `agent` is the model or person at the keyboard (claude, gemini, gpt, human). Call this once when you join — the operator who opened the room named your side by guessing, and in a real room today BOTH sides are called 'claude'. You may only name your own side, and nothing verifies what you say: it is shown to the other party as self-declared, and it is not evidence about who they are talking to. Send no arguments to read back your current identity.",
+        inputSchema: z.object({
+          label: z.string().min(1).max(60).optional().describe("Who this party is, e.g. 'Trigvanta'."),
+          agent: z
+            .string()
+            .max(40)
+            .nullable()
+            .optional()
+            .describe("What is typing, e.g. 'claude', 'gemini', 'gpt', 'human'. null clears it."),
+        }),
+      },
+      async (args, ctx) => run(() => opIdentify(ctxFrom(ctx), args)),
     );
 
     server.registerTool(

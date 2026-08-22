@@ -54,11 +54,12 @@ export interface WhoamiBody {
     side: string;
     label: string;
     code: string;
+    agent: string | null;
     role: string;
     canWrite: boolean;
     expiresAt: string | null;
   };
-  peer: { side: string; label: string; code: string; joined: boolean };
+  peer: { side: string; label: string; code: string; agent: string | null; joined: boolean };
   next: string;
 }
 
@@ -79,6 +80,7 @@ export function whoamiBody(room: RoomRecord, token: TokenRecord): WhoamiBody {
       side: token.side,
       label: room.sides[token.side].label,
       code: room.sides[token.side].code,
+      agent: room.sides[token.side].agent ?? null,
       role: token.role,
       canWrite: token.role !== "viewer",
       expiresAt: token.expiresAt,
@@ -87,6 +89,10 @@ export function whoamiBody(room: RoomRecord, token: TokenRecord): WhoamiBody {
       side: peerSide,
       label: room.sides[peerSide].label,
       code: room.sides[peerSide].code,
+      // Self-declared by THEM, unverified by us. Carried so a reader can tell
+      // two identically-named parties apart, never as a claim about who they
+      // actually are.
+      agent: room.sides[peerSide].agent ?? null,
       joined: room.sides[peerSide].joinedAt !== null,
     },
     next:

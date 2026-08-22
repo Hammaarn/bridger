@@ -2770,3 +2770,35 @@ input.bx-folder-name:focus {
   color: var(--alarm);
   border-left-color: var(--alarm);
 }
+
+/* The agent monogram. Deliberately quiet and deliberately NOT a vendor colour:
+   two Claudes in one room have to stay distinguishable, and a brand palette
+   would actively prevent that. The hue is the SIDE's. */
+.bx-agent {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 4px;
+  font-family: var(--font-mono-stack);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  border: 1px solid var(--line-strong);
+  color: var(--text-dim);
+  flex: none;
+}
+
+.bx-agent.sideA {
+  color: var(--side-a);
+  border-color: color-mix(in oklab, var(--side-a) 40%, transparent);
+  background: color-mix(in oklab, var(--side-a) 10%, transparent);
+}
+
+.bx-agent.sideB {
+  color: var(--side-b);
+  border-color: color-mix(in oklab, var(--side-b) 40%, transparent);
+  background: color-mix(in oklab, var(--side-b) 10%, transparent);
+}

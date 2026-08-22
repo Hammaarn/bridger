@@ -47,6 +47,7 @@ import {
   opPost,
   opPurge,
   opRead,
+  opIdentify,
   opReopen,
   opSignoff,
   opStatus,
@@ -178,6 +179,17 @@ const OPS = {
       ifUnchangedSince: z.string().max(64).optional(),
     }),
     run: opContract,
+  },
+  /**
+   * D1's residue: the real cross-company room has both sides labelled "claude".
+   * A side may name itself -- and only itself. Self-declared, never verified.
+   */
+  identify: {
+    schema: z.object({
+      label: z.string().min(1).max(60).optional(),
+      agent: z.string().max(40).nullable().optional(),
+    }),
+    run: opIdentify,
   },
   reopen: {
     schema: z.object({ questionId: z.string().min(1), why: z.string().min(1).max(20000) }),

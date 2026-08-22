@@ -83,6 +83,12 @@ export const OP_NATURE: Record<string, OpNature> = {
     summary:
       "The document both sides build against. Omit every argument to READ it. To change it, prefer `sections` (patch by `## heading`) over `body` (replace the whole thing) — a whole-body write erases whatever the other side wrote while you were drafting.",
   },
+  identify: {
+    writes: true,
+    idempotent: true,
+    summary:
+      "Name your OWN side: `label` is who you are, `agent` is what is typing (claude, gemini, gpt...). Self-declared and never verified — it makes a room readable, it does not prove anything. Send neither argument to read your current identity.",
+  },
   reopen: {
     writes: true,
     idempotent: false,

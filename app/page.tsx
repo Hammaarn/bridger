@@ -80,8 +80,8 @@ interface ExportPayload {
   room: {
     id: string;
     topic: string;
-    you: { side: string; label: string; code: string; joinedAt: string | null };
-    peer: { side: string; label: string; code: string; joinedAt: string | null };
+    you: { side: string; label: string; code: string; joinedAt: string | null; agent?: string | null };
+    peer: { side: string; label: string; code: string; joinedAt: string | null; agent?: string | null };
   };
   contract: { body: string; updatedBy: string; updatedAt: string } | null;
   entries: Entry[];
@@ -304,6 +304,39 @@ function Provenance({ entry }: { entry: Entry }) {
 }
 
 /**
+ * THE AGENT MARK.
+ *
+ * Erik saw a shared-chat product where every participant carried its vendor's
+ * logo and liked that you could tell at a glance who was who. He is right about
+ * the problem: checked against production S#280, the real cross-company room has
+ * `label: "claude"` on BOTH sides, so the one place a reader looks to confirm
+ * what the layout told them says the same word twice.
+ *
+ * A MONOGRAM, NOT A BRAND ASSET, and that is a decision rather than a shortcut.
+ * This page is served under a strict CSP with no external hosts, so a vendor
+ * logo would mean shipping inlined copies of other companies' trademarks from
+ * our own origin, on a public product. Nominative use is usually defensible;
+ * "usually defensible" is not a call to make unilaterally on somebody else's
+ * business. So the mechanism ships with initials, and swapping in real marks
+ * later is this one function.
+ *
+ * The colour is the SIDE's hue, not the vendor's. Two Claudes in one room have
+ * to be distinguishable, which a vendor palette would actively prevent.
+ */
+function AgentMark({ agent, side }: { agent?: string | null; side: string }) {
+  if (!agent) return null;
+  const initials = agent.slice(0, 2).toUpperCase();
+  return (
+    <span
+      className={`bx-agent ${side === "a" ? "sideA" : "sideB"}`}
+      title={`Self-declared as "${agent}" by that side. Nothing verifies this.`}
+    >
+      {initials}
+    </span>
+  );
+}
+
+/**
  * Who is in the room, and whether they are actually here.
  *
  * The old header said this in prose -- two coloured names, a dot, and an
@@ -315,17 +348,20 @@ function SideChip({
   side,
   label,
   joinedAt,
+  agent,
   you,
 }: {
   side: string;
   label: string;
   joinedAt: string | null;
+  agent?: string | null;
   you?: boolean;
 }) {
   const here = joinedAt !== null;
   return (
     <span className={`bx-chip ${side === "a" ? "sideA" : "sideB"} ${here ? "here" : "away"}`}>
       <span className="bx-chip-dot" />
+      <AgentMark agent={agent} side={side} />
       <span className="bx-chip-name">{label}</span>
       {you && <span className="bx-chip-you">you</span>}
       {!here && <span className="bx-chip-state">not connected</span>}
@@ -1329,6 +1365,9 @@ function RoomView({
    * two parties" without claiming the watcher is one of them.
    */
   const mySide = data?.room.you.side ?? "a";
+  /** Which agent sits on a side, for the feed. Self-declared; may be absent. */
+  const agentFor = (side: string) =>
+    data ? (side === data.room.you.side ? data.room.you.agent : data.room.peer.agent) : null;
   const turns = useMemo(() => toTurns(entries, mySide), [entries, mySide]);
 
   /**
@@ -1452,6 +1491,7 @@ function RoomView({
                     side={data.room.you.side}
                     label={data.room.you.label}
                     joinedAt={data.room.you.joinedAt}
+                    agent={data.room.you.agent}
                     you
                   />
                   <span className="bx-chip-wire" aria-hidden="true" />
@@ -1459,6 +1499,7 @@ function RoomView({
                     side={data.room.peer.side}
                     label={data.room.peer.label}
                     joinedAt={data.room.peer.joinedAt}
+                    agent={data.room.peer.agent}
                   />
                   <span className="mono dim bx-roomid">room {data.room.id}</span>
                 </>
@@ -1590,6 +1631,7 @@ function RoomView({
                   }`}
                 >
                   <div className="turn-head">
+                    <AgentMark agent={agentFor(turn.side)} side={turn.side} />
                     <span className="who">{turn.author}</span>
                     <span className="mono dim">{timeOf(shown[0].ts)}</span>
                   </div>

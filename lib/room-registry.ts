@@ -147,6 +147,26 @@ export interface RoomSide {
   label: string;
   code: string;
   joinedAt: string | null;
+  /**
+   * WHICH AGENT IS SITTING HERE, self-declared, cosmetic, and never verified.
+   *
+   * The real cross-company room has `label: "claude"` on BOTH sides -- checked
+   * against production S#280, not remembered. Two parties, same name. The S#280
+   * rails fixed POSITION and COLOUR, and left the fact that neither party can be
+   * named apart from the other.
+   *
+   * `label` is who the party IS (a company, a team). `agent` is what is TYPING
+   * (claude, gemini, gpt, a human). They are different questions and one field
+   * was answering neither well.
+   *
+   * **This is a claim by the side that set it, and nothing here checks it.** A
+   * client can declare anything -- the transport has no way to know what model
+   * is on the other end, and pretending otherwise would be the exact failure
+   * this product exists to avoid. So it renders as a self-declared badge and is
+   * never given a verification affordance. It is a courtesy for reading a room,
+   * not evidence about who you are talking to.
+   */
+  agent?: string | null;
 }
 
 export interface RoomRecord {
@@ -429,6 +449,9 @@ export function parseRoom(raw: unknown): RoomRecord | null {
       label: typeof v.label === "string" ? v.label : "",
       code: typeof v.code === "string" ? v.code : "XXX",
       joinedAt: typeof v.joinedAt === "string" ? v.joinedAt : null,
+      // A room minted before this field existed reads as `null`, not as a
+      // guess. We do not know what was sitting there and will not invent it.
+      agent: typeof v.agent === "string" && v.agent ? v.agent : null,
     };
   };
   return {
@@ -921,6 +944,37 @@ export async function markJoined(
   const next: RoomRecord = {
     ...room,
     sides: { ...room.sides, [side]: { ...room.sides[side], joinedAt: now.toISOString() } },
+  };
+  await store.set(ROOM_KEY(room.id), JSON.stringify(next));
+  clearRegistryCache();
+  return next;
+}
+
+/**
+ * A side names itself: who it is, and what is typing.
+ *
+ * Only ever your OWN side. The creating operator names both parties at mint
+ * time and is guessing about the far one -- the far side is the only party that
+ * knows what it actually is, and letting one side rename the other would make
+ * the whole field worthless as a reading of the room.
+ */
+export async function setSideIdentity(
+  store: Store,
+  room: RoomRecord,
+  sideId: SideId,
+  patch: { label?: string; agent?: string | null },
+): Promise<RoomRecord> {
+  const current = room.sides[sideId];
+  const next: RoomRecord = {
+    ...room,
+    sides: {
+      ...room.sides,
+      [sideId]: {
+        ...current,
+        label: patch.label !== undefined ? patch.label : current.label,
+        agent: patch.agent !== undefined ? patch.agent : (current.agent ?? null),
+      },
+    },
   };
   await store.set(ROOM_KEY(room.id), JSON.stringify(next));
   clearRegistryCache();

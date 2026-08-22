@@ -147,8 +147,8 @@ export interface RoomStatus {
   roomId: string;
   topic: string;
   /** `role` is surfaced so an agent knows up front whether it can write, rather than discovering it by being refused mid-task. */
-  you: { side: SideId; label: string; code: string; role: string; canWrite: boolean };
-  peer: { side: SideId; label: string; code: string; joined: boolean };
+  you: { side: SideId; label: string; code: string; agent: string | null; role: string; canWrite: boolean };
+  peer: { side: SideId; label: string; code: string; agent: string | null; joined: boolean };
   /** Entries from the other side you have not read. */
   unread: number;
   /** Your cursor, and the room's newest seq. */
@@ -445,6 +445,7 @@ export async function getStatus(
       side: token.side,
       label: room.sides[token.side].label,
       code: room.sides[token.side].code,
+      agent: room.sides[token.side].agent ?? null,
       role: token.role,
       canWrite: token.role !== "viewer",
     },
@@ -452,6 +453,10 @@ export async function getStatus(
       side: peerSide,
       label: room.sides[peerSide].label,
       code: room.sides[peerSide].code,
+      // Self-declared by THEM, unverified by us. Carried so a reader can tell
+      // two identically-named parties apart, never as a claim about who they
+      // actually are.
+      agent: room.sides[peerSide].agent ?? null,
       joined: room.sides[peerSide].joinedAt !== null,
     },
     unread,
