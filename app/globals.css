@@ -114,6 +114,24 @@
   --lift: 0 1px 0 rgba(255, 255, 255, 0.04), 0 12px 34px -18px rgba(0, 0, 0, 0.9);
 
   --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
+
+  /* ── MOTION ───────────────────────────────────────────────────────
+     The register is INSTRUMENT -- oscilloscope, flight recorder -- so the
+     motion has to be a needle settling, not a toy bouncing. Damped, fast, and
+     with NO overshoot anywhere: a value that springs past its reading and comes
+     back is exactly what an instrument must never do, and this one displays
+     hashes and citations.
+
+     Three durations, because more than three is a palette nobody keeps
+     consistent. `--t-tap` has to feel like contact rather than animation, which
+     is why it is under 100ms -- past that a press reads as lag. */
+  --t-tap: 70ms;
+  --t-ui: 150ms;
+  --t-move: 240ms;
+
+  /* Strong deceleration for things ARRIVING. Reads as precise rather than
+     springy, and it is the same shape as a trace settling on a scope. */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @media (prefers-color-scheme: light) {
@@ -3306,13 +3324,23 @@ input.bx-folder-name:focus {
 /* ── COMPACT ─────────────────────────────────────────────────────────────────
    Real entries are essays, not chat messages. Clamped by default so the column
    shows the SHAPE of a conversation; opened one at a time by choice. */
+/* THE EXPANDER, AND WHY IT IS NOT `line-clamp`.
+   `-webkit-line-clamp` cannot be transitioned -- it snaps -- so opening an entry
+   was a jump-cut in a column the reader is trying to follow. `max-height` does
+   transition, and the fade mask makes the cut read as deliberate rather than as
+   text that ran out. Six lines at this measure is ~9.7em. */
+.bubble .title,
+.bubble .body {
+  max-height: 200em;
+  transition: max-height var(--t-move) var(--ease);
+}
+
 .bubble .title.clamped,
 .bubble .body.clamped {
-  display: -webkit-box;
-  -webkit-line-clamp: 6;
-  line-clamp: 6;
-  -webkit-box-orient: vertical;
+  max-height: 9.7em;
   overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, #000 72%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 72%, transparent 100%);
 }
 
 .bx-more {
@@ -3356,4 +3384,149 @@ input.bx-folder-name:focus {
   -webkit-box-orient: vertical;
   overflow: hidden;
   max-width: 100%;
+}
+
+/* ── MOTION: CONTACT ─────────────────────────────────────────────────────────
+   Every control answers a press. The depress is a real one -- it goes IN, it
+   does not bounce -- and it is deliberately faster than the hover so that
+   clicking feels like touching a switch rather than starting an animation. */
+button,
+.link,
+.bx-copy,
+.bx-save,
+.bx-primary,
+.bx-more,
+.bx-src,
+.bx-leaf,
+.bubble .ref {
+  transition:
+    background var(--t-ui) var(--ease),
+    border-color var(--t-ui) var(--ease),
+    color var(--t-ui) var(--ease),
+    transform var(--t-tap) var(--ease),
+    box-shadow var(--t-ui) var(--ease);
+}
+
+button:active:not(:disabled),
+.link:active {
+  transform: scale(0.97);
+}
+
+/* The centred jump pill already carries a translate, so its press has to
+   compose with it rather than replace it -- a bare `scale()` here would fling
+   the button to the left edge on every click. */
+.bx-jump:active {
+  transform: translateX(-50%) scale(0.97);
+}
+
+/* Rows depress along their own axis: a full-width list row scaling down looks
+   like it shrank, while a small nudge reads as being pushed. */
+.bx-src:active,
+.bx-leaf:active {
+  transform: translateX(2px) scale(1);
+}
+
+button:disabled {
+  transition: none;
+}
+
+/* ── MOTION: ARRIVAL ─────────────────────────────────────────────────────────
+   A new entry enters from ITS OWN SIDE. The direction carries the same
+   information the colour does -- who spoke -- so the motion reinforces the
+   thing Erik could not read, instead of being decoration on top of it. */
+@keyframes bx-land-left {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes bx-land-right {
+  from {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.turn.theirs .bubble.flash {
+  animation:
+    bx-land-left var(--t-move) var(--ease-out),
+    land 1.8s var(--ease);
+}
+
+.turn.mine .bubble.flash {
+  animation:
+    bx-land-right var(--t-move) var(--ease-out),
+    land 1.8s var(--ease);
+}
+
+/* The catch-up pill arrives rather than appears. */
+@keyframes bx-rise {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%);
+  }
+}
+
+.bx-jump {
+  animation: bx-rise var(--t-move) var(--ease-out);
+}
+
+/* ── MOTION: EMPHASIS ────────────────────────────────────────────────────────
+   The citation chip is the one object that exists in two places at once -- on a
+   claim and in the rail -- so hovering either end should say so. */
+.cite {
+  transition:
+    background var(--t-ui) var(--ease),
+    border-color var(--t-ui) var(--ease),
+    color var(--t-ui) var(--ease);
+}
+
+.bx-src:hover .cite,
+.prov:hover .cite {
+  border-color: var(--seal);
+  color: var(--seal);
+}
+
+/* A disclosure marker that turns. The only rotation in the system, and it is
+   the one place where rotation IS the meaning. */
+details > summary {
+  transition: color var(--t-ui) var(--ease);
+}
+
+details > summary::marker,
+details > summary::-webkit-details-marker {
+  transition: transform var(--t-move) var(--ease);
+}
+
+/* Panels and cards settle rather than snap when their state changes. */
+.bx-card,
+.bx-chip,
+.bx-agent,
+.bx-phase {
+  transition:
+    background var(--t-ui) var(--ease),
+    border-color var(--t-ui) var(--ease),
+    opacity var(--t-move) var(--ease);
+}
+
+/* The live/stalled lamp fades between states instead of cutting. */
+.pulse,
+.pulse .led {
+  transition:
+    background var(--t-move) var(--ease),
+    color var(--t-move) var(--ease),
+    box-shadow var(--t-move) var(--ease);
 }
