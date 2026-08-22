@@ -77,6 +77,35 @@ and this line was already wrong once -- it said `94de8d4` through twenty commits
 
 ---
 
+## S#280d -- THE PLAN STAGE (F1)
+
+`bridger_plan` on both transports; rules in `lib/plan.ts`; a board in the room.
+tsc 0, 351/351, build 0. `DECISIONS.md` 2026-08-22 (S#280).
+
+**A plan is a LIST OF ITEMS, not prose**, and that is the whole design: prose
+has no completion condition and a list of owned items does. "Are we done
+planning" is a COMPUTATION -- every item owned, none open -- and `readiness()`
+names what is blocking, because an agent told "3 items are open" still has to
+work out what that means. An empty plan is not a complete one.
+
+**One rule is enforced: only the side that OWNS an item may agree to it.** A
+commitment made on somebody else's behalf is worthless. Everything else -- who
+raises, who proposes an owner, retitling, dropping -- is open to both sides.
+
+**Phase shapes guidance and LAYOUT, never permissions.** New rooms start in
+`plan`; rooms created before F1 read as `build`. Moving to `build` with the plan
+unfinished is allowed, and the ledger entry records the open and unowned counts:
+moving early is a choice, moving early and quietly is what that prevents.
+
+**The board is F3's answer too** -- three ownership columns and a strip for
+unclaimed work, full width while planning. Spatial rather than linear, without
+Excalidraw's 46 MB, its missing collaboration server, or a mutable blob outside
+the hash chain.
+
+**NOT verified, and it is the part that matters:** no far side has ever used
+this. Its default partner state is plan mode (D3), which is still untested.
+
+
 ## S#280c -- A SIDE CAN NAME ITSELF
 
 `identify` shipped: a side sets its own `label` (who the party is) and `agent`

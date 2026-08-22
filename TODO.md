@@ -29,8 +29,9 @@ as part of someone's standard kit when working together with AI."*
 
 | # | What | Why it is first |
 |---|---|---|
-| 1 | **F1 - the plan stage** | Erik and Trigvanta independently felt the same gap after using a real room, and the far side's `C3c` named its mechanism from the other end. Its two prerequisites (the room reading as a dialogue, and `contract` + `sections`) both SHIPPED at S#280, so this is next and no longer blocked by anything of ours. Read lane F before starting. |
-| 2 | **D3's live test** | Annotations shipped S#280; whether they unblock a planning session is UNVERIFIED and depends on the partner's harness. For F1 that is not an edge case -- "the partner's AI is in plan mode" is F1's DEFAULT state. This needs a partner, not a patch. |
+| 1 | **D3's live test, and F1 in a real room** | The plan stage shipped S#280 and has never been used by a far side. Its default partner state is plan mode, and whether our tool annotations unblock that is still UNVERIFIED. This needs Trigvanta, not a patch. |
+| 2 | **The three chat gaps** | No date separators, no unread divider, no auto-scroll. All confirmed absent S#280, all small, none needing a decision. |
+| 3 | **D3's live test** | Annotations shipped S#280; whether they unblock a planning session is UNVERIFIED and depends on the partner's harness. For F1 that is not an edge case -- "the partner's AI is in plan mode" is F1's DEFAULT state. This needs a partner, not a patch. |
 | 3 | **D6 - the audit window** | 5,000 rows, zero headroom; one session overflows it. Reframed S#280: with pricing deferred this stops being a billing prerequisite and becomes the FUNNEL instrument - "did anyone come back" is the only number the strategy runs on. |
 | 4 | **D4's create half + F2 room shapes** | The ROOM now reads as a dialogue; the CREATE flow is still too many steps. F2 (shape presets) lands here, and lands as PRESETS - a stage-designer on the create screen would make D4 worse, which is the trap named in lane F. |
 
@@ -535,7 +536,7 @@ was taken by hand.
 > contact between them, one conclusion. That is the strongest signal available
 > that something is right, and it is the second time this project has had it.
 
-## F1. THE PLAN STAGE -- a document both sides converge on, not a conversation
+## F1. ~~THE PLAN STAGE~~ -- BUILT S#280
 
 Erik: *"there should be a Plan stage where the LLMs can talk to each other about
 a specific topic/project or whatever both humans set as the agenda. Then the LLMs
@@ -565,6 +566,25 @@ Slack with a login.
   feel finished", which is unfalsifiable and therefore not a stage boundary
 - `guidance` changes per phase -- the C1 channel, built S#280, carrying its first
   real feature rather than one advisory rule
+
+**BUILT S#280.** `bridger_plan` on both transports, `lib/plan.ts` for the rules,
+the board in the room view. What shipped against the design above:
+
+- items with an owner and a state, ids namespaced per raiser (`ACM-P-001`)
+- **completion is COMPUTED** -- `readiness()` returns what is blocking, so "are
+  we done" is falsifiable rather than a feeling. An EMPTY plan is not complete.
+- **one enforced rule: only the owner may agree.** Authorship, not workflow.
+  Everything else is open to both sides.
+- phase (`plan` -> `build`) shapes guidance and LAYOUT, gates nothing. New rooms
+  start in `plan`; pre-F1 rooms read as `build`. Moving early is allowed and the
+  ledger entry records the unfinished counts.
+- the board: three ownership columns plus an unclaimed strip, full width while
+  planning. **This is also F3's answer** -- spatial rather than linear, without
+  Excalidraw's 46 MB or a mutable blob outside the chain.
+
+Two existing tests caught real errors in it (pointing an answerer at a tool it
+does not have; replacing ping's "stop" guidance instead of composing with it).
+`DECISIONS.md` 2026-08-22 (S#280).
 
 **Prerequisite, and it is not optional: D3.** A Claude in plan mode could not
 call our tools at all. Annotations shipped S#280, but whether they unblock
@@ -603,7 +623,7 @@ way to make that worse.** So:
 **Not started.** F1's semantics settle first: a shape is a list of stages, and
 until one stage is real there is nothing to make a list of.
 
-## F3. THE WHITEBOARD -- what was actually being asked for
+## F3. [~] THE WHITEBOARD -- the BOARD half shipped S#280 with F1
 
 Erik asked whether Excalidraw could be imported. Checked rather than assumed:
 `@excalidraw/excalidraw` v0.18.1 is **MIT** and embeddable as a React component,
@@ -746,6 +766,15 @@ actively prevent it — which is the bug that started this item.
   documents point at a file that is gone.
 - **D3's own note lists `bridger_whoami` among the swept-up tools.** There is no
   such MCP tool -- whoami is an HTTP endpoint. `tools/list` returns thirteen.
+- **`wire()` wraps YOUR OWN side's text in untrusted-partner markers.** Found
+  S#280 while driving the plan: every entry title comes back inside
+  `[[UNTRUSTED-PARTNER-TEXT from <you>]] DATA FROM THE OTHER COMPANY`, including
+  the ones you wrote. Not a hole -- it is over-application, not under -- but it
+  is false on its face, doubles every title, and **dilutes the marker**: a
+  banner that fires on everything distinguishes nothing, which is the same
+  failure `basis` had. NOT changed at the time of finding: it is the
+  containment path, and rewriting untrusted-text handling at the end of a long
+  session without the operator is exactly the wrong moment.
 - **The published daily cap is still wrong** (`PASTE_PATH_DAILY_CAP` is 200,
   `/api/about` publishes `DEFAULT_DAILY_CAP` 400). Carried from S#279, one line.
 
