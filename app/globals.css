@@ -2802,3 +2802,197 @@ input.bx-folder-name:focus {
   border-color: color-mix(in oklab, var(--side-b) 40%, transparent);
   background: color-mix(in oklab, var(--side-b) 10%, transparent);
 }
+
+/* ── THE PLAN BOARD (F1) ─────────────────────────────────────────────────────
+   Spatial rather than linear, which is what the "whiteboard" ask was actually
+   reaching for. Columns are OWNERSHIP, not authorship: the question a reader
+   has is "who is doing this", and who raised it is a footnote. */
+.bx-board {
+  margin-bottom: 26px;
+  padding-bottom: 22px;
+  border-bottom: 1px solid var(--line);
+}
+
+.bx-board h2 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.bx-phase {
+  font-family: var(--font-mono-stack);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
+  padding: 1px 6px;
+}
+
+/* The planning phase is the only one worth announcing: `build` is the resting
+   state and a badge that is always lit says nothing. */
+.bx-phase.on {
+  color: var(--seal);
+  border-color: color-mix(in oklab, var(--seal) 45%, transparent);
+}
+
+.bx-board-cols {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.bx-col h3 {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  margin: 0 0 7px;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.bx-col.sideA h3 {
+  color: var(--side-a);
+}
+
+.bx-col.sideB h3 {
+  color: var(--side-b);
+}
+
+.bx-col.shared h3 {
+  color: var(--text-dim);
+}
+
+.bx-card {
+  border: 1px solid var(--line);
+  border-left-width: 2px;
+  border-radius: var(--r-sm, 4px);
+  background: var(--ink-800);
+  padding: 8px 9px;
+  margin-bottom: 6px;
+}
+
+.bx-col.sideA .bx-card {
+  border-left-color: var(--side-a);
+}
+
+.bx-col.sideB .bx-card {
+  border-left-color: var(--side-b);
+}
+
+/* Agreed work recedes. The board's job is to show what is LEFT, so the settled
+   items should stop competing for attention without disappearing. */
+.bx-card.agreed {
+  opacity: 0.62;
+}
+
+.bx-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.bx-card code {
+  font-size: 9.5px;
+  color: var(--text-faint);
+}
+
+.bx-card .st {
+  font-family: var(--font-mono-stack);
+  font-size: 8.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.bx-card.agreed .st {
+  color: var(--seal);
+}
+
+.bx-card strong {
+  display: block;
+  font-size: 12px;
+  line-height: 1.4;
+  font-weight: 600;
+}
+
+.bx-card p {
+  margin-top: 4px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+}
+
+/* Unowned items are not a fourth party — they are what stands between this plan
+   and being finished, which is the readiness check's commonest blocker. */
+.bx-unowned {
+  margin-top: 12px;
+  padding: 10px 11px;
+  border: 1px dashed var(--alarm);
+  border-radius: var(--r-md);
+}
+
+.bx-unowned h3 {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 0 0 8px;
+  font-size: 11px;
+  color: var(--alarm);
+}
+
+.bx-ready {
+  margin-top: 12px;
+  font-family: var(--font-mono-stack);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+}
+
+.bx-ready.done {
+  color: var(--seal);
+}
+
+@media (max-width: 1080px) {
+  .bx-board-cols {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* The plan at full width, while the room is planning. */
+.bx-board-wide {
+  padding: 20px 22px 0;
+  background: var(--ink-900);
+}
+
+.bx-board-wide .bx-board {
+  margin-bottom: 18px;
+  padding-bottom: 18px;
+}
+
+/* Four across when there is room to be spatial, which is the whole point. */
+.bx-board-wide .bx-board-cols {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.bx-board-wide .bx-card strong {
+  font-size: 12.5px;
+}
+
+/* An item id must never wrap. `ACM-P-002` broken over three lines is the
+   difference between an identifier and a smear, and it is the one string on
+   the card a reader uses to talk about the item. */
+.bx-card code {
+  white-space: nowrap;
+}
+
+.bx-card-head {
+  flex-wrap: wrap;
+}

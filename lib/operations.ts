@@ -50,6 +50,10 @@ import {
   noteOp,
   trailGuidance,
   setSideIdentity,
+  readPlan,
+  writePlan,
+  setRoomPhase,
+  type RoomPhase,
 } from "./room-registry";
 import {
   INVITE_REREAD_SECONDS,
@@ -64,9 +68,18 @@ import {
   MAX_IDLE_STREAK,
   WASTE_BUDGET_BYTES,
   type Store,
+  PLAN_COUNTER_KEY,
 } from "./store";
 import { classifyCitation, describeCitation } from "./citation";
 import { describePatch, patchContract } from "./contract-patch";
+import {
+  applyPlan,
+  planGuidance,
+  PlanRefused,
+  readiness,
+  type PlanItemState,
+  type PlanOwner,
+} from "./plan";
 import { MAX_LABEL, sanitiseRoomText } from "./room-text";
 import { contain, CONTAINMENT_NOTE } from "./untrusted";
 import { recordPurgeConsent, withdrawPurgeConsent } from "./purge";
@@ -302,6 +315,7 @@ export async function opStatus(ctx: OpContext) {
     instead: "Report to your operator what you are waiting on, and let THEM decide when to check again.",
   });
   const payload = {
+    phase: ctx.room.phase,
     ...status,
     // `openQuestions[].title` is the SECOND path far-side text takes into our
     // context, and the easier one to miss because status reads like metadata.
@@ -652,6 +666,143 @@ export async function opIdentify(
   };
 }
 
+/**
+ * THE PLAN (F1) — read it, add to it, move it, and move the room's phase.
+ *
+ * One operation rather than four, deliberately: `bridger_plan` with no argument
+ * reads, with `add` raises, with `set` changes, with `phase` moves the room. A
+ * partner learning this surface should have one verb to learn for one concept,
+ * and the far side's own complaint about this product was ceremony.
+ *
+ * Every mutation appends a ledger entry saying what moved. The plan itself lives
+ * beside the contract because it has a CURRENT state both sides edit, and the
+ * ledger is append-only history — but the history still exists, which is what
+ * makes "who committed to this, and when" answerable later.
+ */
+export async function opPlan(
+  ctx: OpContext,
+  args: {
+    add?: { title: string; note?: string; owner?: PlanOwner };
+    set?: { id: string; title?: string; note?: string; owner?: PlanOwner; state?: PlanItemState };
+    phase?: RoomPhase;
+  },
+) {
+  const plan = await readPlan(ctx.store, ctx.room.id);
+  const you = ctx.token.side;
+
+  // READ. A viewer reaches this and nothing below it, which is the same split
+  // `contract` makes: reading what two parties agreed is a watcher's right.
+  if (!args.add && !args.set && args.phase === undefined) {
+    const r = readiness(plan);
+    return {
+      phase: ctx.room.phase,
+      agenda: ctx.room.topic,
+      items: plan.items.map((i) => ({
+        ...i,
+        title: contain(i.title, i.raisedBy === you ? "you" : ctx.room.sides[i.raisedBy].label),
+        note: contain(i.note, i.raisedBy === you ? "you" : ctx.room.sides[i.raisedBy].label),
+        yours: i.owner === you || i.owner === "both",
+      })),
+      readiness: r,
+      ...(plan.items.length ? { _note: CONTAINMENT_NOTE } : {}),
+      ...(planGuidance(plan, you, ctx.room.phase) ? { guidance: planGuidance(plan, you, ctx.room.phase)! } : {}),
+    };
+  }
+
+  requireWrite(ctx.token);
+  await noteProductive(ctx);
+
+  // PHASE. Handled first and on its own so that "we are done planning" is a
+  // single unambiguous act rather than a side effect of editing an item.
+  if (args.phase !== undefined && !args.add && !args.set) {
+    if (args.phase === ctx.room.phase) {
+      return { updated: false, phase: ctx.room.phase, note: `The room is already in its ${args.phase} phase.` };
+    }
+    const r = readiness(plan);
+    const next = await setRoomPhase(ctx.store, ctx.room, args.phase);
+    const entry = await appendEntry(
+      ctx.store,
+      next,
+      ctx.token,
+      {
+        type: "note",
+        title: `Room phase -> ${args.phase}`,
+        // The readiness at the moment of the move goes into the RECORD, so a
+        // reader later can see whether the plan was finished when the room
+        // stopped planning. Moving early is allowed; moving early and quietly
+        // is what this prevents.
+        body:
+          args.phase === "build" && !r.complete
+            ? `Moved to build with ${r.open} item(s) still open and ${r.unowned} unowned: ${r.blocking.join("; ")}`
+            : `Moved to ${args.phase}. Plan: ${r.agreed} agreed, ${r.open} open, ${r.unowned} unowned.`,
+      },
+      ctx.now,
+    );
+    return { updated: true, phase: args.phase, readiness: r, logged: wire(entry) };
+  }
+
+  let working = plan;
+  const summaries: string[] = [];
+  try {
+    if (args.add) {
+      const code = ctx.room.sides[you].code;
+      const n = await ctx.store.incr(PLAN_COUNTER_KEY(ctx.room.id, code));
+      const id = `${code}-P-${String(n).padStart(3, "0")}`;
+      const out = applyPlan(
+        working,
+        you,
+        { op: "add", id, title: args.add.title, note: args.add.note, owner: args.add.owner },
+        ctx.now.toISOString(),
+      );
+      working = out.plan;
+      if (out.summary) summaries.push(out.summary);
+    }
+    if (args.set) {
+      const out = applyPlan(working, you, { op: "set", ...args.set }, ctx.now.toISOString());
+      working = out.plan;
+      if (out.summary) summaries.push(out.summary);
+    }
+  } catch (err) {
+    // `PlanRefused` carries a message written for the caller — the owner rule,
+    // a duplicate id, an unknown id. Non-terminal: every one of them is
+    // fixable by reading the plan and calling again.
+    if (err instanceof PlanRefused) throw new OperationRefused(err.message, false);
+    throw err;
+  }
+
+  if (!summaries.length) {
+    return {
+      updated: false,
+      unchanged: true,
+      note: "Nothing in the plan changed, so nothing was written.",
+      readiness: readiness(working),
+    };
+  }
+
+  await writePlan(ctx.store, ctx.room.id, working);
+  const r = readiness(working);
+  const entry = await appendEntry(
+    ctx.store,
+    ctx.room,
+    ctx.token,
+    {
+      type: "note",
+      title: `Plan: ${summaries.join("; ")}`,
+      body: r.complete
+        ? "Every item is now owned and agreed."
+        : `${r.agreed} agreed, ${r.open} open, ${r.unowned} unowned.`,
+    },
+    ctx.now,
+  );
+  return {
+    updated: true,
+    summary: summaries.join("; "),
+    readiness: r,
+    logged: wire(entry),
+    ...(planGuidance(working, you, ctx.room.phase) ? { guidance: planGuidance(working, you, ctx.room.phase)! } : {}),
+  };
+}
+
 export async function opReopen(ctx: OpContext, args: { questionId: string; why: string }) {
   requireWrite(ctx.token);
   await noteProductive(ctx);
@@ -895,6 +1046,23 @@ export async function opPing(ctx: OpContext) {
     .map((q) => ({ ...q, title: contain(q.title, q.askedBy) }));
 
   const learned = awaitingYou.length > 0 || fromPeer.length > 0;
+  /**
+   * PLAN ADVICE, BUT NEVER TO AN ANSWERER — caught by `answerer.test.ts`, which
+   * was right and I was wrong.
+   *
+   * The answerer role is a NARROWED surface: two tools, `ping` and `answer`. It
+   * has no `bridger_plan`, so pointing it at one offers an action it cannot
+   * perform -- the S#128 anti-pattern -- and it also breaks the harder property
+   * that test pins: an answerer with nothing waiting must be told to STOP, and
+   * must be handed no tool to look again with. That rule exists because the
+   * S#272 brake pointed loops straight back at `bridger_status`.
+   *
+   * A participant gets the advice. An answerer gets silence and "stop", which
+   * is the correct thing to give something that cannot act on it.
+   */
+  const plan = ctx.token.role === "participant" ? await readPlan(ctx.store, ctx.room.id) : null;
+  const planAdvice = plan ? planGuidance(plan, ctx.token.side, ctx.room.phase) : null;
+
   const idle = await brakeIfIdle({
     store: ctx.store,
     tokenId: ctx.token.id,
@@ -915,9 +1083,33 @@ export async function opPing(ctx: OpContext) {
     // Terminal by construction. Names no tool that could be used to look again,
     // because the wait refusal that pointed loops at `bridger_status` is the
     // bug this whole surface is shaped around (S#272).
+    phase: ctx.room.phase,
+    /**
+     * F1. The plan reaches an agent that only ever pings.
+     *
+     * A partner told to "call ping once and then stop" would otherwise never
+     * learn the room has a plan phase at all -- our documents do not update in
+     * the field (C1), so the live channel has to carry it. An open QUESTION
+     * still wins: somebody is blocked on an answer, and that outranks planning.
+     */
     guidance: awaitingYou.length
       ? `${awaitingYou.length} question(s) are waiting on you. Answer each with bridger_answer, then stop — you have already been given everything there is to see.`
-      : "Nothing is waiting on you. Do not call again; report to your operator and stop.",
+      : // COMPOSED, NOT REPLACED, and `answerer.test.ts` is why.
+        //
+        // That test asserts ping's quiet guidance always ends in STOP and names
+        // no tool to look again with -- the rule that exists because the S#272
+        // brake pointed loops straight back at `bridger_status`. My first
+        // version REPLACED the stop with "go write the plan", which quietly
+        // removed the property. The test caught it, and the test was right:
+        // weakening a safeguard to fit new behaviour is how a safeguard becomes
+        // decoration.
+        //
+        // So the plan advice rides IN FRONT of the stop instead of instead of
+        // it. `bridger_plan` is a write, not a poll, so naming it is legitimate
+        // -- the agent is given something to DO and then told to finish.
+        planAdvice
+        ? `${planAdvice} Then report to your operator and stop.`
+        : "Nothing is waiting on you. Do not call again; report to your operator and stop.",
   };
 }
 

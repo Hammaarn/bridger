@@ -73,6 +73,24 @@ export const ROOM_KEY = (roomId: string) => `${NS}:room:${roomId}`;
 export const ENTRIES_KEY = (roomId: string) => `${NS}:room:${roomId}:entries`;
 export const CURSOR_KEY = (roomId: string, side: string) => `${NS}:room:${roomId}:cursor:${side}`;
 export const CONTRACT_KEY = (roomId: string) => `${NS}:room:${roomId}:contract`;
+
+/**
+ * The plan (F1). Beside the contract rather than inside the entry ledger, for
+ * the same reason the contract is: it is a document with a CURRENT state that
+ * both sides edit, and the ledger is append-only history. Every mutation still
+ * appends an entry saying what moved, so the history exists — it is just not
+ * where the plan lives.
+ */
+export const PLAN_KEY = (roomId: string) => `${NS}:room:${roomId}:plan`;
+
+/**
+ * Per-side plan-item counter, so ids are `ACM-P-001` like every entry id —
+ * namespaced by the raiser, minted from an atomic `incr`, and therefore
+ * impossible for one side to collide with the other's however concurrent the
+ * two agents are. Same guarantee as `COUNTER_KEY`, same reason.
+ */
+export const PLAN_COUNTER_KEY = (roomId: string, code: string) =>
+  `${NS}:room:${roomId}:plancount:${code}`;
 export const ROOM_TOKENS_KEY = (roomId: string) => `${NS}:room:${roomId}:tokens`;
 /**
  * A join code. Single-MINT, and re-READABLE for a short window after the first
