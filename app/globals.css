@@ -1585,30 +1585,17 @@ input.bx-folder-name:focus {
   z-index: 1;
 }
 
-.row::after {
-  content: "";
-  position: absolute;
-  top: 19px;
-  height: 1px;
-  background: var(--line-strong);
-}
+/* The stub that tied a bubble to its rail is gone. It drew a line and carried
+   no information -- the node already sits on the rail and the bubble already
+   sits beside it. Erik's reference is markedly calmer than what we had, and
+   this was the cheapest thing to remove without losing a signal. */
 
 .turn.theirs .row::before {
   left: -21px;
 }
 
-.turn.theirs .row::after {
-  left: -14px;
-  width: 12px;
-}
-
 .turn.mine .row::before {
   right: -21px;
-}
-
-.turn.mine .row::after {
-  right: -14px;
-  width: 12px;
 }
 
 .turn.sideA .row::before {
@@ -1634,13 +1621,13 @@ input.bx-folder-name:focus {
 }
 
 .turn.sideA .bubble {
-  background: color-mix(in oklab, var(--side-a) 10%, var(--ink-800));
-  border-color: color-mix(in oklab, var(--side-a) 22%, var(--line));
+  background: color-mix(in oklab, var(--side-a) 9%, var(--ink-800));
+  border-color: transparent;
 }
 
 .turn.sideB .bubble {
-  background: color-mix(in oklab, var(--side-b) 10%, var(--ink-800));
-  border-color: color-mix(in oklab, var(--side-b) 22%, var(--line));
+  background: color-mix(in oklab, var(--side-b) 9%, var(--ink-800));
+  border-color: transparent;
 }
 
 /* Teams' grouping tell: consecutive bubbles from one party lose the corner
@@ -1661,8 +1648,11 @@ input.bx-folder-name:focus {
   border-top-right-radius: 4px;
 }
 
+/* The border returns on hover only. A resting bubble is a shape made of its
+   fill; an outline on every one of them was the single busiest thing in the
+   column. */
 .bubble:hover {
-  border-color: var(--line-strong);
+  border-color: var(--line);
 }
 
 .bubble .head {
@@ -1682,9 +1672,14 @@ input.bx-folder-name:focus {
   text-align: right;
 }
 
+/* ALIGNED, NOT REVERSED.
+   `row-reverse` mirrored the whole line, so a right-hand bubble read
+   "whole file · docs/adr/0007 · checked against · 3" — the words in the wrong
+   order, which is worse than being on the wrong side. Push the row to the right
+   and leave the reading order alone. */
 .turn.mine .bubble .why,
 .turn.mine .bubble .prov {
-  flex-direction: row-reverse;
+  justify-content: flex-end;
 }
 
 /* THE TYPE, KEPT. A chat shape that flattens `asks` / `decides` / `signs off`
@@ -3105,4 +3100,107 @@ input.bx-folder-name:focus {
   flex: none;
   max-height: 42dvh;
   overflow-y: auto;
+}
+
+/* ── THE EVIDENCE INDEX ──────────────────────────────────────────────────────
+   From Erik's reference: numbered citations in the text resolving to a numbered
+   list in the rail. The idea transfers; the framing does not. That product pins
+   sources somebody chose in advance — this one lists what claims were actually
+   checked against, so it is derived and cannot be curated. */
+.bx-evidence {
+  margin-bottom: 24px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.bx-evidence h2 {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.bx-evidence ul {
+  list-style: none;
+  display: grid;
+  gap: 4px;
+}
+
+.bx-src {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm, 4px);
+  padding: 6px 7px;
+  cursor: pointer;
+}
+
+.bx-src:hover,
+.bx-src.on {
+  background: var(--ink-800);
+  border-color: var(--line);
+}
+
+.bx-src-body {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.bx-src code {
+  font-size: 11px;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.bx-src-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono-stack);
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+}
+
+/* An artifact holding up six claims is a different risk from one holding up
+   one, so the multiplier is the loudest thing on the row after the number. */
+.bx-src-times {
+  color: var(--seal);
+  border: 1px solid color-mix(in oklab, var(--seal) 35%, transparent);
+  border-radius: 3px;
+  padding: 0 4px;
+}
+
+.bx-src.thin code {
+  color: var(--text-dim);
+}
+
+/* The numbered chip. One object, two places — the rail and the claim — and they
+   are the same size and shape on purpose: that sameness is what makes the
+   number read as a pointer rather than as decoration. */
+.cite {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--ink-700);
+  border: 1px solid var(--line-strong);
+  font-family: var(--font-mono-stack);
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+.prov.ok .cite {
+  color: var(--seal);
+  border-color: color-mix(in oklab, var(--seal) 40%, transparent);
+  background: color-mix(in oklab, var(--seal) 10%, transparent);
 }
