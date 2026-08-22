@@ -18,9 +18,10 @@
 
 import { getContract, readEntries } from "@/lib/entries";
 import { verifyChain, type ChainedEntry } from "@/lib/chain";
-import { authorize, writeAudit } from "@/lib/room-registry";
+import { authorize, readPlan, writeAudit } from "@/lib/room-registry";
 import { refusalResponse } from "@/lib/http-gate";
 import { createStore } from "@/lib/store";
+import { readiness } from "@/lib/plan";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -60,9 +61,10 @@ export async function GET(req: Request) {
   }
 
   const { room, token: tok } = outcome;
-  const [entries, contract] = await Promise.all([
+  const [entries, contract, plan] = await Promise.all([
     readEntries(store!, room.id),
     getContract(store!, room.id),
+    readPlan(store!, room.id),
   ]);
 
   await writeAudit(store, {
@@ -87,8 +89,13 @@ export async function GET(req: Request) {
       createdAt: room.createdAt,
       you: { side: tok.side, ...room.sides[tok.side] },
       peer: { side: tok.side === "a" ? "b" : "a", ...room.sides[tok.side === "a" ? "b" : "a"] },
+      phase: room.phase,
     },
     contract,
+    // F1. The board a watcher sees. Read-only here like everything on this
+    // route -- the plan is written through the tools, same single write path as
+    // every other part of the record.
+    plan: { items: plan.items, readiness: readiness(plan) },
     entries,
     chain,
     exportedAt: now.toISOString(),

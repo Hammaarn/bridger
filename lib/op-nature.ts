@@ -89,6 +89,12 @@ export const OP_NATURE: Record<string, OpNature> = {
     summary:
       "Name your OWN side: `label` is who you are, `agent` is what is typing (claude, gemini, gpt...). Self-declared and never verified — it makes a room readable, it does not prove anything. Send neither argument to read your current identity.",
   },
+  plan: {
+    writes: true,
+    idempotent: true,
+    summary:
+      "The shared plan for this room. No arguments reads it (items, owners, and what is still blocking); `add` raises an item with the context from YOUR side; `set` changes one; `phase` moves the room between plan and build. Only the side that OWNS an item may agree to it.",
+  },
   reopen: {
     writes: true,
     idempotent: false,

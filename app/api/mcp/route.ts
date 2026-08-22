@@ -67,6 +67,7 @@ import {
   opPurge,
   opRead,
   opIdentify,
+  opPlan,
   opReopen,
   opSignoff,
   opStatus,
@@ -472,6 +473,49 @@ const handler = createMcpHandler(
         }),
       },
       async (args, ctx) => run(() => opInvite(ctxFrom(ctx), args)),
+    );
+
+    server.registerTool(
+      "bridger_plan",
+      {
+        annotations: annotationsFor("plan"),
+        title: "The shared plan for this room",
+        description:
+          "The plan both sides converge on before building. Call with NO arguments to read it: every item, who owns it, and exactly what is still blocking completion. Use `add` to raise an aspect of this work that YOUR side can see, putting the context from your own codebase in `note` — that context is the thing the other side cannot get anywhere else. Use `set` to change an item, and `phase` to move the room between planning and building. ONE RULE IS ENFORCED: only the side that owns an item may mark it agreed, because a commitment made on somebody else's behalf is worthless. Everything else — proposing an owner, retitling, dropping — is open to both sides. Nothing is refused because of the room's phase.",
+        inputSchema: z.object({
+          add: z
+            .object({
+              title: z.string().min(1).max(200).describe("The aspect, in one line."),
+              note: z
+                .string()
+                .max(20000)
+                .optional()
+                .describe("Context from YOUR side — a file, a constraint, why it matters to you."),
+              owner: z
+                .union([z.enum(["a", "b", "both"]), z.null()])
+                .optional()
+                .describe("Who will do it. Leave null when it is genuinely theirs to say."),
+            })
+            .optional(),
+          set: z
+            .object({
+              id: z.string().min(1).max(40).describe("e.g. 'TRI-P-002'."),
+              title: z.string().min(1).max(200).optional(),
+              note: z.string().max(20000).optional(),
+              owner: z.union([z.enum(["a", "b", "both"]), z.null()]).optional(),
+              state: z
+                .enum(["open", "agreed", "dropped"])
+                .optional()
+                .describe("`agreed` is a commitment and only the owner may set it."),
+            })
+            .optional(),
+          phase: z
+            .enum(["plan", "build"])
+            .optional()
+            .describe("Move the room. Allowed even with the plan unfinished — the record says so."),
+        }),
+      },
+      async (args, ctx) => run(() => opPlan(ctxFrom(ctx), args)),
     );
 
     server.registerTool(

@@ -80,10 +80,22 @@ interface ExportPayload {
   room: {
     id: string;
     topic: string;
+    phase?: "plan" | "build";
     you: { side: string; label: string; code: string; joinedAt: string | null; agent?: string | null };
     peer: { side: string; label: string; code: string; joinedAt: string | null; agent?: string | null };
   };
   contract: { body: string; updatedBy: string; updatedAt: string } | null;
+  plan?: {
+    items: {
+      id: string;
+      title: string;
+      note: string;
+      owner: "a" | "b" | "both" | null;
+      state: "open" | "agreed" | "dropped";
+      raisedBy: "a" | "b";
+    }[];
+    readiness: { complete: boolean; open: number; unowned: number; agreed: number; blocking: string[] };
+  };
   entries: Entry[];
   exportedAt: string;
 }
@@ -300,6 +312,115 @@ function Provenance({ entry }: { entry: Entry }) {
       <span className="glyph">{"\u26a0"}</span>
       unchecked <span className="span">nobody named what this rests on</span>
     </p>
+  );
+}
+
+/**
+ * THE PLAN, AS A BOARD (F1).
+ *
+ * Erik's whiteboard instinct was pointing at something real and the noun was
+ * wrong: what both sides wanted was SPATIAL AND SIMULTANEOUS rather than
+ * LINEAR -- which is the same complaint as D2, one layer up. A freehand canvas
+ * would have cost 46 MB, needed a collaboration server the package does not
+ * ship, and sat outside the hash chain. Three columns of owned items give the
+ * same reading -- who holds what, at a glance -- for none of that.
+ *
+ * Columns are OWNERSHIP, not authorship: an item side A raised and side B owns
+ * belongs in B's column, because the question this answers is "who is doing
+ * it". Who raised it is a small mark, not a position.
+ */
+function PlanBoard({
+  plan,
+  you,
+  peer,
+  phase,
+}: {
+  plan: NonNullable<ExportPayload["plan"]>;
+  you: { side: string; label: string };
+  peer: { side: string; label: string };
+  phase?: string;
+}) {
+  const live = plan.items.filter((i) => i.state !== "dropped");
+  const columns = [
+    { key: "yours", label: you.label, side: you.side, items: live.filter((i) => i.owner === you.side) },
+    { key: "both", label: "Both", side: null, items: live.filter((i) => i.owner === "both") },
+    { key: "theirs", label: peer.label, side: peer.side, items: live.filter((i) => i.owner === peer.side) },
+  ];
+  const unowned = live.filter((i) => i.owner === null);
+
+  return (
+    <section className="bx-board">
+      <h2>
+        Plan
+        <span className={`bx-phase ${phase === "plan" ? "on" : ""}`}>{phase ?? "build"}</span>
+      </h2>
+
+      {live.length === 0 ? (
+        <p className="bx-none">
+          Nothing planned yet. Either side adds items with <code>bridger_plan</code>.
+        </p>
+      ) : (
+        <>
+          <div className="bx-board-cols">
+            {columns.map((col) => (
+              <div
+                key={col.key}
+                className={`bx-col ${col.side === "a" ? "sideA" : col.side === "b" ? "sideB" : "shared"}`}
+              >
+                <h3>
+                  {col.label}
+                  <span className="bx-count">{col.items.length}</span>
+                </h3>
+                {col.items.length === 0 && <p className="bx-none">nothing</p>}
+                {col.items.map((i) => (
+                  <div key={i.id} className={`bx-card ${i.state}`}>
+                    <div className="bx-card-head">
+                      <code>{i.id}</code>
+                      {/* The state is a word, not a colour alone -- a colour-only
+                          state is invisible to a reader who cannot see it. */}
+                      <span className="st">{i.state === "agreed" ? "agreed" : "open"}</span>
+                    </div>
+                    <strong>{i.title}</strong>
+                    {i.note && <p>{i.note}</p>}
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+
+          {/*
+            Unowned items get their own strip rather than a fourth column,
+            because they are not a party -- they are the thing standing between
+            this plan and being finished, and that is the readiness check's
+            single most common blocker.
+          */}
+          {unowned.length > 0 && (
+            <div className="bx-unowned">
+              <h3>
+                Nobody has claimed these
+                <span className="bx-count">{unowned.length}</span>
+              </h3>
+              {unowned.map((i) => (
+                <div key={i.id} className="bx-card open">
+                  <div className="bx-card-head">
+                    <code>{i.id}</code>
+                    <span className="st">unowned</span>
+                  </div>
+                  <strong>{i.title}</strong>
+                  {i.note && <p>{i.note}</p>}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <p className={`bx-ready ${plan.readiness.complete ? "done" : ""}`}>
+            {plan.readiness.complete
+              ? "Every item is owned and agreed."
+              : `${plan.readiness.agreed} agreed · ${plan.readiness.open} open · ${plan.readiness.unowned} unowned`}
+          </p>
+        </>
+      )}
+    </section>
   );
 }
 
@@ -1601,6 +1722,24 @@ function RoomView({
 
       {error && <div className="error" style={{ margin: "12px 22px" }}>{error}</div>}
 
+      {/*
+        THE PLAN, WHILE PLANNING, IS THE PAGE.
+        Three ownership columns in a 320px rail wrapped item ids across three
+        lines — legible in a screenshot only if you already knew what it said.
+        The fix is not a smaller font: during the plan phase this IS the work,
+        so it gets the width, and the conversation stays below it.
+      */}
+      {data?.plan && data.room.phase === "plan" && (
+        <div className="bx-board-wide">
+          <PlanBoard
+            plan={data.plan}
+            you={data.room.you}
+            peer={data.room.peer}
+            phase={data.room.phase}
+          />
+        </div>
+      )}
+
       <div className="bx-panels">
         {/* LEFT — the record, as browsable folders */}
         <aside className="bx-tree">
@@ -1741,8 +1880,23 @@ function RoomView({
           </div>
         </section>
 
-        {/* RIGHT — what the two sides actually agreed */}
+        {/* RIGHT — what the two sides are going to do, then what they agreed */}
         <aside className="bx-agree">
+          {/*
+            In BUILD the plan is reference material and lives in the rail. In
+            PLAN it is the work, and it sits full-width above the panels — see
+            the block before `.bx-panels`. This is the phase shaping LAYOUT,
+            which is half of what a phase was for and was doing nothing yet.
+          */}
+          {data?.plan && data.room.phase !== "plan" && (
+            <PlanBoard
+              plan={data.plan}
+              you={data.room.you}
+              peer={data.room.peer}
+              phase={data.room.phase}
+            />
+          )}
+
           <h2>Agreements</h2>
 
           <section className="stats bx-stats">

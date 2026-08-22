@@ -35,9 +35,11 @@
 import { createHash, randomBytes } from "node:crypto";
 
 import { sanitiseRoomMetadata } from "./room-text";
+import { EMPTY_PLAN, parsePlan, type Plan } from "./plan";
 import {
   AUDIT_LOG,
   AUDIT_LOG_MAX,
+  PLAN_KEY,
   ROOM_ACTIVITY_KEY,
   ROOM_ACTIVITY_DAYS_MAX,
   KILL_SWITCH,
@@ -186,7 +188,24 @@ export interface RoomRecord {
    * bridge is the bug, so the missing field must fail toward the limit.
    */
   dailyCap: number;
+  /**
+   * F1. `plan` while the two sides are still working out what the job is;
+   * `build` once they are doing it.
+   *
+   * **Shapes guidance and layout, never permissions.** Every operation works in
+   * every phase. A room in `plan` that refused a `decide` would be a workflow
+   * engine, and people route around workflow engines — the phase is here to
+   * tell an agent what is most useful next, not to stop it doing something.
+   *
+   * A room stored before this existed reads as `build`, not `plan`: the rooms
+   * that already exist are mid-work, and dropping them into a planning phase
+   * would start advising two parties to plan something they have half shipped.
+   */
+  phase: RoomPhase;
 }
+
+export const ROOM_PHASES = ["plan", "build"] as const;
+export type RoomPhase = (typeof ROOM_PHASES)[number];
 
 export type DenyReason =
   | "bridge-disabled"
@@ -463,6 +482,8 @@ export function parseRoom(raw: unknown): RoomRecord | null {
     sides: { a: side(r.sides?.a), b: side(r.sides?.b) },
     // A room minted before room caps existed gets the default, never Infinity.
     dailyCap: Number.isFinite(r.dailyCap) ? Number(r.dailyCap) : DEFAULT_ROOM_DAILY_CAP,
+    // Pre-F1 rooms are mid-work, not mid-planning. See `RoomRecord.phase`.
+    phase: r.phase === "plan" ? "plan" : "build",
   };
 }
 
@@ -851,6 +872,12 @@ export async function createRoom(
       b: { label: peerLabel, code: peerCode, joinedAt: null },
     },
     dailyCap: DEFAULT_ROOM_DAILY_CAP,
+    // A NEW room starts in `plan`, and that is the opinionated half of F1.
+    // Two parties opening a bridge have not yet agreed what the work is -- that
+    // is the whole reason they opened one -- so the default should be the phase
+    // that says "list what you can see from your side". Moving to `build` is
+    // one call, and nothing is refused in either phase.
+    phase: "plan",
   };
 
   await store.set(ROOM_KEY(roomId), JSON.stringify(room));
@@ -1006,6 +1033,33 @@ export async function setSideIdentity(
   await store.set(ROOM_KEY(room.id), JSON.stringify(next));
   clearRegistryCache();
   return next;
+}
+
+/** Move the room between phases. Nothing is gated on this; see `RoomRecord.phase`. */
+export async function setRoomPhase(
+  store: Store,
+  room: RoomRecord,
+  phase: RoomPhase,
+): Promise<RoomRecord> {
+  const next: RoomRecord = { ...room, phase };
+  await store.set(ROOM_KEY(room.id), JSON.stringify(next));
+  clearRegistryCache();
+  return next;
+}
+
+/** Read the plan. A missing or corrupt record reads as an EMPTY plan, never as a throw. */
+export async function readPlan(store: Store, roomId: string): Promise<Plan> {
+  try {
+    return parsePlan(await store.get(PLAN_KEY(roomId)));
+  } catch {
+    return EMPTY_PLAN;
+  }
+}
+
+export async function writePlan(store: Store, roomId: string, plan: Plan): Promise<void> {
+  await store.set(PLAN_KEY(roomId), JSON.stringify(plan));
+  // Expires with the room it belongs to, like the contract.
+  await store.expire(PLAN_KEY(roomId), ROOM_TTL_SECONDS);
 }
 
 // ── audit ────────────────────────────────────────────────────────

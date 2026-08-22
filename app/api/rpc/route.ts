@@ -48,6 +48,7 @@ import {
   opPurge,
   opRead,
   opIdentify,
+  opPlan,
   opReopen,
   opSignoff,
   opStatus,
@@ -190,6 +191,33 @@ const OPS = {
       agent: z.string().max(40).nullable().optional(),
     }),
     run: opIdentify,
+  },
+  /**
+   * F1. One verb for one concept: no arguments reads the plan, `add` raises an
+   * item, `set` changes one, `phase` moves the room. The far side's standing
+   * complaint about this product was ceremony, so this is not four operations.
+   */
+  plan: {
+    schema: z.object({
+      add: z
+        .object({
+          title: z.string().min(1).max(200),
+          note: z.string().max(20000).optional(),
+          owner: z.union([z.enum(["a", "b", "both"]), z.null()]).optional(),
+        })
+        .optional(),
+      set: z
+        .object({
+          id: z.string().min(1).max(40),
+          title: z.string().min(1).max(200).optional(),
+          note: z.string().max(20000).optional(),
+          owner: z.union([z.enum(["a", "b", "both"]), z.null()]).optional(),
+          state: z.enum(["open", "agreed", "dropped"]).optional(),
+        })
+        .optional(),
+      phase: z.enum(["plan", "build"]).optional(),
+    }),
+    run: opPlan,
   },
   reopen: {
     schema: z.object({ questionId: z.string().min(1), why: z.string().min(1).max(20000) }),
