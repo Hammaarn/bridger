@@ -212,6 +212,12 @@ function dayLabel(iso: string): string {
 const SEEN_KEY = (roomId: string) => `bridger.seen.${roomId}`;
 
 /**
+ * Which rails are collapsed. GLOBAL, not per room: how wide you like your
+ * reading column is a property of you and your screen, not of a conversation.
+ */
+const RAILS_KEY = "bridger.rails";
+
+/**
  * THE ROOM READS AS A DIALOGUE (S#280, D1 + D2 + D4).
  *
  * Erik, after watching a real cross-company session: *"it should read like two
@@ -499,15 +505,21 @@ function PlanBoard({
   phase,
 }: {
   plan: NonNullable<ExportPayload["plan"]>;
-  you: { side: string; label: string };
-  peer: { side: string; label: string };
+  you: { side: string; label: string; code?: string };
+  peer: { side: string; label: string; code?: string };
   phase?: string;
 }) {
   const live = plan.items.filter((i) => i.state !== "dropped");
+  // Disambiguated exactly like the feed. A board whose two owner columns are
+  // both headed "claude" is worse than no board -- its entire job is saying who
+  // holds what, and that was the complaint that started this pass.
+  const same = you.label.trim().toLowerCase() === peer.label.trim().toLowerCase();
+  const nameOf = (s: { label: string; code?: string }) =>
+    same && s.code ? `${s.label} ${s.code}` : s.label;
   const columns = [
-    { key: "yours", label: you.label, side: you.side, items: live.filter((i) => i.owner === you.side) },
+    { key: "yours", label: nameOf(you), side: you.side, items: live.filter((i) => i.owner === you.side) },
     { key: "both", label: "Both", side: null, items: live.filter((i) => i.owner === "both") },
-    { key: "theirs", label: peer.label, side: peer.side, items: live.filter((i) => i.owner === peer.side) },
+    { key: "theirs", label: nameOf(peer), side: peer.side, items: live.filter((i) => i.owner === peer.side) },
   ];
   const unowned = live.filter((i) => i.owner === null);
 
@@ -1484,6 +1496,38 @@ function RoomView({
    * drift from the record the way a tally can.
    */
   const [bottomSeq, setBottomSeq] = useState<number | null>(null);
+  /**
+   * COLLAPSING MUST NOT HIDE A SIGNAL.
+   *
+   * Erik: *"too much scroll and text stacked on top... we need a more compact
+   * feeling"*, and the two rails were taking ~40% of the width. Hiding them is
+   * easy; hiding them HONESTLY is the constraint. A collapsed rail keeps a strip
+   * carrying the numbers that were the reason to look at it -- sources, open
+   * questions, unclaimed plan items -- so choosing a wider reading column never
+   * costs you the thing that would have made you open the panel.
+   */
+  const [rails, setRails] = useState<{ left: boolean; right: boolean }>({ left: true, right: true });
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(RAILS_KEY);
+      if (raw) {
+        const v = JSON.parse(raw);
+        if (typeof v?.left === "boolean" && typeof v?.right === "boolean") setRails(v);
+      }
+    } catch {
+      /* a private window just gets both rails */
+    }
+  }, []);
+  const toggleRail = (side: "left" | "right") =>
+    setRails((prev) => {
+      const next = { ...prev, [side]: !prev[side] };
+      try {
+        localStorage.setItem(RAILS_KEY, JSON.stringify(next));
+      } catch {
+        /* the preference simply does not persist */
+      }
+      return next;
+    });
 
 
   /**
@@ -2038,9 +2082,47 @@ function RoomView({
         </div>
       )}
 
-      <div className="bx-panels">
+      <div className={`bx-panels ${rails.left ? "" : "no-left"} ${rails.right ? "" : "no-right"}`}>
+        {/*
+          THE COLLAPSED STRIP, and the reason it is not just a hidden panel.
+          A rail that vanishes leaving only a button in a toolbar is a rail you
+          forget you had. This keeps a 34px edge carrying the counts that were
+          the reason to look -- so collapsing trades WIDTH for a summary, rather
+          than trading it for ignorance.
+        */}
+        {!rails.left && (
+          <button
+            type="button"
+            className="bx-rail-stub left"
+            onClick={() => toggleRail("left")}
+            title="Show the record and the evidence"
+          >
+            <span className="bx-stub-arrow">{"›"}</span>
+            <span className="bx-stub-label">RECORD</span>
+            {evidence.sources.length > 0 && (
+              <span className="bx-stub-n" title={`${evidence.sources.length} cited artifacts`}>
+                {evidence.sources.length}
+              </span>
+            )}
+            {open.length > 0 && (
+              <span className="bx-stub-n hot" title={`${open.length} open questions`}>
+                {open.length}
+              </span>
+            )}
+          </button>
+        )}
+
         {/* LEFT — the record, as browsable folders */}
-        <aside className="bx-tree">
+        <aside className="bx-tree" hidden={!rails.left}>
+          <button
+            type="button"
+            className="bx-rail-hide"
+            onClick={() => toggleRail("left")}
+            title="Collapse this rail"
+            aria-label="Collapse the record rail"
+          >
+            {"‹"}
+          </button>
           {/*
             EVIDENCE FIRST, then the folders.
             Erik's reference put pinned sources at the top of the rail, and the
@@ -2293,7 +2375,16 @@ function RoomView({
         </section>
 
         {/* RIGHT — what the two sides are going to do, then what they agreed */}
-        <aside className="bx-agree">
+        <aside className="bx-agree" hidden={!rails.right}>
+          <button
+            type="button"
+            className="bx-rail-hide right"
+            onClick={() => toggleRail("right")}
+            title="Collapse this rail"
+            aria-label="Collapse the plan rail"
+          >
+            {"›"}
+          </button>
           {/*
             In BUILD the plan is reference material and lives in the rail. In
             PLAN it is the work, and it sits full-width above the panels — see
@@ -2375,6 +2466,28 @@ function RoomView({
             </>
           )}
         </aside>
+
+        {!rails.right && (
+          <button
+            type="button"
+            className="bx-rail-stub right"
+            onClick={() => toggleRail("right")}
+            title="Show the plan and the agreements"
+          >
+            <span className="bx-stub-arrow">{"‹"}</span>
+            <span className="bx-stub-label">PLAN</span>
+            {data?.plan && data.plan.readiness.unowned > 0 && (
+              <span className="bx-stub-n hot" title={`${data.plan.readiness.unowned} plan items with no owner`}>
+                {data.plan.readiness.unowned}
+              </span>
+            )}
+            {decisions.length > 0 && (
+              <span className="bx-stub-n" title={`${decisions.length} decisions`}>
+                {decisions.length}
+              </span>
+            )}
+          </button>
+        )}
       </div>
 
       <footer>
