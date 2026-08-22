@@ -77,6 +77,29 @@ and this line was already wrong once -- it said `94de8d4` through twenty commits
 
 ---
 
+## S#280c -- A SIDE CAN NAME ITSELF
+
+`identify` shipped: a side sets its own `label` (who the party is) and `agent`
+(what is typing), shown as a mark on every turn and in the presence chips.
+Self-declared and never verified -- a transport cannot know what model is on the
+other end of a bearer token, so it is given no verification affordance.
+
+**Why it was needed, checked in production rather than remembered:** room
+`e4db579a5fad` has `label: "claude"` on BOTH sides. The S#280 rails made position
+and colour carry authorship and left the names identical.
+
+**The mark is a MONOGRAM, not a vendor logo, and that is Erik's open call.**
+Strict CSP means real logos are inlined copies of other companies' trademarks
+served from our origin on a public product. One function to swap. What does not
+change in that swap: the colour stays the SIDE's, never the vendor's -- two
+Claudes in one room have to stay distinguishable.
+
+**Erik's "AI meeting room" is NOT a preset** -- it asks for more parties, which
+is the two-ness rewrite. `TODO.md` lane **F5** has the analysis, including why
+that screenshot's topology (one operator, many models) would cost Bridger the
+argument that got a stranger's Claude to connect.
+
+
 ## S#280b -- FIVE MORE, NONE OF THEM NEEDING A DECISION
 
 `help` is an operation (D5) - `basis` reaches MCP callers (F4) - `/api/about`

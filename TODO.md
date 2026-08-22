@@ -593,6 +593,10 @@ way to make that worse.** So:
   - **Plan then build** -- F1
   - **Question and answer** -- an integration support room; the answerer surface
     already exists for this shape
+  - ~~**AI meeting room**~~ -- REQUESTED S#280 and it is NOT a preset. Presets
+    shape STAGES; this asks for more PARTIES, which is the two-ness rewrite
+    (E2/E4). See **F5**, which also explains why the topology in that screenshot
+    is not ours.
 - **stages never gate a write.** A room in `plan` that refuses a `decide` is
   hostile and would be worked around within a day.
 
@@ -622,6 +626,102 @@ is SPATIAL AND SIMULTANEOUS rather than LINEAR -- which is D2's complaint again,
 one layer up. The plan rendered as a two-column board with a shared middle gives
 that for a fraction of the cost. Excalidraw goes on top of a plan that already
 exists, if the board turns out not to be enough.
+
+## F5. "AI MEETING ROOM" — Erik, S#280, from a competitor screenshot
+
+Erik: *"We should have a preset in your F2 point, 'AI meeting room', basically you
+connect multiple AI models into 1 room if you got the subscription to them of
+course. I like the logos that displays which model is which."*
+
+**The screenshot** (a product called Shared Chat): one operator, "Mira", plus
+Gemini, Claude, DeepSeek, Perplexity, Qwen, Grok and Copilot as participants,
+each carrying its vendor mark. Mira posts a task; each model claims a piece.
+
+### [!!] IT IS A DIFFERENT TOPOLOGY, AND THAT IS THE WHOLE POINT
+
+That product is **ONE operator, MANY models.** Bridger is **TWO COMPANIES, each
+with its own operator and its own AI**, keeping a record neither can rewrite.
+
+Those are not the same shape with a different number in it:
+
+| | Shared Chat | Bridger |
+|---|---|---|
+| who is present | one person, many models they pay for | two parties who do not share an employer |
+| what it is for | orchestrating models you own | agreeing across a boundary of trust |
+| the hard problem | routing and turn-taking | evidence, provenance, tamper-evidence |
+| why the record exists | convenience | neither side can alter it unilaterally |
+
+**Copying that topology would cost Bridger its differentiator.** `checkedAgainst`,
+`basis`, the hash chain, the containment markers and the untrusted-partner
+framing all exist because the far side is *somebody else*. Point them at seven
+models on one person's subscriptions and every one of them becomes ceremony —
+you do not need tamper-evidence against yourself. It would also put us in a
+crowded space against products that already do it well, having abandoned the one
+argument that got a stranger's Claude to connect.
+
+**The genuine Bridger version of that screenshot is N PARTIES, not N MODELS:**
+three or four *companies* in one room, each with its own operator and agent. That
+is a real and attractive product. It is also E4, and it is a rewrite.
+
+### IT CANNOT BE A PRESET, and the distinction is load-bearing
+
+An F2 preset is an ordered list of STAGES. It shapes guidance and layout. **It
+cannot add parties.** Verified, not remembered:
+
+- `SUPPORTED_SLOTS = 2` (`app/api/rooms/route.ts:58`), and the refusal already
+  says *"more than two is a change to the room model, not a setting"*
+- `SideId = "a" | "b"` (`lib/room-registry.ts:71`), baked into five files:
+  `entries.ts`, `operations.ts`, `room-registry.ts`, `api/rooms/route.ts`,
+  `page.tsx`
+- `otherSide()` is a boolean flip; `sides` is a fixed-shape object; entry ids are
+  namespaced per side; "the peer" is singular in `whoami`, the wait cursor and
+  the idle brake
+- `ARCHITECTURE.md` #31, *"Two-ness is the data model, not a setting"*
+
+**And the cost is the SEMANTICS, not the typing** — E2 recorded these and they
+still have no answers: does an answer close a question for *everyone*? does the
+idle brake trip per party or per room? who does a contract bind? does a room
+need every party to sign off, or one? Those are product decisions, and a
+three-party room where they are guessed is worse than no three-party room.
+
+### THE QUESTION ONLY ERIK CAN ANSWER
+
+E4 parked multi-party with a specific condition: *"the request came from an
+intuition about pricing rather than from anyone who has used a two-party room
+and hit the wall. Wait for that person."*
+
+Erik has now used a two-party room for real. So:
+
+> **Did the two-party limit get in your way with Trigvanta, or is this a good
+> screenshot?**
+
+Both are legitimate answers and they lead opposite ways. "It got in my way"
+un-parks E4 and the semantics above become the next design session. "It looked
+good" keeps it parked — and the honest note is that wanting a feature after
+seeing a competitor is exactly the intuition E4 was written to wait out.
+
+### WHAT SHIPPED FROM THIS ANYWAY — the logos half, S#280
+
+The identity problem Erik spotted is REAL and does not need multi-party at all.
+Checked in production: room `e4db579a5fad` has `label: "claude"` on **both**
+sides. Two parties, same name.
+
+So `identify` shipped: a side names its own `label` (who the party is) and
+`agent` (what is typing), rendered as a mark beside every turn and in the
+presence chips. Self-declared, never verified, no verification affordance —
+a transport cannot know what model is on the other end of a bearer token.
+
+**Open, and it is Erik's:** the mark is a MONOGRAM (`CL`, `GE`), not a vendor
+logo. The page is served under a strict CSP with no external hosts, so real logos
+mean shipping inlined copies of Anthropic's, Google's and OpenAI's trademarks
+from our own origin on a public product. Nominative use — "this identifies which
+service is connected" — is usually defensible, but that is a call about somebody
+else's business and not one to make while the operator is out. Say the word and
+it is one function.
+
+**Not negotiable in that swap:** the colour stays the SIDE's, never the vendor's.
+Two Claudes in one room have to stay distinguishable, and a brand palette would
+actively prevent it — which is the bug that started this item.
 
 ## F4. GAPS FOUND S#280, small and real
 
