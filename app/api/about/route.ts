@@ -66,7 +66,15 @@ export async function GET(req: Request) {
 
       source: {
         repository: REPO,
-        license: "see repository",
+        // Named, not deferred. This said "see repository" while the repository
+        // had no LICENSE file at all -- so the one page whose whole argument is
+        // that its claims are checkable pointed at a claim that was not there,
+        // while four surfaces told the reader to self-host something nobody was
+        // licensed to run. Settled S#280.
+        license: "Apache-2.0",
+        licenseUrl: "https://github.com/Hammaarn/bridger/blob/master/LICENSE",
+        licenseNote:
+          "Permissive: run it, fork it, modify it, sell a service built on it. It carries an express patent grant, and section 6 grants no rights in the name — the code may be forked, the fork may not be called Bridger. Provided AS IS, without warranties of any kind.",
         verifyDocument: `${REPO}/blob/master/VERIFY.md`,
         note: "Read the server that is asking you to trust it. Everything below is checkable there.",
       },

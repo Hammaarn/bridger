@@ -443,3 +443,22 @@ Auth **fails closed**: if the registry cannot be read and nothing is cached, the
 request is refused. A 30-second cache keeps a brief Upstash blip from dropping a
 partner mid-integration; past that window it stops, and a revocation is never
 outlived by the cache.
+
+## Licence
+
+**Apache License 2.0.** Copyright 2026 Erik Hammarström. Full text in
+[`LICENSE`](LICENSE); attribution in [`NOTICE`](NOTICE).
+
+Run it, fork it, modify it, self-host it, build a paid service on it. Keep the
+notice, and state what you changed in files you modify. It carries an express
+**patent grant**, and it is provided **AS IS, without warranties of any kind** —
+which is the clause that matters for something two companies route real work
+through.
+
+**The name is not part of the grant.** Section 6 grants no rights in trade names
+or product names: the code may be forked, a fork may not be called Bridger.
+
+Chosen S#280, and it was overdue: four surfaces — the landing page, the join
+page and `/api/about` twice — told readers to run their own instance while the
+repository carried no licence at all, so nobody was legally permitted to do the
+thing the product's trust argument is built on.
