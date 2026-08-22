@@ -29,19 +29,24 @@ as part of someone's standard kit when working together with AI."*
 
 | # | What | Why it is first |
 |---|---|---|
-| 1 | **E1 — pick a licence** | The repo is PUBLIC with **no LICENSE file**, so legally nobody may self-host it, while three surfaces tell them to. It also decides the whole monetisation question. Blocking a claim we already make. |
-| 2 | **D6 — the audit window** | 5,000 rows, zero headroom; one session overflows it. You cannot prove repeat usage — the thing that turns eight yeses into evidence, and the thing a paid tier would bill for. |
-| 3 | **D1 + D2 — who is who, and bubbles** | One job. What those eight people hit within thirty seconds of a real room. Blocked on a screenshot of x.ai/bot from Erik. |
-| 4 | **C1 — `guidance` in the field** | Still the `[!!]` from S#278: our documents never update for a partner already on the bridge. |
+| 1 | **D1 + D2 + D4 - the room becomes a chat** | ONE job as of S#280, and unblocked: Teams chat replaces the x.ai/bot reference Erik could not supply. This is the surface everything else renders into, and what those eight people hit inside thirty seconds. Build it before the plan stage or you build the plan stage twice. |
+| 2 | **D3 + C1 - annotations and live guidance** | Both are small, and both became PREREQUISITES at S#280. A planning-mode Claude cannot call our tools at all (zero `readOnlyHint` across 13 tools) - and the plan stage's default partner state IS plan mode. C1 is how per-phase advice reaches a partner already holding a frozen join document. |
+| 3 | **The plan stage** (new, S#280) | Erik and Trigvanta independently felt the same gap after using it, and the far side's own `C3c` names the mechanism from the other end. A plan is a DOCUMENT both sides converge on, not a conversation they have. |
+| 4 | **D6 - the audit window** | 5,000 rows, zero headroom; one session overflows it. Reframed S#280: with pricing deferred this stops being a billing prerequisite and becomes the FUNNEL instrument - "did anyone come back" is the only number the strategy runs on. |
+
+**E1 (the licence) is still open and still Erik's**, but it is no longer the
+monetisation decision: pricing was deferred at S#280 while the licence gap was
+not. See `DECISIONS.md` 2026-08-22 (S#280).
 
 Lane D is what the first cross-company session taught us. Lane E is the business
-question Erik opened at the close of S#279. A/B/C are older and still true.
+question Erik opened at the close of S#279 and answered in part at S#280.
+A/B/C are older and still true.
 
-> **DIRECTION (Erik, S#275): zero install, zero setup — "just a bridge to a room
+> **DIRECTION (Erik, S#275): zero install, zero setup - "just a bridge to a room
 > where users' AIs can communicate in a safe environment."** The idea is strong;
 > the ONBOARDING is the product problem. Still internal-infrastructure-first
-> (S#274b). The name is parked until there is a working end-to-end bridge people
-> use — `DECISIONS.md` 2026-08-17.
+> (S#274b). **The name is GAVELED as Bridger (S#280)** - `DECISIONS.md`
+> 2026-08-22.
 
 ---
 
@@ -484,10 +489,18 @@ vague descriptions of what each thing does. The minted screen hands over three
 tokens, a warning, an invite block, a fallback and an MCP section, and expects
 the reader to work out which of those they need.
 
-Design reference: Erik pointed at **https://x.ai/bot**, which I could not read --
-Cloudflare returns 403 to both WebFetch and headless Chrome, and working around a
-deliberate bot block is not something to do. **Needs a screenshot or the copy
-from Erik before this item is actionable.**
+**SUPERSEDED S#280 -- the reference is now Microsoft Teams chat, not x.ai/bot.**
+Erik: *"implement a typical chat interface in the chat room. Take microsoft teams
+chat as a direction of how it should work and look (with our own design of
+course) but the best principles from that service should be taken as
+inspiration."* The screenshot blocker is gone by replacement, not by fetching.
+**D1 + D2 + D4 are now ONE job:** the room reads as a dialogue -- alignment says
+who is speaking, colour confirms it, entry types stay visible. The design
+language stays ours (`app/wire.tsx`, INSTRUMENT register, `--seal` on provenance
+only); Teams is the INTERACTION reference, not the visual one. **The tension to
+hold: a chat bubble is a message, a Bridger entry is a typed record with `basis`
+and `checkedAgainst` -- if the bubble hides the citation it removes the point.**
+`DECISIONS.md` 2026-08-22 (S#280).
 
 ## D5. `help` IS NOT AN OPERATION, AND SOMEBODY REACHED FOR IT
 

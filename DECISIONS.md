@@ -5,6 +5,85 @@ Append-only, newest first. **DECISIONS wins on direction** — where this file a
 
 ---
 
+## 2026-08-22 -- S#280 -- THE NAME IS BRIDGER. GAVELED. AND PRICING WAITS FOR THE PRODUCT.
+
+**Source:** Erik, S#280, answering the S#279 agenda directly.
+
+**THE NAME IS SETTLED: Bridger.** *"Name is Bridger and thats gaveled. I don't
+care about the URL being 'Non-official'."* This CLOSES the park recorded on
+2026-08-17 (*"this isn't even a real product with credibility yet -- that waits
+until we have a real working end-to-end bridge that people use"*); the condition
+was met at S#279 when Trigvanta's Claude worked a real room from their own
+machine. The collisions are accepted, not resolved: `bridger` on npm is an
+unrelated socket.io package and `bridger-nu.vercel.app` stays the host.
+
+**Consequence, and it needs a separate go:** publishing the CLI now has a name
+but still claims a public identifier, which is the one class the shipping rules
+keep gated. `@bridger/cli` was free at the last check. Not published; not
+decided here.
+
+**PRICING WAITS, AND THE REASON IS A FUNNEL, NOT INDECISION.** Erik: *"Lets
+build the best possible tool and product we can first, my plan is to let users
+use the product and then have the impression that this is a tool that should
+have been built from the start. That will act as a funnel and when the traffic
+is high enough we can start providing Business solutions for small teams and
+ship features focused in that direction."*
+
+So E3's shape (rooms and volume, not seats) is not rejected -- it is DEFERRED
+until traffic exists. E2 and E4 stay parked for the reason already recorded.
+What this does change: **D6 stops being a prerequisite for a pricing decision
+and becomes the instrument for the funnel itself.** A 5,000-row window that one
+session overflows cannot show whether anyone came back, and "did they come back"
+is the only number the funnel plan runs on.
+
+**STILL OPEN AND NOT ANSWERED BY THIS: the licence.** Deferring PRICING does not
+defer E1. The repo is public with `licenseInfo: null` (re-verified S#280), so
+default copyright applies and nobody may legally self-host -- while the landing
+page, `/llms.txt` and `/api/about` all instruct them to. A funnel that runs on
+people trying it themselves is the strategy MOST dependent on that instruction
+being legal. Carried to Erik as a licence question with pricing removed from it.
+
+**Doc impact:** `STATUS.md` name-parked block, `TODO.md` START HERE + E1/E3,
+`MEMORY.md` Bridger line. **Code impact:** none.
+
+---
+
+## 2026-08-22 -- S#280 -- THE ROOM BECOMES A CHAT, AND TEAMS IS THE REFERENCE
+
+**Source:** Erik, S#280: *"basically what I wanted is that we implement a typical
+chat interface in the chat room. Take microsoft teams chat as a direction of how
+it should work and look (with our own design of course) but the best principles
+from that service should be taken as inspiration."*
+
+**This supersedes the x.ai/bot reference in D4.** That item had been blocked
+since S#279 on a screenshot the site would not serve (Cloudflare 403 to WebFetch
+and to headless Chrome alike). It is unblocked by being replaced: the reference
+is now Teams chat, which is describable without fetching anything.
+
+**It also collapses three separate items into one job.** D1 (nobody can tell who
+is who), D2 (the conversation is not shaped like a conversation) and D4 (the
+create flow is too many steps) were filed as three findings from the first
+cross-company session. They are one deliverable: the room reads as a dialogue
+between two parties. Alignment says who is speaking before any text is read,
+colour confirms it, and the entry types stop being a uniform list.
+
+**What is explicitly NOT inherited from Teams:** the design language stays ours
+(`app/wire.tsx`, the INSTRUMENT register, `--seal` spent on provenance only).
+Teams is the interaction reference, not the visual one. The principles worth
+taking are authorship-by-position, per-party identity, grouped consecutive
+messages, and a read/delivered state -- all of which this record already has the
+data for and spends on nothing.
+
+**The tension to resolve in the build, named now so it is not discovered late:**
+a chat bubble is a message and a Bridger entry is a typed record with a `basis`
+and a `checkedAgainst`. If the chat shape hides the citation, it removes the
+thing the product is for. The layout must carry the type, not flatten it.
+
+**Doc impact:** `TODO.md` D1/D2/D4 merge. **Code impact:** `app/` room view;
+no protocol, storage or limit change.
+
+---
+
 ## 2026-08-22 -- S#279 -- OPEN SOURCE vs A PAID TIER: THE LICENCE COMES FIRST
 
 **Source:** Erik at the close of S#279, after eight people saw it and all eight

@@ -62,12 +62,18 @@ and this line was already wrong once -- it said `94de8d4` through twenty commits
 > stranger's code. `@bridger/cli` is free. This is why A3 is closed as
 > *documented*, not as *published*.
 >
-> **THE NAME IS PARKED.** `bridger` collides everywhere and `.ai` is $80/yr.
-> Erik's call: *"this isn't even a real product with credibility yet — that
-> waits until we have a real working end-to-end bridge that people use."*
-> Candidates checked and free at the time: `trycrossing.com` $11.25 ·
-> `crossing.team` $7.99 · `crossing.dev` $97.90 · `bothsides.dev` $9.99.
-> Rejected with reasons in `DECISIONS.md` 2026-08-17.
+> **THE NAME IS BRIDGER. GAVELED S#280.** Erik: *"Name is Bridger and thats
+> gaveled. I don't care about the URL being 'Non-official'."* The park recorded
+> 2026-08-17 is closed -- its condition (*a real working end-to-end bridge that
+> people use*) was met at S#279. The collisions are ACCEPTED, not resolved:
+> `bridger` on npm is still a stranger's socket.io package, so publishing the CLI
+> is a separate go Erik has not given. `DECISIONS.md` 2026-08-22 (S#280).
+>
+> **PRICING IS DEFERRED, deliberately.** Build the product first, let usage
+> create the demand, add small-team business features when traffic justifies it.
+> **The LICENCE is NOT deferred by that** -- the repo is still `licenseInfo:
+> null` while three surfaces tell readers to self-host, and a funnel built on
+> people trying it themselves is the strategy most dependent on that being legal.
 
 ---
 
