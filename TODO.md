@@ -30,7 +30,7 @@ as part of someone's standard kit when working together with AI."*
 | # | What | Why it is first |
 |---|---|---|
 | 1 | **D3's live test, and F1 in a real room** | The plan stage shipped S#280 and has never been used by a far side. Its default partner state is plan mode, and whether our tool annotations unblock that is still UNVERIFIED. This needs Trigvanta, not a patch. |
-| 2 | **The three chat gaps** | No date separators, no unread divider, no auto-scroll. All confirmed absent S#280, all small, none needing a decision. |
+| 2 | **B5 at scale** | The panels never scrolled until S#280 (`min-height` let the box grow, so the PAGE scrolled). Found at 30 entries. Nothing else in the room has been looked at past a handful of entries either. |
 | 3 | **D3's live test** | Annotations shipped S#280; whether they unblock a planning session is UNVERIFIED and depends on the partner's harness. For F1 that is not an edge case -- "the partner's AI is in plan mode" is F1's DEFAULT state. This needs a partner, not a patch. |
 | 3 | **D6 - the audit window** | 5,000 rows, zero headroom; one session overflows it. Reframed S#280: with pricing deferred this stops being a billing prerequisite and becomes the FUNNEL instrument - "did anyone come back" is the only number the strategy runs on. |
 | 4 | **D4's create half + F2 room shapes** | The ROOM now reads as a dialogue; the CREATE flow is still too many steps. F2 (shape presets) lands here, and lands as PRESETS - a stage-designer on the create screen would make D4 worse, which is the trap named in lane F. |
@@ -272,6 +272,14 @@ Antigravity filled `checkedAgainst` honestly once, and one of its two citations
 was over-broad. One data point is not generalisation. Different question shape.
 
 ## B5. Design verification that has NOT happened
+
+**[S#280] One of these stopped being theoretical.** "The room view has only ever
+been captured with a FOUR-entry room" was the note; rendered at 30, the three
+panels turned out never to have scrolled at all -- `.bx-room` used `min-height`,
+so the box grew to fit and the document scrolled instead, which means the
+`overflow-y: auto` on all three panels had never once engaged. Fixed. The rest
+of this list is still owed, and this is the argument for it.
+
 
 - **Nobody has looked at the shipped design on a real monitor.** Everything was
   judged from screenshots and measurements.

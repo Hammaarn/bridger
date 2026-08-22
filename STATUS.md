@@ -77,6 +77,25 @@ and this line was already wrong once -- it said `94de8d4` through twenty commits
 
 ---
 
+## S#280e -- THE FEED CATCHES UP WITH ITSELF
+
+Day separators (labelled UTC, which the column always was and never said), an
+unread line, and following that never steals the scroll. tsc 0, 351/351.
+
+**The unread line is frozen at mount**, because the obvious version marks
+everything seen before you look at it. Written back on visibilitychange or
+pagehide, and kept in the browser: a viewer has no cursor on the bridge, and
+giving it one would make one watcher's reading position a fact about the room.
+
+**[!!] The panels had never scrolled.** All three have carried `overflow-y:
+auto` since they were built. `.bx-room` used `min-height`, so the box grew to
+fit its content and the PAGE scrolled instead -- measured at 30 entries, the
+document scrolled 4,527px while `.bx-chat` reported scrollHeight ===
+clientHeight. A scroll handler on the panel could never have fired. This is
+exactly the B5 warning ("only ever captured with a FOUR-entry room") turning out
+to be load-bearing.
+
+
 ## S#280d -- THE PLAN STAGE (F1)
 
 `bridger_plan` on both transports; rules in `lib/plan.ts`; a board in the room.
