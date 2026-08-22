@@ -19,7 +19,7 @@
 import { getContract, readEntries } from "@/lib/entries";
 import { verifyChain, type ChainedEntry } from "@/lib/chain";
 import { authorize, writeAudit } from "@/lib/room-registry";
-import { DENY_STATUS } from "@/lib/room-registry";
+import { refusalResponse } from "@/lib/http-gate";
 import { createStore } from "@/lib/store";
 
 export const runtime = "nodejs";
@@ -44,7 +44,19 @@ export async function GET(req: Request) {
       status: "deny",
       reason: outcome.reason,
     });
-    return Response.json({ error: outcome.reason }, { status: DENY_STATUS[outcome.reason] });
+    // THE ONE ROUTE THAT HAND-ROLLED ITS REFUSAL, found S#280 by a real user.
+    //
+    // Erik's friend watched a room and got `daily-cap` on screen -- the raw
+    // machine CODE, with no message, no `terminal` flag and no `Retry-After`,
+    // because this line built its own body while `/api/rpc` and `/api/rooms`
+    // both use the shared one. So the human saw an identifier instead of the
+    // sentence the product wrote for exactly that moment, and the browser had
+    // to infer "do not retry" from the status code alone.
+    //
+    // Same shape as the mint route's 429-with-terminal:true (TODO A8): a route
+    // that answers refusals in its own words drifts from the contract every
+    // other route keeps.
+    return refusalResponse(outcome.reason, now);
   }
 
   const { room, token: tok } = outcome;

@@ -1201,8 +1201,18 @@ function RoomView({
             ? `Token rejected (${body.error ?? "unknown"}). It may have been revoked, rotated, or expired.`
             : res.status === 410
               ? "This room has been closed."
+              : body?.code === "daily-cap"
+              ? // WRITTEN FOR A HUMAN, because this is the one refusal a person
+                // reads rather than a model. S#280: Erik's friend saw the raw
+                // code `daily-cap` and had no way to tell whether the room was
+                // broken, the join had failed, or the record was lost. It was
+                // none of those -- a watch tab had spent its own daily budget.
+                "This watch tab has used up its daily budget of calls. " +
+                "The room, the record and both sides' own tokens are unaffected — " +
+                "it is this read-only viewer credential that is spent, and it resets at 00:00 UTC. " +
+                "Ask whoever opened the room for a fresh viewer token if you need to keep watching today."
               : res.status === 429
-              ? "Polling too fast — backing off and retrying automatically."
+                ? "Polling too fast — backing off and retrying automatically."
               : res.status === 503
                 ? "The registry is unreachable — the server cannot read its own token store."
                 : terminal
@@ -1258,7 +1268,41 @@ function RoomView({
   useEffect(() => {
     let stopped = false;
     let timer: ReturnType<typeof setTimeout>;
-    let delay = POLL_MS;
+
+    /**
+     * THE BACKOFF SURVIVES A RELOAD, AND THAT IS THE WHOLE FIX (S#280).
+     *
+     * C0 fixed the poll RATE: back off when nothing changes, ceiling 120s,
+     * budgeted at ~240 calls across an eight-hour day against a cap of 400.
+     * The arithmetic was right and the assumption underneath it was not --
+     * `delay` lived in this closure, so **every page load restarted the ramp at
+     * four seconds** and paid the fast part again. Reloading is exactly what a
+     * person does when a room looks stuck, and two tabs on one viewer token
+     * double the whole thing. Measured tonight: 406 calls against a cap of 400,
+     * on a room that had seen 12 entries all day.
+     *
+     * Persisted per room, so a reopened tab resumes at the pace the room had
+     * earned rather than sprinting again. Read defensively: a corrupt or absent
+     * value must start at full speed, never at the ceiling, because a viewer
+     * that opens slow on a busy room is a worse failure than one extra call.
+     */
+    const paceKey = `bridger.pace.${token.slice(-8)}`;
+    const savedPace = (() => {
+      try {
+        const n = Number(sessionStorage.getItem(paceKey));
+        return Number.isFinite(n) && n >= POLL_MS && n <= POLL_IDLE_MAX_MS ? n : POLL_MS;
+      } catch {
+        return POLL_MS;
+      }
+    })();
+    let delay = savedPace;
+    const remember = (d: number) => {
+      try {
+        sessionStorage.setItem(paceKey, String(d));
+      } catch {
+        /* a private window simply does not get the benefit */
+      }
+    };
 
     const tick = async () => {
       const before = lastSeq.current;
@@ -1278,6 +1322,7 @@ function RoomView({
       } else {
         delay = Math.min(delay * POLL_IDLE_GROWTH, POLL_IDLE_MAX_MS);
       }
+      remember(delay);
       timer = setTimeout(tick, delay);
     };
 
