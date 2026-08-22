@@ -3530,3 +3530,142 @@ details > summary::-webkit-details-marker {
     color var(--t-move) var(--ease),
     box-shadow var(--t-move) var(--ease);
 }
+
+/* ── COLLAPSIBLE RAILS ───────────────────────────────────────────────────────
+   Erik: the two rails were taking ~40% of the width and he wanted a more
+   compact feeling. Either can go, and the conversation takes the space.
+
+   `grid-template-columns` is animatable, so the panel does not pop -- it is the
+   one place a 240ms move is worth spending, because the reading column changing
+   width under you is exactly the kind of jump that loses your place. */
+.bx-panels {
+  transition: grid-template-columns var(--t-move) var(--ease);
+}
+
+.bx-panels.no-left {
+  grid-template-columns: 34px minmax(0, 1fr) 320px;
+}
+
+.bx-panels.no-right {
+  grid-template-columns: 250px minmax(0, 1fr) 34px;
+}
+
+.bx-panels.no-left.no-right {
+  grid-template-columns: 34px minmax(0, 1fr) 34px;
+}
+
+/* The strip that remains. It carries the counts that were the reason to look at
+   the panel, so collapsing trades width for a summary rather than for
+   ignorance. */
+.bx-rail-stub {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 0;
+  background: var(--ink-900);
+  border: none;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.bx-rail-stub:hover {
+  background: var(--ink-800);
+}
+
+.bx-stub-arrow {
+  font-size: 15px;
+  line-height: 1;
+  color: var(--text-faint);
+}
+
+.bx-rail-stub:hover .bx-stub-arrow {
+  color: var(--seal);
+}
+
+/* Rotated rather than abbreviated: the panel keeps its NAME, which is what
+   makes it findable again. */
+.bx-stub-label {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  font-family: var(--font-mono-stack);
+  font-size: 9.5px;
+  letter-spacing: 0.22em;
+  color: var(--text-faint);
+}
+
+.bx-stub-n {
+  font-family: var(--font-mono-stack);
+  font-size: 9.5px;
+  min-width: 17px;
+  padding: 2px 0;
+  border-radius: 4px;
+  border: 1px solid var(--line-strong);
+  color: var(--text-dim);
+  text-align: center;
+}
+
+/* The one count that is a demand on somebody rather than a total. */
+.bx-stub-n.hot {
+  color: var(--alarm);
+  border-color: color-mix(in oklab, var(--alarm) 45%, transparent);
+}
+
+/* The control lives ON the panel it hides, so the affordance is where the thing
+   is rather than in a toolbar that has to explain itself. */
+.bx-rail-hide {
+  position: absolute;
+  top: 14px;
+  right: 10px;
+  z-index: 2;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  background: var(--ink-800);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  color: var(--text-faint);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.bx-rail-hide.right {
+  right: auto;
+  left: 10px;
+}
+
+/* Revealed on hover or focus. Always-visible chrome on a panel you are not
+   using is the clutter this whole pass is removing -- but focus must show it,
+   or it becomes keyboard-inaccessible. */
+.bx-tree:hover .bx-rail-hide,
+.bx-agree:hover .bx-rail-hide,
+.bx-rail-hide:focus-visible {
+  opacity: 1;
+}
+
+.bx-tree,
+.bx-agree {
+  position: relative;
+}
+
+/* Below this the room already reflows to one column, where a collapsed rail
+   would hide content with nothing to take its place. */
+@media (max-width: 1080px) {
+  .bx-panels.no-left,
+  .bx-panels.no-right,
+  .bx-panels.no-left.no-right {
+    grid-template-columns: 220px minmax(0, 1fr);
+  }
+
+  .bx-rail-stub {
+    display: none;
+  }
+
+  .bx-tree[hidden],
+  .bx-agree[hidden] {
+    display: block;
+  }
+}
