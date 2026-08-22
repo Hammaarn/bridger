@@ -192,6 +192,37 @@ async function run<T>(fn: () => Promise<T>) {
 type McpServerArg = Parameters<Parameters<typeof createMcpHandler>[0]>[0];
 
 /**
+ * THE ANNOTATIONS, AND EXACTLY WHAT `readOnlyHint` CLAIMS HERE (S#280, D3).
+ *
+ * Erik watched a partner's Claude in plan mode fail to use the bridge at all.
+ * Verified: not one of the thirteen tools declared an annotation, so a harness
+ * that gates tools while planning had nothing to go on and had to assume every
+ * tool writes -- which swept up `bridger_status`, `bridger_read`,
+ * `bridger_whoami` and `bridger_ping`, all of which only look.
+ *
+ * The classification is by ONE question, answered by reading `lib/operations.ts`
+ * rather than the tool descriptions: DOES THIS APPEND TO THE SHARED RECORD?
+ * Nine do. `bridger_purge` is the only one that destroys. Four do not write an
+ * entry at all, and those four carry `readOnlyHint: true`.
+ *
+ * **The caveat, stated because the claim is weaker than the flag sounds.** There
+ * is no such thing as a free call here. Every operation spends the caller's
+ * quota, feeds the idle brake, and may charge the waste budget; `bridger_ping`
+ * ALWAYS advances your read cursor, and `bridger_read` does when `markRead` is
+ * set. So `readOnlyHint: true` means *"appends nothing to the record the two
+ * parties share"* -- which is the property a planning gate is actually asking
+ * about -- and NOT *"has no effect"*. A tool whose read-onlyness depends on an
+ * argument cannot express that in a static annotation; `bridger_read` is that
+ * tool, and this note is the only place the difference is written down.
+ *
+ * **NOT VERIFIED, and it is the half that matters.** Whether these annotations
+ * unblock a real planning session depends on the FAR SIDE's harness, not on us.
+ * Shipping them is cheap and correct regardless -- the metadata was simply
+ * missing -- but nobody should record D3 as closed until a planning-mode client
+ * has actually read the bridge. That test needs a partner, not a patch.
+ */
+
+/**
  * `bridger_answer` and `bridger_ping` are registered from shared functions
  * because they appear in BOTH surfaces — the full one and the answerer's
  * two-tool one. A copy-pasted schema is a drift waiting to happen, and a
@@ -202,6 +233,12 @@ function registerAnswer(server: McpServerArg) {
   server.registerTool(
     "bridger_answer",
     {
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
       title: "Answer an open question",
       description:
         "Answer a question from the other side. `checkedAgainst` is the point of this tool: name the file, line, commit, endpoint or command you actually read to know this is true. Omit it and the answer is recorded as UNCHECKED, which is honest and fine — what is not fine is an unchecked claim that reads like a verified one.",
@@ -223,6 +260,12 @@ function registerPing(server: McpServerArg) {
   server.registerTool(
     "bridger_ping",
     {
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
       title: "Ping the bridge — one call, everything",
       description:
         "Everything waiting for you, in a single call: the questions it is your turn to answer, any new entries from the other side, and whether they have signed off. This replaces checking status, reading, and waiting — after it there is nothing further to look up. Answer with bridger_answer, or stop. Do not call it repeatedly: the other side is a human-paced team, and a second call cannot make them reply sooner.",
@@ -237,6 +280,12 @@ const handler = createMcpHandler(
     server.registerTool(
       "bridger_status",
       {
+        annotations: {
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: true,
+        },
         title: "Bridge status",
         description:
           "What has happened on the bridge since you last read it: unread count from the other side, open questions and whose turn each one is, and whether your partner has connected yet. Call this at the start of a session and whenever you resume work on this integration.",
@@ -248,6 +297,12 @@ const handler = createMcpHandler(
     server.registerTool(
       "bridger_read",
       {
+        annotations: {
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: true,
+        },
         title: "Read the bridge ledger",
         description:
           "Read entries from the shared record. Use `since` with the cursor from bridger_status to get only what is new, or `ids` to pull a specific question or decision. Set `markRead` to advance your cursor once you have actually taken the entries in.",
@@ -265,6 +320,12 @@ const handler = createMcpHandler(
     server.registerTool(
       "bridger_ask",
       {
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: false,
+          openWorldHint: true,
+        },
         title: "Ask the other side a question",
         description:
           "Open a question for your partner's side of the integration. Use this instead of asking your own user to relay it — that relay is exactly what Bridger removes. Ask when the answer lives in THEIR codebase or is THEIR decision to make.",
@@ -282,6 +343,12 @@ const handler = createMcpHandler(
     server.registerTool(
       "bridger_decide",
       {
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: false,
+          openWorldHint: true,
+        },
         title: "Record a decision",
         description:
           "Write a decision into the shared record so neither side re-litigates it later. Use it the moment a direction is settled — a wire format, a field name, a scope cut. `why` is not optional in spirit: a decision without its reasoning gets reopened.",
@@ -304,6 +371,12 @@ const handler = createMcpHandler(
     server.registerTool(
       "bridger_post",
       {
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: false,
+          openWorldHint: true,
+        },
         title: "Post a note",
         description:
           "Leave a note on the bridge that is not a question, answer or decision — a status update, a heads-up that something shipped, a pointer to a branch.",
@@ -319,6 +392,12 @@ const handler = createMcpHandler(
     server.registerTool(
       "bridger_contract",
       {
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: false,
+          openWorldHint: true,
+        },
         title: "Read or update the shared contract",
         description:
           "The one document both sides build against — the wire format, the endpoints, the event shapes. Call with no arguments to read it. Pass `body` to replace it; the replacement is logged to the ledger with your name on it, because a silent contract change is the most expensive edit either side can make.",
@@ -345,6 +424,12 @@ const handler = createMcpHandler(
     server.registerTool(
       "bridger_invite",
       {
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: false,
+          openWorldHint: true,
+        },
         title: "Mint a join link for the other seat",
         description:
           "Produce a short-lived /j/<code> link you can send to your partner, instead of pasting a live bearer token into a chat message. The link mints exactly one credential and then returns that same one to anyone who fetches it for a few minutes, so a link preview or a retry cannot destroy the invitation. Minting again REPLACES the previous unredeemed link for that seat. The result is a PATH — join it to the server you are connected to. Requires a participant token; a viewer cannot invite.",
@@ -375,6 +460,12 @@ const handler = createMcpHandler(
     server.registerTool(
       "bridger_reopen",
       {
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: false,
+          openWorldHint: true,
+        },
         title: "Reopen your question",
         description:
           "Say that an answer did NOT resolve your question, putting it back on their list. Use it when the reply missed the point, answered a different question, or was too vague to build on — that is far more useful to them than silently asking again. Only the side that asked can reopen; `why` is what tells them what was actually missing.",
@@ -389,6 +480,12 @@ const handler = createMcpHandler(
     server.registerTool(
       "bridger_signoff",
       {
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: false,
+          openWorldHint: true,
+        },
         title: "Say you are done for now",
         description:
           "Tell the other side you are stopping work on this integration for now, so they stop waiting on you. Call it when you finish a session with open questions on their side, or when you have asked something and will not be around for the answer. Your next write of any kind clears it automatically.",
@@ -402,6 +499,12 @@ const handler = createMcpHandler(
     server.registerTool(
       "bridger_purge",
       {
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: true,
+          idempotentHint: true,
+          openWorldHint: true,
+        },
         title: "Agree to delete this bridge",
         description:
           "Record your side's consent to permanently delete this bridge and everything on it. BOTH sides must agree before anything is deleted — the record is joint, and one side erasing it would destroy the other's account of what was asked, answered and decided. Only ask your operator to call this if they have decided to end the integration. Note that it removes the SERVER's copy only: anything either side already pulled to a local folder is untouched.",
@@ -415,6 +518,12 @@ const handler = createMcpHandler(
     server.registerTool(
       "bridger_wait",
       {
+        annotations: {
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: true,
+        },
         title: "Wait for the other side",
         description:
           "Block until your partner's side writes something, or the timeout expires (default " +
