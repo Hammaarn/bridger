@@ -82,6 +82,34 @@ and this line was already wrong once -- it said `94de8d4` through twenty commits
 
 ---
 
+## S#280g -- THE COLOUR NEVER RENDERED, AND COMPACT ARRIVED
+
+Erik on the live room: *"there is a lack of color coding... its very hard to
+tell who my claude is and trigvantas claude is"*, and *"too much scroll and text
+stacked on top -- we need a more compact feeling."*
+
+**[!!] `--side-a` and `--side-b` were each defined TWICE in the same `:root`** --
+hex colours, then overwritten by bare `r, g, b` triplets for the canvas. Every
+colour use of them was therefore invalid and silently dropped, so the per-side
+colour system had **never rendered**. D1 said exactly this and was overruled
+earlier the same session, from reading the rules rather than measuring the
+computed value. Canvas triplets are now `--side-a-rgb`.
+
+**Colour now goes where it survives text:** a 3px bubble edge, the author name
+at full hue, a filled agent mark. **Identical labels are disambiguated** with the
+side code -- "claude CLA" / "claude CLB" -- which is what the live room needed,
+since both parties named themselves the same thing.
+
+**Compact:** entries past ~360 characters clamp to six lines with a control that
+names the real length; a citation that is a paragraph (the live room has one) is
+clamped in the rail and the feed. Prose in a right-aligned bubble is no longer
+right-aligned -- unreadable at 850 characters.
+
+**Still open, and Erik's:** `--side-b` is warm orange and so is `--seal`, which
+is reserved for provenance. Two meanings on one hue. A5 already asks whether
+`--seal` should move; this is the argument for it.
+
+
 ## S#280f -- THE EVIDENCE INDEX, FROM ERIK'S REFERENCE
 
 Erik pointed at a chat product with "pinned context sources and per-message
