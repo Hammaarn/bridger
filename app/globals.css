@@ -83,9 +83,21 @@
      two parties mixing, and it gets its liveliness from hue variation instead
      of from a second accent — which keeps `--seal` reserved for provenance.
      `--glyph` remains the neutral fallback if either is missing. */
+  /* [!!] RENAMED S#280, AND THE OLD NAME WAS A SILENT BUG.
+     These bare triplets are for the CANVAS, which composes its own alpha. They
+     used to be called `--side-a` / `--side-b` -- the SAME names as the hex
+     colours fourteen lines above -- so the second definition won and every
+     `var(--side-a)` used as a COLOUR resolved to "116, 178, 255", which is not
+     a colour. Every such declaration was invalid and silently dropped.
+
+     So the per-side colour system never rendered. D1 filed exactly that
+     ("there is no per-side colour anywhere in the room view") and at S#280 I
+     overruled it from the source, having read the rules without checking that
+     they produced anything. Reading CSS is not reading the computed value --
+     found by measuring `borderLeftColor` and getting `currentColor` back. */
   --glyph: 192, 208, 230;
-  --side-a: 116, 178, 255;
-  --side-b: 255, 176, 108;
+  --side-a-rgb: 116, 178, 255;
+  --side-b-rgb: 255, 176, 108;
   --spark: 255, 184, 107;
 
   /* The still version of the wire: a fine dot lattice used as page texture. */
@@ -130,8 +142,8 @@
     --alarm: #b03a28;
 
     --glyph: 40, 55, 80;
-    --side-a: 28, 84, 150;
-    --side-b: 150, 82, 20;
+    --side-a-rgb: 28, 84, 150;
+    --side-b-rgb: 150, 82, 20;
     --spark: 143, 84, 21;
     --grid-dot: rgba(0, 0, 0, 0.07);
 
@@ -1667,9 +1679,14 @@ input.bx-folder-name:focus {
   flex-direction: row-reverse;
 }
 
-.turn.mine .bubble .title,
-.turn.mine .bubble .body {
-  text-align: right;
+/* THE BUBBLE goes right; the PROSE does not.
+   Right-aligned text gives a ragged left edge, and the left edge is what the
+   eye returns to on every line. Fine for the one-line replies this was designed
+   against; unreadable for the 850-character entries the live room actually
+   contains. Teams right-aligns the bubble and never the paragraph, and that is
+   the half worth copying. */
+.turn.mine .bubble .head {
+  justify-content: flex-end;
 }
 
 /* ALIGNED, NOT REVERSED.
@@ -3203,4 +3220,140 @@ input.bx-folder-name:focus {
   color: var(--seal);
   border-color: color-mix(in oklab, var(--seal) 40%, transparent);
   background: color-mix(in oklab, var(--seal) 10%, transparent);
+}
+
+/* ── COLOUR THAT ACTUALLY SEPARATES THE TWO PARTIES ──────────────────────────
+   Erik, on the live room where BOTH sides are called "claude": "its very hard
+   to tell who my claude is and Northwinds claude is... thats when color coding
+   should easily differentiate who is who."
+
+   He is right, and the hues were never the problem -- blue and orange is the
+   most colour-blind-distinguishable pair there is. The problem was INTENSITY: a
+   9% tint and a hairline rail cannot separate anything behind four hundred
+   words of text. So the side colour stops being a wash and becomes an EDGE,
+   which is the one thing that stays visible no matter how long the entry is. */
+.turn.sideA .bubble,
+.turn.sideB .bubble {
+  border-color: transparent;
+}
+
+.turn.theirs .bubble {
+  border-left-width: 3px;
+}
+
+.turn.mine .bubble {
+  border-right-width: 3px;
+}
+
+.turn.sideA.theirs .bubble {
+  border-left-color: var(--side-a);
+}
+
+.turn.sideA.mine .bubble {
+  border-right-color: var(--side-a);
+}
+
+.turn.sideB.theirs .bubble {
+  border-left-color: var(--side-b);
+}
+
+.turn.sideB.mine .bubble {
+  border-right-color: var(--side-b);
+}
+
+.turn.sideA .bubble {
+  background: color-mix(in oklab, var(--side-a) 13%, var(--ink-800));
+}
+
+.turn.sideB .bubble {
+  background: color-mix(in oklab, var(--side-b) 13%, var(--ink-800));
+}
+
+/* The name is the other place a reader looks to answer "who". With identical
+   labels it is doing all the work, so it gets the full hue, not a dim one. */
+.turn-head .who {
+  font-weight: 700;
+  font-size: 12.5px;
+}
+
+/* The agent mark goes solid. At 18px it is the smallest object on the row and
+   an outline at that size reads as grey. */
+.bx-agent.sideA {
+  background: var(--side-a);
+  border-color: var(--side-a);
+  color: #08131f;
+}
+
+.bx-agent.sideB {
+  background: var(--side-b);
+  border-color: var(--side-b);
+  color: #1f1206;
+}
+
+.bx-chip.sideA,
+.bx-chip.sideB {
+  border-width: 1px;
+}
+
+.bx-chip.sideA {
+  border-color: var(--side-a);
+}
+
+.bx-chip.sideB {
+  border-color: var(--side-b);
+}
+
+/* ── COMPACT ─────────────────────────────────────────────────────────────────
+   Real entries are essays, not chat messages. Clamped by default so the column
+   shows the SHAPE of a conversation; opened one at a time by choice. */
+.bubble .title.clamped,
+.bubble .body.clamped {
+  display: -webkit-box;
+  -webkit-line-clamp: 6;
+  line-clamp: 6;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.bx-more {
+  margin-top: 7px;
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: var(--font-mono-stack);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  border-bottom: 1px dotted var(--line-strong);
+  cursor: pointer;
+}
+
+.bx-more:hover {
+  color: var(--seal);
+  border-bottom-color: var(--seal);
+}
+
+.turn.mine .bx-more {
+  align-self: flex-end;
+}
+
+/* A citation can be a paragraph — the live room has one naming six files and
+   three run ids. Clamped in the rail; the full text stays on the entry. */
+.bx-src-raw {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Same in the feed: the provenance line must not become the entry. */
+.prov code {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  max-width: 100%;
 }

@@ -212,8 +212,10 @@ export default function LetterGlitch({
     const readColors = () => {
       const s = getComputedStyle(canvas);
       const neutral = triplet(s.getPropertyValue("--glyph").trim(), [192, 208, 230]);
-      colA = triplet(s.getPropertyValue("--side-a").trim(), neutral);
-      colB = triplet(s.getPropertyValue("--side-b").trim(), neutral);
+      // `-rgb` since S#280: the un-suffixed names are the HEX colours, and
+      // having both under one name made every colour use of them invalid.
+      colA = triplet(s.getPropertyValue("--side-a-rgb").trim(), neutral);
+      colB = triplet(s.getPropertyValue("--side-b-rgb").trim(), neutral);
       colWord = neutral;
       bg = s.getPropertyValue("--bg").trim() || "#07090d";
       const lum = (c: [number, number, number]) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];

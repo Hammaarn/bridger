@@ -1406,6 +1406,27 @@ function RoomView({
    * drift from the record the way a tally can.
    */
   const [bottomSeq, setBottomSeq] = useState<number | null>(null);
+  /**
+   * WHICH LONG ENTRIES THE READER HAS OPENED.
+   *
+   * The bubble design assumed chat messages. Real entries are essays — the live
+   * Northwind room has single notes over 400 words, and stacked full-height
+   * they turn the column into a wall nobody scrolls. Erik: *"too much scroll
+   * and text stacked on top... we need a more compact feeling."*
+   *
+   * So a long body is clamped and opens on demand. Collapsed by DEFAULT rather
+   * than remembered-open: the room's value is being able to see the shape of a
+   * conversation at a glance, and a reader who wants one entry in full is
+   * making a choice about that entry.
+   */
+  const [opened, setOpened] = useState<Set<string>>(new Set());
+  const toggleOpen = (id: string) =>
+    setOpened((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
 
   /**
@@ -1723,6 +1744,29 @@ function RoomView({
    * two parties" without claiming the watcher is one of them.
    */
   const mySide = data?.room.you.side ?? "a";
+
+  /**
+   * BOTH SIDES OF THE REAL ROOM ARE CALLED "claude".
+   *
+   * Erik, looking at it: *"its very hard to tell who my claude is and
+   * Northwinds claude is"*. `identify` (S#280) lets a side fix this, but it
+   * needs the far side to call it — and our documents do not reach a partner
+   * who already joined (C1). So the reader is left with two identical names
+   * either way.
+   *
+   * When the labels collide we append the side code, which is already unique
+   * and already namespaces every entry id in the room (`CLA-Q-001`,
+   * `CLB-N-006`). The name a reader sees then matches the ids they are reading.
+   * When the labels differ this does nothing — a disambiguator that fires when
+   * there is nothing to disambiguate is just noise.
+   */
+  const sameName =
+    !!data && data.room.you.label.trim().toLowerCase() === data.room.peer.label.trim().toLowerCase();
+  const nameFor = (side: string) => {
+    if (!data) return "";
+    const s = side === data.room.you.side ? data.room.you : data.room.peer;
+    return sameName ? `${s.label} ${s.code}` : s.label;
+  };
   /** Which agent sits on a side, for the feed. Self-declared; may be absent. */
   const agentFor = (side: string) =>
     data ? (side === data.room.you.side ? data.room.you.agent : data.room.peer.agent) : null;
@@ -1847,7 +1891,7 @@ function RoomView({
                   */}
                   <SideChip
                     side={data.room.you.side}
-                    label={data.room.you.label}
+                    label={nameFor(data.room.you.side)}
                     joinedAt={data.room.you.joinedAt}
                     agent={data.room.you.agent}
                     you
@@ -1855,7 +1899,7 @@ function RoomView({
                   <span className="bx-chip-wire" aria-hidden="true" />
                   <SideChip
                     side={data.room.peer.side}
-                    label={data.room.peer.label}
+                    label={nameFor(data.room.peer.side)}
                     joinedAt={data.room.peer.joinedAt}
                     agent={data.room.peer.agent}
                   />
@@ -1967,7 +2011,15 @@ function RoomView({
                     >
                       <span className="cite">{src.n}</span>
                       <span className="bx-src-body">
-                        <code>{src.raw}</code>
+                        {/*
+                          A citation is not always a path. The live room has one
+                          that is a PARAGRAPH -- a whole sentence naming six
+                          files and three run ids -- which wrapped into ~25 lines
+                          of monospace and turned this rail into a wall. Clamped
+                          here; the full string is on the entry itself and in the
+                          tooltip, so nothing is hidden, it just stops shouting.
+                        */}
+                        <code className="bx-src-raw">{src.raw}</code>
                         <span className="bx-src-meta">
                           {src.span}
                           {/*
@@ -2093,7 +2145,7 @@ function RoomView({
                 >
                   <div className="turn-head">
                     <AgentMark agent={agentFor(turn.side)} side={turn.side} />
-                    <span className="who">{turn.author}</span>
+                    <span className="who">{sameName ? nameFor(turn.side) : turn.author}</span>
                     <span className="mono dim">{timeOf(shown[0].ts)}</span>
                   </div>
                   {shown.map((e) => (
@@ -2131,16 +2183,37 @@ function RoomView({
                           without its answer. Found S#280 by looking at a
                           screenshot -- the DOM assertions were all green.
                         */}
-                        {!e.body ? (
-                          <p className="title">{e.title}</p>
-                        ) : e.body.startsWith(e.title) ? (
-                          <p className="title">{e.body}</p>
-                        ) : (
-                          <>
-                            <p className="title">{e.title}</p>
-                            <p className="body">{e.body}</p>
-                          </>
-                        )}
+                        {(() => {
+                          // ~360 characters is about six lines at this measure:
+                          // long enough that a normal note is never truncated,
+                          // short enough that an essay stops owning the column.
+                          const longform = (e.body || "").length > 360;
+                          const open = opened.has(e.id);
+                          const clamp = longform && !open ? "clamped" : "";
+                          return (
+                            <>
+                              {!e.body ? (
+                                <p className="title">{e.title}</p>
+                              ) : e.body.startsWith(e.title) ? (
+                                <p className={`title ${clamp}`}>{e.body}</p>
+                              ) : (
+                                <>
+                                  <p className="title">{e.title}</p>
+                                  <p className={`body ${clamp}`}>{e.body}</p>
+                                </>
+                              )}
+                              {longform && (
+                                <button
+                                  type="button"
+                                  className="bx-more"
+                                  onClick={() => toggleOpen(e.id)}
+                                >
+                                  {open ? "show less" : `show all ${e.body.length} characters`}
+                                </button>
+                              )}
+                            </>
+                          );
+                        })()}
                         {e.why && (
                           <p className="why">
                             <span>why</span> {e.why}
