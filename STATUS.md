@@ -82,6 +82,23 @@ and this line was already wrong once -- it said `94de8d4` through twenty commits
 
 ---
 
+## S#280i -- THE RAILS COLLAPSE, AND THE CONVERSATION TAKES THE ROOM
+
+Either side panel folds to a 34px strip; with both away the conversation goes
+from 1028px to 1530px. The preference is global (a property of your screen, not
+of a room) and survives a reload; below 1080px the room already reflows to one
+column so the whole mechanism switches off there.
+
+**The constraint was not "hide them", it was "hide them honestly".** A collapsed
+rail keeps its NAME and the counts that were the reason to look at it -- cited
+sources and open questions on the left, unclaimed plan items and decisions on
+the right. Collapsing trades width for a summary, never for ignorance.
+
+**It surfaced the original complaint one panel over:** the plan board took raw
+labels, so both owner columns read "claude" -- in the panel whose whole job is
+saying who holds what. Disambiguated like the feed.
+
+
 ## S#280h -- MOTION, ON THE AESTHETIC RATHER THAN ON TOP OF IT
 
 Erik asked for transitions "fitting to the whole aesthetic". The register is

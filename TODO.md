@@ -783,6 +783,11 @@ actively prevent it — which is the bug that started this item.
   failure `basis` had. NOT changed at the time of finding: it is the
   containment path, and rewriting untrusted-text handling at the end of a long
   session without the operator is exactly the wrong moment.
+- **`--side-b` is warm orange and so is `--seal`**, which is reserved for
+  provenance. Two meanings on one hue, and part of why the colour read as muddy
+  even before the token collision was fixed. A5 already asks whether `--seal`
+  should move; this is the argument for it. **Erik's call -- not re-picking a
+  palette that is on his open-decisions list.**
 - **The published daily cap is still wrong** (`PASTE_PATH_DAILY_CAP` is 200,
   `/api/about` publishes `DEFAULT_DAILY_CAP` 400). Carried from S#279, one line.
 
