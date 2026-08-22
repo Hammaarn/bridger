@@ -38,6 +38,8 @@ import { sanitiseRoomMetadata } from "./room-text";
 import {
   AUDIT_LOG,
   AUDIT_LOG_MAX,
+  ROOM_ACTIVITY_KEY,
+  ROOM_ACTIVITY_DAYS_MAX,
   KILL_SWITCH,
   RATE_KEY,
   RATE_LIMIT_PER_MINUTE,
@@ -939,8 +941,40 @@ export interface AuditEntry {
 }
 
 /**
- * Append one line to a capped list. Never throws: a bridge that 500s because
- * its logger is down is a worse outcome than a missing log line.
+ * What a room has actually seen, in a record nothing can evict.
+ *
+ * `days` holds UTC dates, so "came back" has a definition instead of a feeling:
+ * a room with more than one entry was used on more than one day. That is the
+ * number the funnel argument runs on, and the rolling audit structurally cannot
+ * supply it -- one global list means a busy room evicts a quiet returning one.
+ */
+export interface RoomActivity {
+  calls: number;
+  firstAt: string;
+  lastAt: string;
+  days: string[];
+}
+
+export async function readRoomActivity(store: Store, roomId: string): Promise<RoomActivity | null> {
+  try {
+    const raw = await store.get(ROOM_ACTIVITY_KEY(roomId));
+    if (!raw) return null;
+    const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+    // Shape-check rather than trust: this record is read by the operator to
+    // answer a question about the business, and a half-written value should
+    // read as ABSENT rather than as zero usage.
+    if (!parsed || typeof parsed.calls !== "number" || !Array.isArray(parsed.days)) return null;
+    return parsed as RoomActivity;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Append one line to a capped list, and update the room's uncapped tally.
+ *
+ * Never throws: a bridge that 500s because its logger is down is a worse outcome
+ * than a missing log line.
  */
 export async function writeAudit(store: Store | null, entry: AuditEntry): Promise<void> {
   if (!store) return;
@@ -949,5 +983,36 @@ export async function writeAudit(store: Store | null, entry: AuditEntry): Promis
     await store.ltrim(AUDIT_LOG, 0, AUDIT_LOG_MAX - 1);
   } catch {
     /* logging is best-effort by design */
+  }
+  // Separate try: the tally is the half that answers "did they come back", so a
+  // failure in the rolling log must not take it down with it.
+  if (!entry.roomId) return;
+  try {
+    const day = entry.ts.slice(0, 10);
+    const prev = await readRoomActivity(store, entry.roomId);
+    const days = prev?.days ?? [];
+    // `firstAt` and `lastAt` are a MINIMUM and a MAXIMUM, not "the first write"
+    // and "the latest write". Caught S#280 by backdating a row in a check: an
+    // out-of-order entry drove `lastAt` BACKWARDS, so a room's "last used" could
+    // report earlier than its real last use. In production rows arrive in order
+    // and this is unreachable -- which is exactly why it would have survived,
+    // and why the operator table built on it would have been quietly wrong.
+    const next: RoomActivity = {
+      calls: (prev?.calls ?? 0) + 1,
+      firstAt: prev && prev.firstAt < entry.ts ? prev.firstAt : entry.ts,
+      lastAt: prev && prev.lastAt > entry.ts ? prev.lastAt : entry.ts,
+      // Sorted, then capped from the OLD end. Appending blindly and slicing the
+      // tail would drop the newest day rather than the oldest as soon as one
+      // row arrived out of order.
+      days: days.includes(day)
+        ? days
+        : [...days, day].sort().slice(-ROOM_ACTIVITY_DAYS_MAX),
+    };
+    await store.set(ROOM_ACTIVITY_KEY(entry.roomId), JSON.stringify(next));
+    // Expires WITH the room it describes, so a finished room takes its own
+    // bookkeeping with it rather than leaving a tombstone behind.
+    await store.expire(ROOM_ACTIVITY_KEY(entry.roomId), ROOM_TTL_SECONDS);
+  } catch {
+    /* best-effort, exactly like the line above it */
   }
 }

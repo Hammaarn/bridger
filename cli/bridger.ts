@@ -31,6 +31,7 @@ import {
   revokeSide,
   rotateSide,
   type SideId,
+  readRoomActivity,
 } from "../lib/room-registry";
 import {
   AUDIT_LOG,
@@ -321,6 +322,74 @@ async function cmdInvite() {
 
   The token it mints expires in ${days} days. Requires BRIDGER_PASTE_PATH=1
   on the server. Code expires ${expiresAt}.
+`);
+}
+
+/**
+ * WHO CAME BACK — the one number the funnel argument runs on.
+ *
+ * `audit` answers "who called what, how often" from a rolling window that one
+ * busy session overflows, so it structurally cannot answer "has anybody used a
+ * room on more than one day". That question needs a tally nothing evicts, which
+ * is what `ROOM_ACTIVITY_KEY` is (S#280, D6).
+ *
+ * The two halves do different jobs and the split is deliberate: the audit log
+ * provides DISCOVERY (which rooms exist, lossily) and the activity record
+ * provides TRUTH (what that room actually did, completely). So a room quiet
+ * enough to have fallen out of the window is not listed here — and its tally is
+ * still intact, which is why `--room` takes an id directly.
+ */
+async function cmdUsage() {
+  const store = operatorStore();
+  const only = arg("--room", "");
+
+  let ids: string[];
+  if (only) {
+    ids = [only];
+  } else {
+    const raw = await store.lrange(AUDIT_LOG, 0, 20000);
+    const seen = new Set<string>();
+    for (const r of raw) {
+      try {
+        const row = (typeof r === "string" ? JSON.parse(r) : r) as AuditEntry;
+        if (row?.roomId) seen.add(row.roomId);
+      } catch {
+        /* a malformed row is not a reason to fail the report */
+      }
+    }
+    ids = [...seen];
+  }
+
+  const rows = [];
+  for (const id of ids) {
+    const a = await readRoomActivity(store, id);
+    if (a) rows.push({ id, ...a });
+  }
+  rows.sort((x, y) => y.days.length - x.days.length || y.calls - x.calls);
+
+  if (!rows.length) {
+    console.log(`
+  No activity records found.${only ? "" : " (Rooms are discovered from the audit window.)"}
+`);
+    return;
+  }
+
+  const returning = rows.filter((r) => r.days.length > 1);
+  console.log(`
+  ${rows.length} room(s) with a tally - ${returning.length} used on more than one day
+`);
+  console.log("  room          days  calls  first       last");
+  for (const r of rows) {
+    const mark = r.days.length > 1 ? "*" : " ";
+    console.log(
+      `${mark} ${r.id.padEnd(14)}${String(r.days.length).padStart(4)}${String(r.calls).padStart(7)}  ` +
+        `${r.firstAt.slice(0, 10)}  ${r.lastAt.slice(0, 16).replace("T", " ")}`,
+    );
+  }
+  console.log(`
+  * = came back on a later day. That is the only claim this table makes:
+    it counts CALLS, not people, and a room both sides left open counts once
+    per day it saw traffic.
 `);
 }
 
@@ -1127,6 +1196,8 @@ const USAGE = `
     purge  --room <id> [--side a|b]      DELETE it -- needs BOTH sides' consent
     audit  [--status ok|deny|error] [--token <id>] [--limit N]
                                          who called what, how often
+    usage  [--room <id>]                 which rooms came back -- a tally the
+                                         rolling audit window cannot evict
     stop                                 PANIC: refuse every request, now
     start                                undo stop
 
@@ -1162,6 +1233,7 @@ async function main() {
     case "answerer": return cmdAnswerer();
     case "invite": return cmdInvite();
     case "audit": return cmdAudit();
+    case "usage": return cmdUsage();
     case "stop": return cmdStop();
     case "start": return cmdStart();
     case "revoke": return cmdRevoke();

@@ -30,6 +30,8 @@
 
 import { z } from "zod";
 
+import { OP_NATURE } from "@/lib/op-nature";
+
 import { CLAIM_BASES, ENTRY_TYPES } from "@/lib/entries";
 import { CITATION_MAX } from "@/lib/store";
 import { auditRequest, gate, operationRefusalStatus, refusalResponse } from "@/lib/http-gate";
@@ -65,6 +67,25 @@ export function pastePathEnabled(): boolean {
  * and a divergence between the two would be a bug nobody notices for months.
  */
 const OPS = {
+  /**
+   * D5. `help` WAS NOT AN OPERATION, AND SOMEBODY REACHED FOR IT.
+   *
+   * One `help error` row in the audit for the first cross-company session. An
+   * agent looked for a help verb and got a refusal -- recoverable, because the
+   * refusal lists `knownOps`, but a transport whose whole pitch is "one POST, no
+   * docs to install" should answer the most obvious verb in it rather than
+   * making the caller recover.
+   *
+   * It answers with the SHAPE of each op, not prose about the product: what it
+   * does in one line, whether it writes to the shared record, and its argument
+   * names. That is what an agent needs to make its next call, and it comes from
+   * `lib/op-nature.ts` plus the live zod schemas -- so an op added without a
+   * description fails loudly here instead of quietly appearing undocumented.
+   */
+  help: {
+    schema: z.object({}),
+    run: (_ctx: OpContext, _a: Record<string, never>) => Promise.resolve(describeOps()),
+  },
   status: {
     schema: z.object({}),
     run: (ctx: OpContext, a: Record<string, never>) => opStatus(ctx),
@@ -180,6 +201,34 @@ const OPS = {
 } as const;
 
 export const OP_NAMES = Object.keys(OPS);
+
+/**
+ * The op table, described from itself. Argument names are read off the live zod
+ * schemas rather than re-typed, because a hand-written argument list is a second
+ * copy of the schema and would go stale the first time one changed.
+ */
+function describeOps() {
+  return {
+    transport: "flat",
+    how: 'POST /api/rpc with `Authorization: Bearer <token>` and a JSON body `{"op": "<name>", ...args}`.',
+    ops: OP_NAMES.filter((name) => name !== "help").map((name) => {
+      const entry = OPS[name as keyof typeof OPS];
+      const shape = (entry.schema as unknown as { shape?: Record<string, unknown> }).shape ?? {};
+      const nature = OP_NATURE[name];
+      return {
+        op: name,
+        // An op with no recorded nature is a bug, and saying so is better than
+        // silently listing it with no summary -- absence and emptiness again.
+        summary: nature?.summary ?? "UNDOCUMENTED — this op has no entry in lib/op-nature.ts.",
+        writesToRecord: nature ? nature.writes : null,
+        args: Object.keys(shape),
+      };
+    }),
+    guidance:
+      "If you are here to work rather than to browse: call `ping`. It returns everything waiting on " +
+      "you in one round trip. `status` + `read` costs roughly eight times the bytes to learn the same thing.",
+  };
+}
 
 export async function POST(req: Request): Promise<Response> {
   if (!pastePathEnabled()) return new Response("Not found", { status: 404 });

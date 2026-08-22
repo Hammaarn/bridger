@@ -608,6 +608,41 @@ function Create({ onMinted, onCancel }: { onMinted: (m: Minted) => void; onCance
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [badField, setBadField] = useState<string | null>(null);
+  /**
+   * A8. Where you stand, BEFORE you try.
+   *
+   * Erik's brother opened three rooms and the fourth was refused; the cap was
+   * raised the same session, but the real complaint was that nothing said where
+   * he stood until it fired. `GET /api/rooms` only READS the counter -- a peek
+   * that charged would mean opening this screen spent your allowance.
+   *
+   * Failure is silent on purpose: this is a courtesy, and a create screen that
+   * shows an error because it could not fetch a quota reading has made a
+   * working form look broken.
+   */
+  const [quota, setQuota] = useState<{
+    usedToday: number;
+    limit: number | null;
+    remaining: number | null;
+    unlimited: boolean;
+  } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/rooms");
+        if (!res.ok) return;
+        const body = await res.json();
+        if (!cancelled && body?.rooms) setQuota(body.rooms);
+      } catch {
+        /* a courtesy that cannot be delivered is simply not shown */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -715,6 +750,27 @@ function Create({ onMinted, onCancel }: { onMinted: (m: Minted) => void; onCance
           </p>
 
           {error && <div className="error">{error}</div>}
+
+          {/*
+            Shown only when a cap actually applies and the reading arrived.
+            `unlimited` is its own flag rather than `limit === null`, because
+            "no cap" and "none left" must never render the same.
+          */}
+          {quota && !quota.unlimited && quota.limit !== null && (
+            <p className={`bx-quota ${quota.remaining === 0 ? "spent" : ""}`}>
+              {quota.remaining === 0 ? (
+                <>
+                  You have opened all {quota.limit} of today&rsquo;s rooms from this connection. The
+                  count resets at midnight UTC.
+                </>
+              ) : (
+                <>
+                  {quota.remaining} of {quota.limit} rooms left today from this connection. A room
+                  nobody joins still costs one.
+                </>
+              )}
+            </p>
+          )}
 
           <div className="bx-row">
             <button type="submit" className="bx-primary" disabled={busy || !topic || !you || !them}>
