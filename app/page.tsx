@@ -64,6 +64,14 @@ interface Entry {
   answers: string | null;
   why: string | null;
   checkedAgainst: string | null;
+  /**
+   * Three readings, not two. Shipped server-side in S#279 (`lib/entries.ts`)
+   * and never plumbed to this page, so every honest `opinion` rendered here as
+   * "unchecked -- nobody named what this rests on" -- the exact shaming the
+   * field was built to remove. Found S#280 by grepping this file for `basis`
+   * and getting zero hits.
+   */
+  basis: "opinion" | "inference" | null;
 }
 
 interface ExportPayload {
@@ -162,6 +170,167 @@ const TYPE_LABEL: Record<Entry["type"], string> = {
  */
 const verbFor = (t: string) => TYPE_LABEL[t as Entry["type"]] ?? t;
 const timeOf = (iso: string) => iso.slice(11, 19);
+
+/**
+ * THE ROOM READS AS A DIALOGUE (S#280, D1 + D2 + D4).
+ *
+ * Erik, after watching a real cross-company session: *"it should read like two
+ * people talking in Teams -- each side on its own side of the column, in its own
+ * bubble."* The three findings filed separately from that session (nobody can
+ * tell who is who / the conversation is not shaped like a conversation / the
+ * create flow is too vague) are one deliverable, and this is its core.
+ *
+ * WHAT THE TODO GOT WRONG, checked before building on it: D1 said *"there is no
+ * per-side colour anywhere in the room view"*. There was -- a 9px node ring and
+ * a coloured author name (`globals.css`, `.entry.sideA::before`). The complaint
+ * was real and the stated cause was not: the signal existed and was too weak to
+ * read at a glance. So this is not "add colour", it is "make position carry the
+ * author before any text is read, and let colour confirm it" -- which is the
+ * Teams principle worth taking.
+ *
+ * WHAT IS DELIBERATELY NOT TAKEN FROM TEAMS: a compose box. The browser still
+ * writes nothing into the record -- Erik's call, asked directly in S#277 (*"The
+ * chat is watch only, the communication between you and gemini is the users
+ * chatting."*). There is exactly one write path and it runs through the tools.
+ * Adding a message box here would need its own authorship rules, and "who wrote
+ * this" is the property the whole ledger rests on.
+ */
+
+/** Consecutive entries from one side, close in time, drawn under one header. */
+interface Turn {
+  side: "a" | "b";
+  author: string;
+  mine: boolean;
+  entries: Entry[];
+}
+
+/**
+ * Five minutes, the same window Teams uses to decide whether a message belongs
+ * to the message above it. Long enough that a burst of related entries reads as
+ * one turn; short enough that a reply an hour later gets its own header rather
+ * than pretending to be part of a conversation that had already ended.
+ */
+const TURN_GAP_MS = 5 * 60 * 1000;
+
+function toTurns(entries: Entry[], mySide: string): Turn[] {
+  const turns: Turn[] = [];
+  for (const e of entries) {
+    const last = turns.at(-1);
+    const contiguous =
+      last &&
+      last.side === e.side &&
+      last.author === e.author &&
+      Date.parse(e.ts) - Date.parse(last.entries.at(-1)!.ts) < TURN_GAP_MS;
+    if (contiguous) last.entries.push(e);
+    else turns.push({ side: e.side, author: e.author, mine: e.side === mySide, entries: [e] });
+  }
+  return turns;
+}
+
+/**
+ * THE PROVENANCE LINE, WITH THE THIRD READING IT WAS ALWAYS OWED.
+ *
+ * `basis` shipped in S#279 with its own argument: an honest opinion and an
+ * unsourced factual claim had rendered identically, one of them looked like a
+ * failure, and the cheapest way out of looking like a failure was to invent a
+ * citation. The server has said three things ever since (`wire()` in
+ * `lib/operations.ts`); this page kept saying two. The wording here is lifted
+ * from `wire()` verbatim so a reader who has seen the tool output and then
+ * opens the room is not learning a second vocabulary for the same field.
+ *
+ * This is also the tension the whole chat shape has to survive: a bubble is a
+ * message, an entry is a typed record with a basis and a citation. If the
+ * bubble hides this line, the layout has removed the thing the product is for.
+ */
+function Provenance({ entry }: { entry: Entry }) {
+  /**
+   * WHICH ENTRIES GET A PROVENANCE LINE, and why this is not just answers.
+   *
+   * Found S#280 by driving the room: an `inference` on a note rendered nothing.
+   * The server takes `checkedAgainst` and `basis` on `answer`, `post` AND
+   * `decide` (see the schemas in `app/api/rpc/route.ts`) -- and S#276 added them
+   * to `decide` on purpose, because a decision was *"the most consequential
+   * entry type and the only one that structurally could not say what it was
+   * checked against"*. This page then showed that evidence on answers only, so
+   * the citation behind the most consequential entry in the room was accepted,
+   * stored, exported, and displayed nowhere.
+   *
+   * The rule: if provenance was DECLARED, always show it. If it was not, only
+   * an ANSWER is scolded for the omission -- a note or a decision is not
+   * obliged to cite, and warning on those would re-create the pressure to
+   * invent a citation that `basis` exists to remove.
+   */
+  const declared = entry.checkedAgainst !== null || entry.basis !== null;
+  if (!declared && entry.type !== "answer") return null;
+
+  if (entry.checkedAgainst) {
+    const c = classifyCitation(entry.checkedAgainst);
+    const weak = isUnlocated(c) || isWideRange(c);
+    return (
+      <p className={`prov ${weak ? "thin" : "ok"}`}>
+        <span className="glyph">{weak ? "\u25d0" : "\u2713"}</span>
+        checked against <code>{entry.checkedAgainst}</code>
+        <span
+          className="span"
+          title="How specific the citation is. Says nothing about whether the answer is correct."
+        >
+          {describeCitation(c)}
+        </span>
+      </p>
+    );
+  }
+  if (entry.basis === "opinion")
+    return (
+      <p className="prov judged">
+        <span className="glyph">{"\u25c6"}</span>
+        opinion <span className="span">no citation expected</span>
+      </p>
+    );
+  if (entry.basis === "inference")
+    return (
+      <p className="prov judged">
+        <span className="glyph">{"\u25c7"}</span>
+        inference <span className="span">reasoned, not read</span>
+      </p>
+    );
+  return (
+    <p className="prov bad">
+      <span className="glyph">{"\u26a0"}</span>
+      unchecked <span className="span">nobody named what this rests on</span>
+    </p>
+  );
+}
+
+/**
+ * Who is in the room, and whether they are actually here.
+ *
+ * The old header said this in prose -- two coloured names, a dot, and an
+ * "-- has not connected yet" clause appended to a metadata line. That is the
+ * information, in the place nobody looks. A party is either present or it is
+ * not, and that is a state worth its own object on screen.
+ */
+function SideChip({
+  side,
+  label,
+  joinedAt,
+  you,
+}: {
+  side: string;
+  label: string;
+  joinedAt: string | null;
+  you?: boolean;
+}) {
+  const here = joinedAt !== null;
+  return (
+    <span className={`bx-chip ${side === "a" ? "sideA" : "sideB"} ${here ? "here" : "away"}`}>
+      <span className="bx-chip-dot" />
+      <span className="bx-chip-name">{label}</span>
+      {you && <span className="bx-chip-you">you</span>}
+      {!here && <span className="bx-chip-state">not connected</span>}
+    </span>
+  );
+}
+
 
 /**
  * The tree's folders, and why they are these five.
@@ -1071,13 +1240,38 @@ function RoomView({
     entries.filter((e) => e.type === "reopen" && e.answers).map((e) => e.answers as string),
   );
   const open = entries.filter((e) => e.type === "question" && openIds.has(e.id));
-  const uncheckedAnswers = entries.filter((e) => e.type === "answer" && !e.checkedAgainst).length;
+  /**
+   * An honest `opinion` is no longer counted as a failure to check.
+   *
+   * This counter and the feed had the same bug from the same cause: written
+   * when `checkedAgainst` had two states, never revisited when S#279 gave it
+   * three. Counting an opinion as "unchecked" re-creates the exact pressure
+   * `basis` removed -- a number on screen that goes down if you invent a
+   * citation. `inference` is counted the same way: it is a declared stance, not
+   * an omission.
+   */
+  const uncheckedAnswers = entries.filter(
+    (e) => e.type === "answer" && !e.checkedAgainst && e.basis === null,
+  ).length;
   const thinEvidence = entries.filter((e) => {
     if (e.type !== "answer" || !e.checkedAgainst) return false;
     const c = classifyCitation(e.checkedAgainst);
     return isUnlocated(c) || isWideRange(c);
   }).length;
   const decisions = entries.filter((e) => e.type === "decision");
+
+  /**
+   * The dialogue, grouped. Memoised because it walks every entry on each poll
+   * and the poll runs every four seconds in an active room.
+   *
+   * `mySide` comes from the export payload rather than from the token, because
+   * this page authenticates with the read-only VIEWER seat -- a viewer belongs
+   * to neither side, so `you` is whichever side the payload names and a viewer
+   * simply sees side A on the right. That is honest: it says "this record has
+   * two parties" without claiming the watcher is one of them.
+   */
+  const mySide = data?.room.you.side ?? "a";
+  const turns = useMemo(() => toTurns(entries, mySide), [entries, mySide]);
 
   /**
    * The record as markdown. Used by both the .md download and "copy for your
@@ -1103,9 +1297,20 @@ function RoomView({
         e.title,
         ...(e.body && e.body !== e.title ? [``, e.body] : []),
         ...(e.why ? [``, `**Why:** ${e.why}`] : []),
-        ...(e.type === "answer"
-          ? [``, e.checkedAgainst ? `**Checked against:** \`${e.checkedAgainst}\`` : `**Unchecked** — nobody named what this rests on.`]
-          : []),
+        // The same three readings the screen shows, on the same rule. This is
+        // the "copy for your AI" payload as well as the .md download, so a
+        // partner's model reading the record must not be told an honest opinion
+        // was an unchecked claim -- it would be reading a stricter version of
+        // the ledger than the ledger.
+        ...(e.checkedAgainst
+          ? [``, `**Checked against:** \`${e.checkedAgainst}\``]
+          : e.basis === "opinion"
+            ? [``, `**Opinion** — no citation expected.`]
+            : e.basis === "inference"
+              ? [``, `**Inference** — reasoned, not read.`]
+              : e.type === "answer"
+                ? [``, `**Unchecked** — nobody named what this rests on.`]
+                : []),
         ``,
       ]),
     ].join("\n");
@@ -1176,20 +1381,33 @@ function RoomView({
                 )}
               </h1>
             )}
-            <p className="meta">
+            <div className="meta bx-presence">
               {data ? (
                 <>
-                  <span className="sideA">{data.room.you.label}</span>
-                  <span className="dot">·</span>
-                  <span className="sideB">{data.room.peer.label}</span>
-                  {data.room.peer.joinedAt === null && <span className="warn"> — has not connected yet</span>}
-                  <span className="dot">·</span>
-                  <span className="mono dim">room {data.room.id}</span>
+                  {/*
+                    Both parties, always both, and each carrying its own state.
+                    The old line named them and then appended "-- has not
+                    connected yet" as prose, which is the load-bearing fact of an
+                    unstarted room written in the least visible way available.
+                  */}
+                  <SideChip
+                    side={data.room.you.side}
+                    label={data.room.you.label}
+                    joinedAt={data.room.you.joinedAt}
+                    you
+                  />
+                  <span className="bx-chip-wire" aria-hidden="true" />
+                  <SideChip
+                    side={data.room.peer.side}
+                    label={data.room.peer.label}
+                    joinedAt={data.room.peer.joinedAt}
+                  />
+                  <span className="mono dim bx-roomid">room {data.room.id}</span>
                 </>
               ) : (
                 "connecting…"
               )}
-            </p>
+            </div>
           </div>
           <div className="bx-actions">
             {/*
@@ -1284,7 +1502,7 @@ function RoomView({
           </p>
         </aside>
 
-        {/* CENTRE — the conversation, drawn as the chain it actually is */}
+        {/* CENTRE -- the dialogue. Position says who; colour confirms it. */}
         <section className="bx-chat">
           <div className="bx-chat-head">
             <h2>Conversation</h2>
@@ -1294,57 +1512,87 @@ function RoomView({
               </button>
             )}
           </div>
-          <div className="feed">
+          <div className={`feed ${focus ? "focused" : ""}`}>
             {entries.length === 0 && (
               <p className="empty">
                 Nothing on the bridge yet. When either side calls <code>bridger_ask</code>, it
                 appears here within {POLL_MS / 1000} seconds.
               </p>
             )}
-            {entries
-              .filter((e) => !focus || e.id === focus || e.answers === focus)
-              .map((e) => (
-                <article
-                  key={e.id}
-                  className={`entry ${e.side === "a" ? "sideA" : "sideB"} ${flash === e.seq ? "flash" : ""}`}
+            {turns.map((turn) => {
+              const shown = turn.entries.filter(
+                (e) => !focus || e.id === focus || e.answers === focus,
+              );
+              if (shown.length === 0) return null;
+              return (
+                <div
+                  key={`${turn.entries[0].id}-turn`}
+                  className={`turn ${turn.mine ? "mine" : "theirs"} ${
+                    turn.side === "a" ? "sideA" : "sideB"
+                  }`}
                 >
-                  <div className="head">
-                    <code className="id">{e.id}</code>
-                    <span className="author">{e.author}</span>
-                    <span className="verb">{verbFor(e.type)}</span>
-                    {e.answers && <code className="ref">→ {e.answers}</code>}
-                    <span className="time mono dim">{timeOf(e.ts)}</span>
-                    {reopenedIds.has(e.id) && <span className="reopened">reopened</span>}
+                  <div className="turn-head">
+                    <span className="who">{turn.author}</span>
+                    <span className="mono dim">{timeOf(shown[0].ts)}</span>
                   </div>
-                  {!e.body.startsWith(e.title) && <p className="title">{e.title}</p>}
-                  {e.body && e.body !== e.title && <p className="body">{e.body}</p>}
-                  {e.why && (
-                    <p className="why">
-                      <span>why</span> {e.why}
-                    </p>
-                  )}
-                  {e.type === "answer" &&
-                    (e.checkedAgainst ? (
-                      (() => {
-                        const c = classifyCitation(e.checkedAgainst);
-                        const weak = isUnlocated(c) || isWideRange(c);
-                        return (
-                          <p className={`prov ${weak ? "thin" : "ok"}`}>
-                            {weak ? "◐" : "✓"} checked against <code>{e.checkedAgainst}</code>
-                            <span
-                              className="span"
-                              title="How specific the citation is. Says nothing about whether the answer is correct."
+                  {shown.map((e) => (
+                    <div className="row" key={e.id}>
+                      <article className={`bubble t-${e.type} ${flash === e.seq ? "flash" : ""}`}>
+                        {/*
+                          The type stays on the bubble, always. A chat shape that
+                          flattens `asks` / `decides` / `signs off` into "a
+                          message" has thrown away the reason this is a record
+                          rather than a chat log.
+                        */}
+                        <div className="head">
+                          <span className="verb">{verbFor(e.type)}</span>
+                          <code className="id">{e.id}</code>
+                          {e.answers && (
+                            <button
+                              type="button"
+                              className="ref"
+                              title={`Show ${e.answers} and everything answering it`}
+                              onClick={() => setFocus(focus === e.answers ? null : e.answers)}
                             >
-                              {describeCitation(c)}
-                            </span>
+                              → {e.answers}
+                            </button>
+                          )}
+                          {reopenedIds.has(e.id) && <span className="reopened">reopened</span>}
+                        </div>
+                        {/*
+                          AN ENTRY WHOSE BODY EQUALS ITS TITLE RENDERED BLANK.
+                          The old pair of conditions was `!body.startsWith(title)`
+                          for the title and `body !== title` for the body, so an
+                          entry where the two are identical satisfied NEITHER and
+                          the bubble showed a type badge, a citation, and no text
+                          at all. `opAnswer` produces exactly that shape, which
+                          means every answer in every room has been rendering
+                          without its answer. Found S#280 by looking at a
+                          screenshot -- the DOM assertions were all green.
+                        */}
+                        {!e.body ? (
+                          <p className="title">{e.title}</p>
+                        ) : e.body.startsWith(e.title) ? (
+                          <p className="title">{e.body}</p>
+                        ) : (
+                          <>
+                            <p className="title">{e.title}</p>
+                            <p className="body">{e.body}</p>
+                          </>
+                        )}
+                        {e.why && (
+                          <p className="why">
+                            <span>why</span> {e.why}
                           </p>
-                        );
-                      })()
-                    ) : (
-                      <p className="prov bad">⚠ unchecked — nobody named what this rests on</p>
-                    ))}
-                </article>
-              ))}
+                        )}
+                        <Provenance entry={e} />
+
+                      </article>
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
           </div>
         </section>
 

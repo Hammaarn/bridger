@@ -1439,155 +1439,434 @@ input.bx-folder-name:focus {
    link: a continuous spine down the left with a node per entry. This is the
    tamper-evidence made visible rather than described — the structure on screen
    is the structure in the store. */
+/* ── THE DIALOGUE ────────────────────────────────────────────────────────────
+   S#280, D1 + D2 + D4. Erik: "it should read like two people talking in Teams
+   -- each side on its own side of the column, in its own bubble."
+
+   THE SYNTHESIS, and it is why this does not simply look like Teams. The feed
+   used to draw ONE spine down the left: the hash-chain, made visible instead of
+   merely claimed. Alignment would have killed it -- a right-aligned bubble has
+   nothing to hang from. So the chain is split into TWO RAILS, one per party,
+   each in that side's hue. That is not a compromise: entry ids are already
+   namespaced per side (CLA-N-005, JMS-Q-014), so a per-side chain is a truer
+   drawing of the data model than the single spine ever was.
+
+   The rails are also what fixes D1. A coloured 9px node ring existed and was
+   too faint to read at a glance; a full-height rail in the side's colour sits
+   in peripheral vision, which is where "who is talking" actually gets answered.
+*/
 .feed {
   position: relative;
   display: grid;
-  gap: 2px;
-  padding-left: 22px;
+  gap: 18px;
+  padding: 4px 0;
 }
 
-/* Brighter than a hairline on purpose. At --line-strong the spine was invisible
-   at normal viewing distance, which left the node rings floating and killed the
-   whole point — the chain has to READ as a chain or it is just decoration. */
-.feed::before {
+/* The two rails. Drawn on the FEED rather than per turn, so they run unbroken
+   down the whole conversation -- a chain with gaps in it is not a chain. */
+.feed::before,
+.feed::after {
   content: "";
   position: absolute;
-  left: 5px;
-  top: 10px;
-  bottom: 10px;
+  top: 6px;
+  bottom: 6px;
   width: 1px;
+  pointer-events: none;
+}
+
+.feed::before {
+  left: 4px;
   background: linear-gradient(
     to bottom,
     transparent,
-    color-mix(in oklab, var(--text-faint) 70%, transparent) 7%,
-    color-mix(in oklab, var(--text-faint) 70%, transparent) 93%,
+    color-mix(in oklab, var(--side-a) 58%, transparent) 6%,
+    color-mix(in oklab, var(--side-a) 58%, transparent) 94%,
     transparent
   );
 }
 
-.entry {
+.feed::after {
+  right: 4px;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    color-mix(in oklab, var(--side-b) 58%, transparent) 6%,
+    color-mix(in oklab, var(--side-b) 58%, transparent) 94%,
+    transparent
+  );
+}
+
+/* A run of entries from one party, under one header. */
+.turn {
+  display: grid;
+  gap: 3px;
+}
+
+.turn-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 3px;
+  font-size: 12px;
+}
+
+.turn-head .who {
+  font-weight: 600;
+}
+
+.turn-head .mono {
+  font-size: 10.5px;
+}
+
+.turn.sideA .turn-head .who {
+  color: var(--side-a);
+}
+
+.turn.sideB .turn-head .who {
+  color: var(--side-b);
+}
+
+/* MINE right, THEIRS left. Position is the first signal and it costs no ink. */
+.turn.theirs {
+  justify-items: start;
+  padding-left: 22px;
+  padding-right: 12%;
+}
+
+.turn.mine {
+  justify-items: end;
+  padding-right: 22px;
+  padding-left: 12%;
+}
+
+.turn.mine .turn-head {
+  flex-direction: row-reverse;
+}
+
+.row {
   position: relative;
-  padding: 13px 15px;
-  border-radius: var(--r-md);
-  border: 1px solid transparent;
-  transition: border-color 160ms var(--ease), background 160ms var(--ease);
+  max-width: 100%;
+  display: flex;
 }
 
-.entry:hover {
-  background: var(--ink-800);
-  border-color: var(--line);
+.turn.mine .row {
+  justify-content: flex-end;
 }
 
-/* The node on the spine. */
-.entry::before {
+/* The node on this side's rail, plus the stub tying the bubble to it. The node
+   is per ENTRY, not per turn, because the chain links entries. */
+.row::before {
   content: "";
   position: absolute;
-  left: -22px;
-  top: 19px;
-  width: 9px;
-  height: 9px;
+  top: 16px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: var(--ink-900);
   border: 1.5px solid var(--text-faint);
   z-index: 1;
 }
 
-.entry.sideA::before {
+.row::after {
+  content: "";
+  position: absolute;
+  top: 19px;
+  height: 1px;
+  background: var(--line-strong);
+}
+
+.turn.theirs .row::before {
+  left: -21px;
+}
+
+.turn.theirs .row::after {
+  left: -14px;
+  width: 12px;
+}
+
+.turn.mine .row::before {
+  right: -21px;
+}
+
+.turn.mine .row::after {
+  right: -14px;
+  width: 12px;
+}
+
+.turn.sideA .row::before {
   border-color: var(--side-a);
 }
 
-.entry.sideB::before {
+.turn.sideB .row::before {
   border-color: var(--side-b);
 }
 
-.entry .head {
+/* THE BUBBLE. Filled, not the old transparent-until-hover card: a bubble that
+   only exists on hover cannot carry authorship at a glance, which was the
+   complaint. The tint is the side's hue at low saturation, so the two parties
+   are distinguishable without either becoming a coloured block of text. */
+.bubble {
+  position: relative;
+  padding: 11px 14px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: var(--ink-800);
+  transition: border-color 160ms var(--ease), background 160ms var(--ease);
+  min-width: 0;
+}
+
+.turn.sideA .bubble {
+  background: color-mix(in oklab, var(--side-a) 10%, var(--ink-800));
+  border-color: color-mix(in oklab, var(--side-a) 22%, var(--line));
+}
+
+.turn.sideB .bubble {
+  background: color-mix(in oklab, var(--side-b) 10%, var(--ink-800));
+  border-color: color-mix(in oklab, var(--side-b) 22%, var(--line));
+}
+
+/* Teams' grouping tell: consecutive bubbles from one party lose the corner
+   facing their own run, so a turn reads as one block rather than n messages. */
+.turn.theirs .row:not(:last-child) .bubble {
+  border-bottom-left-radius: 4px;
+}
+
+.turn.theirs .row:not(:first-child) .bubble {
+  border-top-left-radius: 4px;
+}
+
+.turn.mine .row:not(:last-child) .bubble {
+  border-bottom-right-radius: 4px;
+}
+
+.turn.mine .row:not(:first-child) .bubble {
+  border-top-right-radius: 4px;
+}
+
+.bubble:hover {
+  border-color: var(--line-strong);
+}
+
+.bubble .head {
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
   gap: 8px;
-  margin-bottom: 6px;
+  margin-bottom: 5px;
 }
 
-.entry .id {
+.turn.mine .bubble .head {
+  flex-direction: row-reverse;
+}
+
+.turn.mine .bubble .title,
+.turn.mine .bubble .body {
+  text-align: right;
+}
+
+.turn.mine .bubble .why,
+.turn.mine .bubble .prov {
+  flex-direction: row-reverse;
+}
+
+/* THE TYPE, KEPT. A chat shape that flattens `asks` / `decides` / `signs off`
+   into "a message" has thrown away the reason this is a record and not a chat
+   log. It leads the bubble for that reason. */
+.bubble .verb {
+  font-family: var(--font-mono-stack);
+  font-size: 9.5px;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
+  padding: 1px 6px;
+  white-space: nowrap;
+}
+
+.bubble.t-decision .verb,
+.bubble.t-signoff .verb {
+  color: var(--seal);
+  border-color: color-mix(in oklab, var(--seal) 45%, transparent);
+}
+
+.bubble.t-reopen .verb {
+  color: var(--alarm);
+  border-color: color-mix(in oklab, var(--alarm) 45%, transparent);
+}
+
+.bubble .id {
   font-size: 10.5px;
   letter-spacing: 0.04em;
   color: var(--text-faint);
 }
 
-.entry .author {
-  font-size: 12.5px;
-  font-weight: 600;
-}
-
-.entry.sideA .author {
-  color: var(--side-a);
-}
-
-.entry.sideB .author {
-  color: var(--side-b);
-}
-
-.entry .verb {
-  font-size: 12.5px;
+/* The answered-question pointer is real navigation now rather than a label: it
+   was already the only cross-reference in the record and it did nothing. */
+.bubble .ref {
+  font-family: var(--font-mono-stack);
+  font-size: 10.5px;
   color: var(--text-dim);
+  background: none;
+  border: none;
+  border-bottom: 1px dotted var(--line-strong);
+  padding: 0;
+  cursor: pointer;
 }
 
-.entry .ref {
-  font-size: 10.5px;
-  color: var(--text-faint);
+.bubble .ref:hover {
+  color: var(--seal);
+  border-bottom-color: var(--seal);
 }
 
-.entry .time {
-  font-size: 10.5px;
-  margin-left: auto;
-  color: var(--text-faint);
-}
-
-.entry .reopened {
+.bubble .reopened {
   font-family: var(--font-mono-stack);
   font-size: 9.5px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--seal);
-  border: 1px solid color-mix(in oklab, var(--seal) 40%, transparent);
-  border-radius: 3px;
-  padding: 1px 5px;
+  color: var(--alarm);
 }
 
-.entry .title {
-  font-size: 14px;
-  line-height: 1.5;
-  font-weight: 500;
-  margin-bottom: 4px;
-}
-
-.entry .body {
+.bubble .title {
   font-size: 13.5px;
-  line-height: 1.65;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.bubble .body {
+  font-size: 13.5px;
+  line-height: 1.62;
   color: var(--text-dim);
-  white-space: pre-wrap;
+  margin-top: 4px;
   overflow-wrap: anywhere;
 }
 
-.entry .why {
-  font-size: 13px;
-  line-height: 1.6;
+.bubble .why {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 12.5px;
+  line-height: 1.55;
   color: var(--text-dim);
-  margin-top: 7px;
-  padding-left: 11px;
-  border-left: 1px solid var(--line-strong);
 }
 
-.entry .why span {
+.bubble .why span {
   font-family: var(--font-mono-stack);
   font-size: 9.5px;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.13em;
   text-transform: uppercase;
   color: var(--text-faint);
-  margin-right: 7px;
+  padding-top: 3px;
+  white-space: nowrap;
 }
 
-/* THE PROVENANCE LINE — the only assertively coloured thing in the product. */
+/* A new entry arriving. One soft sweep, no bounce -- this is a record, not a
+   notification. */
+.bubble.flash {
+  animation: land 1.8s var(--ease);
+}
+
+@keyframes land {
+  0% {
+    box-shadow: 0 0 0 2px color-mix(in oklab, var(--seal) 38%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 2px transparent;
+  }
+}
+
+/* ── WHO IS IN THE ROOM ──────────────────────────────────────────────────────
+   D1's other half. Presence was previously an "-- has not connected yet" clause
+   appended to a metadata line: the load-bearing fact of an unstarted room,
+   written in the least visible way available. */
+.bx-presence {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+
+.bx-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 10px 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.bx-chip-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.bx-chip.sideA {
+  border-color: color-mix(in oklab, var(--side-a) 34%, var(--line));
+}
+
+.bx-chip.sideB {
+  border-color: color-mix(in oklab, var(--side-b) 34%, var(--line));
+}
+
+.bx-chip.sideA .bx-chip-name {
+  color: var(--side-a);
+}
+
+.bx-chip.sideB .bx-chip-name {
+  color: var(--side-b);
+}
+
+.bx-chip.sideA.here .bx-chip-dot {
+  background: var(--side-a);
+}
+
+.bx-chip.sideB.here .bx-chip-dot {
+  background: var(--side-b);
+}
+
+/* Away is a HOLLOW dot, not a dimmer filled one. Absence and a quiet presence
+   must not render the same -- the failure this project keeps re-learning. */
+.bx-chip.away .bx-chip-dot {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--text-faint);
+}
+
+.bx-chip.away .bx-chip-name {
+  color: var(--text-dim);
+}
+
+.bx-chip-you,
+.bx-chip-state {
+  font-family: var(--font-mono-stack);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.bx-chip-state {
+  color: var(--alarm);
+}
+
+/* The wire between the two chips. Same object as the header strip and the
+   brand mark: the connection, drawn once and reused. */
+.bx-chip-wire {
+  flex: none;
+  width: 26px;
+  height: 1px;
+  background: linear-gradient(to right, var(--side-a), var(--side-b));
+  opacity: 0.55;
+}
+
+.bx-roomid {
+  font-size: 11px;
+}
+
+
 .prov {
   display: flex;
   align-items: baseline;
@@ -1637,23 +1916,6 @@ input.bx-folder-name:focus {
   border: 1px solid var(--line);
   border-radius: 3px;
   padding: 1px 6px;
-}
-
-/* A new entry arriving. One soft sweep, no bounce — this is a record, not a
-   notification. */
-.entry.flash {
-  animation: land 1.8s var(--ease);
-}
-
-@keyframes land {
-  0% {
-    background: color-mix(in oklab, var(--seal) 14%, transparent);
-    border-color: color-mix(in oklab, var(--seal) 40%, transparent);
-  }
-  100% {
-    background: transparent;
-    border-color: transparent;
-  }
 }
 
 .empty {
@@ -1803,6 +2065,17 @@ input.bx-folder-name:focus {
     grid-template-columns: 220px minmax(0, 1fr);
   }
 
+  /* The 12% inset that gives the alignment room to read is a luxury of a wide
+     column. Below this the opposite party's gutter costs more than it buys, so
+     the bubbles get the width back and the rails keep saying who is speaking. */
+  .turn.theirs {
+    padding-right: 6%;
+  }
+
+  .turn.mine {
+    padding-left: 6%;
+  }
+
   .bx-agree {
     grid-column: 1 / -1;
     border-top: 1px solid var(--line);
@@ -1820,6 +2093,16 @@ input.bx-folder-name:focus {
 @media (max-width: 720px) {
   body {
     font-size: 14.5px;
+  }
+
+  /* On a phone there is no gutter to spend at all. Position still separates the
+     two parties -- one side hugs each rail -- but a bubble may use the width. */
+  .turn.theirs {
+    padding-right: 0;
+  }
+
+  .turn.mine {
+    padding-left: 0;
   }
 
   .hero {
@@ -1889,7 +2172,7 @@ input.bx-folder-name:focus {
 /* Windows high-contrast: never let a hairline-only affordance disappear. */
 @media (forced-colors: active) {
   .bx-token,
-  .entry,
+  .bubble,
   .panel,
   .bx-details {
     border: 1px solid CanvasText;
