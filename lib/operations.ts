@@ -49,6 +49,7 @@ import {
   type TokenRecord,
   noteOp,
   trailGuidance,
+  setSideIdentity,
 } from "./room-registry";
 import {
   INVITE_REREAD_SECONDS,
@@ -66,6 +67,7 @@ import {
 } from "./store";
 import { classifyCitation, describeCitation } from "./citation";
 import { describePatch, patchContract } from "./contract-patch";
+import { MAX_LABEL, sanitiseRoomText } from "./room-text";
 import { contain, CONTAINMENT_NOTE } from "./untrusted";
 import { recordPurgeConsent, withdrawPurgeConsent } from "./purge";
 
@@ -594,6 +596,62 @@ export async function opContract(
  * whether YOUR question was answered, and letting the answering side reopen its
  * own answer would make the signal meaningless.
  */
+/**
+ * IDENTIFY YOURSELF -- the answer to two parties both called "claude".
+ *
+ * Checked against production S#280: the real cross-company room has
+ * `label: "claude"` on BOTH sides. The rails shipped earlier that session made
+ * position and colour carry authorship, and left the names identical -- so the
+ * one place a reader looks to confirm what the layout told them says the same
+ * word twice.
+ *
+ * `label` is who the party IS (a company, a team, a person). `agent` is what is
+ * TYPING. Different questions; one field was answering neither.
+ *
+ * **Your own side only, and nothing verifies it.** The far side is the only
+ * party that knows what it is, so it is the only party that may say -- and a
+ * transport cannot check what model is on the other end of a bearer token.
+ * Rendered as self-declared, given no verification affordance, and never
+ * counted as evidence. Saying "this is a Claude" is a courtesy for reading the
+ * room; treating it as proof would be precisely the failure this product
+ * exists to prevent.
+ */
+export async function opIdentify(
+  ctx: OpContext,
+  args: { label?: string; agent?: string | null },
+) {
+  requireWrite(ctx.token);
+  if (args.label === undefined && args.agent === undefined) {
+    const me = ctx.room.sides[ctx.token.side];
+    return {
+      side: ctx.token.side,
+      label: me.label,
+      agent: me.agent ?? null,
+      note: "Send `label` and/or `agent` to change how your side is shown. This is self-declared and is not verified by anything.",
+    };
+  }
+  const label =
+    args.label === undefined ? undefined : sanitiseRoomText(args.label, "label", MAX_LABEL);
+  // `null` clears it; a string is normalised so that "Claude", "claude " and
+  // "CLAUDE" cannot render as three different agents in one room.
+  const agent =
+    args.agent === undefined
+      ? undefined
+      : args.agent === null
+        ? null
+        : sanitiseRoomText(args.agent, "agent", 40).toLowerCase() || null;
+
+  const next = await setSideIdentity(ctx.store, ctx.room, ctx.token.side, { label, agent });
+  const me = next.sides[ctx.token.side];
+  return {
+    updated: true,
+    side: ctx.token.side,
+    label: me.label,
+    agent: me.agent ?? null,
+    note: "Recorded as YOUR OWN declaration. Nothing here verifies it, and the other side is shown it as self-declared.",
+  };
+}
+
 export async function opReopen(ctx: OpContext, args: { questionId: string; why: string }) {
   requireWrite(ctx.token);
   await noteProductive(ctx);
