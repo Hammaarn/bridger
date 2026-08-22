@@ -47,7 +47,7 @@
  * reasoning that put the `viewer` role in `room-registry.ts` in the first place.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { openQuestionIds } from "@/lib/question-state";
 import { classifyCitation, describeCitation, isUnlocated, isWideRange } from "@/lib/citation";
 import LetterGlitch from "./backgrounds/letter-glitch";
@@ -184,6 +184,32 @@ const TYPE_LABEL: Record<Entry["type"], string> = {
  */
 const verbFor = (t: string) => TYPE_LABEL[t as Entry["type"]] ?? t;
 const timeOf = (iso: string) => iso.slice(11, 19);
+const dayOf = (iso: string) => iso.slice(0, 10);
+
+/**
+ * A day label for the feed separator.
+ *
+ * Built from the ISO string in UTC on purpose: `timeOf` already slices UTC out
+ * of the timestamp, so the whole feed has always been in UTC. Deriving the date
+ * from a local `Date` would put a LOCAL day heading over UTC times, which is
+ * wrong for exactly the readers most likely to notice -- two parties in
+ * different timezones, which is this product's entire situation. The `UTC` tag
+ * on the separator is the cheapest place to say so once for the whole column.
+ */
+const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function dayLabel(iso: string): string {
+  const d = new Date(`${dayOf(iso)}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return dayOf(iso);
+  const today = new Date().toISOString().slice(0, 10);
+  const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+  if (dayOf(iso) === today) return "Today";
+  if (dayOf(iso) === yesterday) return "Yesterday";
+  return `${DAYS[d.getUTCDay()]} ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+}
+
+/** Where this browser had read up to, per room. A private reading position. */
+const SEEN_KEY = (roomId: string) => `bridger.seen.${roomId}`;
 
 /**
  * THE ROOM READS AS A DIALOGUE (S#280, D1 + D2 + D4).
@@ -1294,6 +1320,36 @@ function RoomView({
   const [arrivals, setArrivals] = useState(0);
 
   /**
+   * WHERE YOU LEFT OFF, and why it is FROZEN at mount.
+   *
+   * The obvious version updates `lastSeen` as entries render — and then the
+   * divider can never appear, because by the time you look, everything has been
+   * marked seen. So this is captured ONCE when the room opens and never moves
+   * while you are reading it; the new high-water mark is written back when you
+   * leave or hide the tab.
+   *
+   * Deliberately per-browser rather than server state. A viewer has no cursor on
+   * the bridge, and giving it one would mean one watcher's scroll position
+   * quietly became a fact about the room. Reading position is private.
+   */
+  const [seenAtOpen, setSeenAtOpen] = useState<number | null>(null);
+  const feedRef = useRef<HTMLElement | null>(null);
+  const [atBottom, setAtBottom] = useState(true);
+  /**
+   * The newest seq at the moment the reader LEFT the bottom, or null while they
+   * are at it. `missed` is then a subtraction rather than a tally.
+   *
+   * The first version accumulated into a `missed` counter from an effect keyed
+   * on `[arrivals, atBottom]`, and it never fired: auto-follow demonstrably
+   * worked, the reader demonstrably was not yanked, and the count stayed at
+   * zero — three observations that took two probes to separate. A derived value
+   * has no ordering to get wrong, and it is also self-correcting: it cannot
+   * drift from the record the way a tally can.
+   */
+  const [bottomSeq, setBottomSeq] = useState<number | null>(null);
+
+
+  /**
    * Three outcomes, not two, and the third one is the whole point.
    *
    * `STATUS.md` calls "does a real client stop on a terminal refusal?" the one
@@ -1460,6 +1516,47 @@ function RoomView({
     return () => clearTimeout(t);
   }, [flash]);
 
+  /**
+   * FOLLOW THE CONVERSATION, BUT NEVER STEAL THE SCROLL.
+   *
+   * Before this, a new entry landed off-screen in any room long enough to
+   * scroll and nothing took you to it — so the arrival flash, which exists to
+   * say "something happened", animated where it could not be seen.
+   *
+   * The rule every chat client learns the hard way: follow only if the reader
+   * was ALREADY at the bottom. Someone who has scrolled up is reading, and
+   * yanking them to the newest message loses their place — worse than never
+   * scrolling at all. When they are up there, the arrival becomes a counter
+   * they can click instead.
+   */
+  const onFeedScroll = useCallback(() => {
+    const el = feedRef.current;
+    if (!el) return;
+    // 48px of slack: "at the bottom" has to survive a half-pixel layout wobble,
+    // or following silently stops working on some zoom levels.
+    const bottom = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+    setAtBottom(bottom);
+  }, []);
+
+  useEffect(() => {
+    const el = feedRef.current;
+    if (!el || !data) return;
+    if (atBottom) el.scrollTop = el.scrollHeight;
+  }, [arrivals, data, atBottom]);
+
+  // Mark where the record stood the moment they scrolled away, and clear it the
+  // moment they come back. Everything else is arithmetic.
+  useEffect(() => {
+    setBottomSeq(atBottom ? null : lastSeq.current);
+  }, [atBottom]);
+
+  function jumpToLatest() {
+    const el = feedRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    setAtBottom(true);
+  }
+
   const roomId = data?.room.id;
   useEffect(() => {
     if (!roomId) return;
@@ -1468,6 +1565,36 @@ function RoomView({
     } catch {
       setNames({});
     }
+  }, [roomId]);
+
+  // Freeze the read position once per room, then write it back on the way out.
+  useEffect(() => {
+    if (!roomId) return;
+    let n = 0;
+    try {
+      n = Number(localStorage.getItem(SEEN_KEY(roomId))) || 0;
+    } catch {
+      n = 0;
+    }
+    setSeenAtOpen(n);
+
+    const flush = () => {
+      try {
+        localStorage.setItem(SEEN_KEY(roomId), String(lastSeq.current));
+      } catch {
+        /* a private window simply does not remember */
+      }
+    };
+    // `visibilitychange` as well as unload: a tab that is switched away from and
+    // never closed is the common case, and `beforeunload` does not fire on a
+    // mobile tab that is simply backgrounded.
+    document.addEventListener("visibilitychange", flush);
+    window.addEventListener("pagehide", flush);
+    return () => {
+      flush();
+      document.removeEventListener("visibilitychange", flush);
+      window.removeEventListener("pagehide", flush);
+    };
   }, [roomId]);
 
   function renameFolder(key: string, label: string) {
@@ -1519,6 +1646,9 @@ function RoomView({
     return isUnlocated(c) || isWideRange(c);
   }).length;
   const decisions = entries.filter((e) => e.type === "decision");
+
+  /** What has landed since the reader scrolled away. Derived, never tallied. */
+  const missed = bottomSeq === null ? 0 : Math.max(0, (entries.at(-1)?.seq ?? 0) - bottomSeq);
 
   /**
    * The dialogue, grouped. Memoised because it walks every entry on each poll
@@ -1729,7 +1859,12 @@ function RoomView({
         The fix is not a smaller font: during the plan phase this IS the work,
         so it gets the width, and the conversation stays below it.
       */}
-      {data?.plan && data.room.phase === "plan" && (
+      {/*
+        ...but only once there is something ON it. An empty board spent the top
+        of the screen to say "nothing planned yet" and squeezed the conversation
+        into a strip — the full width is earned by content, not by the phase.
+      */}
+      {data?.plan && data.room.phase === "plan" && data.plan.items.length > 0 && (
         <div className="bx-board-wide">
           <PlanBoard
             plan={data.plan}
@@ -1786,7 +1921,7 @@ function RoomView({
         </aside>
 
         {/* CENTRE -- the dialogue. Position says who; colour confirms it. */}
-        <section className="bx-chat">
+        <section className="bx-chat" ref={feedRef} onScroll={onFeedScroll}>
           <div className="bx-chat-head">
             <h2>Conversation</h2>
             {focus && (
@@ -1802,12 +1937,40 @@ function RoomView({
                 appears here within {POLL_MS / 1000} seconds.
               </p>
             )}
-            {turns.map((turn) => {
+            {turns.map((turn, ti) => {
               const shown = turn.entries.filter(
                 (e) => !focus || e.id === focus || e.answers === focus,
               );
               if (shown.length === 0) return null;
+
+              // A day boundary. Without one, a room spanning two days shows the
+              // same clock time twice with nothing between them.
+              const prev = turns[ti - 1];
+              const newDay = !prev || dayOf(prev.entries[0].ts) !== dayOf(shown[0].ts);
+
+              // The unread line, drawn once, before the first turn this browser
+              // had not seen when it opened the room.
+              const firstUnseen =
+                seenAtOpen !== null &&
+                seenAtOpen > 0 &&
+                shown.some((e) => e.seq > seenAtOpen) &&
+                (!prev || prev.entries.every((e) => e.seq <= seenAtOpen));
+
               return (
+                <Fragment key={`${turn.entries[0].id}-wrap`}>
+                  {newDay && (
+                    <div className="bx-day">
+                      <span>{dayLabel(shown[0].ts)}</span>
+                      <span className="bx-day-utc" title="Every time in this column is UTC.">
+                        UTC
+                      </span>
+                    </div>
+                  )}
+                  {firstUnseen && (
+                    <div className="bx-newline">
+                      <span>new since you last looked</span>
+                    </div>
+                  )}
                 <div
                   key={`${turn.entries[0].id}-turn`}
                   className={`turn ${turn.mine ? "mine" : "theirs"} ${
@@ -1875,9 +2038,21 @@ function RoomView({
                     </div>
                   ))}
                 </div>
+                </Fragment>
               );
             })}
           </div>
+
+          {/*
+            Only while the reader is scrolled up. Following silently is right
+            when you are at the bottom; announcing an arrival you can already
+            see would be noise.
+          */}
+          {!atBottom && missed > 0 && (
+            <button type="button" className="bx-jump" onClick={jumpToLatest}>
+              {missed} new {missed === 1 ? "entry" : "entries"} ↓
+            </button>
+          )}
         </section>
 
         {/* RIGHT — what the two sides are going to do, then what they agreed */}
@@ -1888,7 +2063,7 @@ function RoomView({
             the block before `.bx-panels`. This is the phase shaping LAYOUT,
             which is half of what a phase was for and was doing nothing yet.
           */}
-          {data?.plan && data.room.phase !== "plan" && (
+          {data?.plan && (data.room.phase !== "plan" || data.plan.items.length === 0) && (
             <PlanBoard
               plan={data.plan}
               you={data.room.you}
