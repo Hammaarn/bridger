@@ -47,7 +47,7 @@
  * reasoning that put the `viewer` role in `room-registry.ts` in the first place.
  */
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { openQuestionIds } from "@/lib/question-state";
 import { classifyCitation, describeCitation, isUnlocated, isWideRange } from "@/lib/citation";
 import LetterGlitch from "./backgrounds/letter-glitch";
@@ -349,6 +349,84 @@ function Provenance({ entry, n }: { entry: Entry; n?: number }) {
       <span className="glyph">{"\u26a0"}</span>
       unchecked <span className="span">nobody named what this rests on</span>
     </p>
+  );
+}
+
+/**
+ * A BODY THAT CLAMPS ONLY IF IT ACTUALLY OVERFLOWS.
+ *
+ * The first version decided by CHARACTER COUNT, and that control could lie: at a
+ * wide viewport 860 characters fits in six lines, so the button offered to "show
+ * all 860 characters" when all 860 were already on screen. Small, but this
+ * product's whole argument is that it does not say things it has not checked --
+ * and a count is a guess about layout, not a reading of it.
+ *
+ * So it measures. The character count survives as a cheap pre-filter (no point
+ * mounting an observer on a one-line note) and the control appears only when the
+ * rendered text is genuinely taller than the clamp.
+ */
+function Clampable({ text, className, mine }: { text: string; className: string; mine: boolean }) {
+  const ref = useRef<HTMLParagraphElement | null>(null);
+  const [overflows, setOverflows] = useState(false);
+  const [open, setOpen] = useState(false);
+  /**
+   * The open height, in real pixels.
+   *
+   * The obvious version transitions `max-height` from the clamp to something
+   * huge, and it LOOKS like a snap: the element reaches its natural height long
+   * before `max-height` finishes travelling to 200em, so all the easing happens
+   * after there is anything left to see. Measured at 90ms into a 240ms
+   * transition, the body was already at its final 546px.
+   *
+   * So it animates to the MEASURED height instead, and the whole 240ms is spent
+   * on distance the reader can actually see.
+   */
+  const [openH, setOpenH] = useState<number | null>(null);
+
+  // Layout effect, not effect: this reads geometry, and measuring after paint
+  // would flash the control for a frame before deciding it was not needed.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const check = () => {
+      if (el.classList.contains("clamped")) {
+        setOverflows(el.scrollHeight > el.clientHeight + 4);
+      } else {
+        // Open, and the column changed width: keep the target honest or the
+        // text clips at the old measurement.
+        setOpenH(el.scrollHeight);
+      }
+    };
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [text]);
+
+  return (
+    <>
+      <p
+        ref={ref}
+        className={`${className} ${open ? "" : "clamped"}`}
+        style={open && openH ? { maxHeight: openH } : undefined}
+      >
+        {text}
+      </p>
+      {overflows && (
+        <button
+          type="button"
+          className="bx-more"
+          style={mine ? { alignSelf: "flex-end" } : undefined}
+          onClick={() => {
+            const el = ref.current;
+            if (!open && el) setOpenH(el.scrollHeight);
+            setOpen((v) => !v);
+          }}
+        >
+          {open ? "show less" : "show all"}
+        </button>
+      )}
+    </>
   );
 }
 
@@ -1406,27 +1484,6 @@ function RoomView({
    * drift from the record the way a tally can.
    */
   const [bottomSeq, setBottomSeq] = useState<number | null>(null);
-  /**
-   * WHICH LONG ENTRIES THE READER HAS OPENED.
-   *
-   * The bubble design assumed chat messages. Real entries are essays — the live
-   * Trigvanta room has single notes over 400 words, and stacked full-height
-   * they turn the column into a wall nobody scrolls. Erik: *"too much scroll
-   * and text stacked on top... we need a more compact feeling."*
-   *
-   * So a long body is clamped and opens on demand. Collapsed by DEFAULT rather
-   * than remembered-open: the room's value is being able to see the shape of a
-   * conversation at a glance, and a reader who wants one entry in full is
-   * making a choice about that entry.
-   */
-  const [opened, setOpened] = useState<Set<string>>(new Set());
-  const toggleOpen = (id: string) =>
-    setOpened((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
 
 
   /**
@@ -2184,32 +2241,25 @@ function RoomView({
                           screenshot -- the DOM assertions were all green.
                         */}
                         {(() => {
-                          // ~360 characters is about six lines at this measure:
-                          // long enough that a normal note is never truncated,
-                          // short enough that an essay stops owning the column.
-                          const longform = (e.body || "").length > 360;
-                          const open = opened.has(e.id);
-                          const clamp = longform && !open ? "clamped" : "";
+                          // A pre-filter, not the decision: below this nothing
+                          // can overflow six lines at any width, so there is no
+                          // point mounting an observer. `Clampable` measures.
+                          const LONG = 240;
+                          if (!e.body) return <p className="title">{e.title}</p>;
+                          if (e.body.startsWith(e.title)) {
+                            return e.body.length > LONG ? (
+                              <Clampable text={e.body} className="title" mine={turn.mine} />
+                            ) : (
+                              <p className="title">{e.body}</p>
+                            );
+                          }
                           return (
                             <>
-                              {!e.body ? (
-                                <p className="title">{e.title}</p>
-                              ) : e.body.startsWith(e.title) ? (
-                                <p className={`title ${clamp}`}>{e.body}</p>
+                              <p className="title">{e.title}</p>
+                              {e.body.length > LONG ? (
+                                <Clampable text={e.body} className="body" mine={turn.mine} />
                               ) : (
-                                <>
-                                  <p className="title">{e.title}</p>
-                                  <p className={`body ${clamp}`}>{e.body}</p>
-                                </>
-                              )}
-                              {longform && (
-                                <button
-                                  type="button"
-                                  className="bx-more"
-                                  onClick={() => toggleOpen(e.id)}
-                                >
-                                  {open ? "show less" : `show all ${e.body.length} characters`}
-                                </button>
+                                <p className="body">{e.body}</p>
                               )}
                             </>
                           );
