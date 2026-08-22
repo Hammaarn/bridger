@@ -402,8 +402,29 @@ const handler = createMcpHandler(
         description:
           "The one document both sides build against — the wire format, the endpoints, the event shapes. Call with no arguments to read it. Pass `body` to replace it; the replacement is logged to the ledger with your name on it, because a silent contract change is the most expensive edit either side can make.",
         inputSchema: z.object({
-          body: z.string().max(100000).optional().describe("Omit to read. Provide to replace."),
+          body: z
+            .string()
+            .max(100000)
+            .optional()
+            .describe("Omit to read. Provide to replace the WHOLE contract — prefer `sections`."),
           note: z.string().max(200).optional().describe("What changed and why."),
+          sections: z
+            .record(z.string().min(1).max(200), z.string().max(100000).nullable())
+            .optional()
+            .describe(
+              "Patch by `## heading`: { 'Auth': 'new text' } replaces that section and leaves every " +
+                "other one alone; null deletes a section; an unknown heading is appended. Use this " +
+                "rather than `body` — both sides edit this document, and a whole-body write silently " +
+                "erases whatever the other side wrote while you were drafting.",
+            ),
+          ifUnchangedSince: z
+            .string()
+            .max(64)
+            .optional()
+            .describe(
+              "The `updatedAt` you read. If the contract has moved since, your write is refused " +
+                "instead of overwriting theirs.",
+            ),
         }),
       },
       async (args, ctx) => run(() => opContract(ctxFrom(ctx), args)),
