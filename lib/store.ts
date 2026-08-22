@@ -163,6 +163,26 @@ export const MINT_KEY = (fingerprint: string, day: string) => `${NS}:mint:${fing
  * room is the same loop, and it was the one tool with no brake at all.
  */
 export const IDLE_STREAK_KEY = (tokenId: string) => `${NS}:idle:${tokenId}`;
+
+/**
+ * THE LAST FEW OPERATIONS THIS TOKEN CALLED, newest last, one letter each.
+ *
+ * Exists for one reason (S#280, TODO C1): our advice does not reach a partner
+ * who has already joined. Every improvement to the join document only helps
+ * people who join AFTER it -- the first real far side answered four questions
+ * using `status` + `read` five times each, never once calling `ping`, an hour
+ * after we shipped a document telling it to, because it was working from its
+ * own saved copy. A static document handed out once cannot be updated. The
+ * `guidance` field, delivered on every response, can.
+ *
+ * Deliberately a short string rather than a list: it is read on every call, it
+ * is advisory, and losing it costs nothing. One hour TTL, so a habit observed
+ * yesterday does not lecture somebody today.
+ */
+export const OP_TRAIL_KEY = (tokenId: string) => `${NS}:trail:${tokenId}`;
+export const OP_TRAIL_MAX = 8;
+export const OP_TRAIL_TTL_SECONDS = 3600;
+
 /**
  * Monotonic per-room sequence. Deliberately NOT the list index: the entries
  * list is trimmed at `MAX_ENTRIES`, which shifts indices, and a cursor that

@@ -48,6 +48,9 @@ import {
   USAGE_KEY,
   ROOM_USAGE_KEY,
   IDLE_STREAK_KEY,
+  OP_TRAIL_KEY,
+  OP_TRAIL_MAX,
+  OP_TRAIL_TTL_SECONDS,
   WASTE_KEY,
   SERVED_KEY,
   WASTE_WINDOW_SECONDS,
@@ -574,6 +577,61 @@ export async function bumpIdleStreak(store: Store, tokenId: string): Promise<num
  * is outside the lane this was built in; the accuracy is not worth it for a
  * budget counter whose whole job is order-of-magnitude discrimination.
  */
+/**
+ * FIELD GUIDANCE: teach the habit on the wire, because the document cannot.
+ *
+ * C1, and it is the single most important thing the first real cross-company
+ * session taught us. We fixed the join document to point at `ping` and shipped
+ * it. An hour later the same far side answered a new question with `status` +
+ * `read`, five times each, never calling `ping` once -- it was working from
+ * `content.md`, its own copy saved at join time. The fix never reached it, and
+ * the better we make that document the wider the gap grows between partners who
+ * joined before it and partners who joined after.
+ *
+ * `guidance` already rides on every response. That is the live channel, and it
+ * was only ever used for the idle brake. This puts the advice there too.
+ *
+ * ONE RULE, not a taxonomy. The rule is the observed behaviour: a caller
+ * alternating status and read, with a ping available and unused, is spending
+ * roughly eight times the bytes to learn the same thing. When somebody hits a
+ * different wall in the field, that becomes the second rule -- written from
+ * evidence, the way this one was.
+ */
+export async function noteOp(store: Store, tokenId: string, code: string): Promise<string> {
+  try {
+    const key = OP_TRAIL_KEY(tokenId);
+    const prev = String((await store.get(key)) ?? "");
+    const next = (prev + code).slice(-OP_TRAIL_MAX);
+    await store.set(key, next);
+    if (!prev) await store.expire(key, OP_TRAIL_TTL_SECONDS);
+    return next;
+  } catch {
+    return ""; // advisory bookkeeping never refuses a call that was otherwise fine
+  }
+}
+
+/**
+ * Reads a trail and returns advice, or null. Pure, so the rule is testable
+ * without a store -- and so the rule can be read in one place rather than
+ * inferred from where it fires.
+ */
+export function trailGuidance(trail: string): string | null {
+  const s = trail.split("").filter((c) => c === "s").length;
+  const r = trail.split("").filter((c) => c === "r").length;
+  const pinged = trail.includes("p");
+  if (pinged) return null;
+  if (s >= 2 && r >= 2) {
+    return (
+      "You are using status + read where one bridger_ping would do. Ping returns " +
+      "the questions waiting on you, anything new from the other side, and whether " +
+      "they have signed off -- in a single call, for roughly an eighth of the bytes. " +
+      "After it there is nothing further to look up."
+    );
+  }
+  return null;
+}
+
+
 export async function bumpWaste(store: Store, tokenId: string, bytes: number): Promise<number> {
   try {
     const key = WASTE_KEY(tokenId);

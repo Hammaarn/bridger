@@ -47,6 +47,8 @@ import {
   type RoomRecord,
   type SideId,
   type TokenRecord,
+  noteOp,
+  trailGuidance,
 } from "./room-registry";
 import {
   INVITE_REREAD_SECONDS,
@@ -275,8 +277,20 @@ async function refuseIfOverBudget(ctx: OpContext, instead: string): Promise<void
 
 // ── the eight operations ─────────────────────────────────────────
 
+/**
+ * Spread-friendly wrapper: `{}` when there is nothing to say, so a caller who
+ * has never shown the habit sees no `guidance` key at all rather than a null.
+ * An empty field and an absent one must not read the same -- the same rule this
+ * project applies to citations, applied to its own advice.
+ */
+function fieldGuidance(trail: string): { guidance?: string } {
+  const advice = trailGuidance(trail);
+  return advice ? { guidance: advice } : {};
+}
+
 export async function opStatus(ctx: OpContext) {
   const status = await getStatus(ctx.store, ctx.room, ctx.token);
+  const trail = await noteOp(ctx.store, ctx.token.id, "s");
   const idle = await brakeIfIdle({
     store: ctx.store,
     tokenId: ctx.token.id,
@@ -297,7 +311,9 @@ export async function opStatus(ctx: OpContext) {
           guidance:
             "Nothing new since your last check. Do not poll — stop and report; you will see it when you next resume work.",
         }
-      : {}),
+      : // The brake's guidance is louder and more urgent, so it wins the slot.
+        // Field advice only fills a gap; it never argues with a live warning.
+        fieldGuidance(trail)),
   };
   // Status is the EXPENSIVE way to learn nothing -- ~1,220 B against a wait's
   // ~155 B, measured S#276. Charging it by weight is what removes the perverse
@@ -314,6 +330,7 @@ export async function opRead(
   ctx: OpContext,
   args: { since?: number; types?: EntryType[]; ids?: string[]; limit?: number; markRead?: boolean },
 ) {
+  const trail = await noteOp(ctx.store, ctx.token.id, "r");
   const entries = await readEntries(ctx.store, ctx.room.id, {
     sinceSeq: args.since,
     types: args.types,
@@ -336,6 +353,7 @@ export async function opRead(
     entries: entries.map(wire),
     ...(cursor ? { cursor } : {}),
     ...(entries.length ? { _note: CONTAINMENT_NOTE } : {}),
+    ...fieldGuidance(trail),
   };
   if (entries.length === 0) {
     const spent = await chargeWaste(ctx, payload, READ_INSTEAD);
@@ -723,6 +741,10 @@ export async function opWait(ctx: OpContext, args: { since?: number; timeoutSeco
  * was never to make polling cheap — it was to make it unnecessary.
  */
 export async function opPing(ctx: OpContext) {
+  // Recording the ping is what makes the advice STOP. A rule that keeps firing
+  // after the caller complied is noise, and noise is what gets `guidance`
+  // ignored -- which would cost us the one channel that reaches the field.
+  await noteOp(ctx.store, ctx.token.id, "p");
   const status = await getStatus(ctx.store, ctx.room, ctx.token);
   const fresh = await readEntries(ctx.store, ctx.room.id, { sinceSeq: status.cursor });
   const fromPeer = fresh.filter((e) => e.side !== ctx.token.side);
