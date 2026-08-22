@@ -282,7 +282,7 @@ function toTurns(entries: Entry[], mySide: string): Turn[] {
  * message, an entry is a typed record with a basis and a citation. If the
  * bubble hides this line, the layout has removed the thing the product is for.
  */
-function Provenance({ entry }: { entry: Entry }) {
+function Provenance({ entry, n }: { entry: Entry; n?: number }) {
   /**
    * WHICH ENTRIES GET A PROVENANCE LINE, and why this is not just answers.
    *
@@ -308,7 +308,18 @@ function Provenance({ entry }: { entry: Entry }) {
     const weak = isUnlocated(c) || isWideRange(c);
     return (
       <p className={`prov ${weak ? "thin" : "ok"}`}>
-        <span className="glyph">{weak ? "\u25d0" : "\u2713"}</span>
+        {/*
+          The number is the whole borrow from Erik's reference: a claim and the
+          artifact under it stop being a self-contained footnote and become a
+          pointer into one index for the room. The path stays visible -- it is
+          the evidence, and hiding it behind a chip would be style winning over
+          the thing this field exists for.
+        */}
+        {n !== undefined ? (
+          <span className="cite">{n}</span>
+        ) : (
+          <span className="glyph">{weak ? "◐" : "✓"}</span>
+        )}
         checked against <code>{entry.checkedAgainst}</code>
         <span
           className="span"
@@ -339,6 +350,54 @@ function Provenance({ entry }: { entry: Entry }) {
       unchecked <span className="span">nobody named what this rests on</span>
     </p>
   );
+}
+
+/**
+ * THE EVIDENCE INDEX — every artifact this room has actually rested on.
+ *
+ * Erik's reference was a chat with "pinned context sources and per-message
+ * citations that map answers to evidence": numbered chips in the prose,
+ * resolving to a numbered list in the rail. Taking the IDEA rather than the
+ * layout, because we are the only ones who can do it honestly — a chat app
+ * pins sources somebody chose in advance, while `checkedAgainst` records what
+ * an author says they actually read to know a specific claim was true.
+ *
+ * So this is derived, never curated. Nobody "pins" anything: an artifact
+ * appears here because somebody cited it, numbered by FIRST appearance so the
+ * numbers are stable as the room grows, and carrying how many claims now rest
+ * on it. That last count is the interesting one and nothing showed it before —
+ * an artifact holding up six answers is a different risk from one holding up
+ * a single note.
+ */
+interface EvidenceSource {
+  n: number;
+  raw: string;
+  span: string;
+  weak: boolean;
+  citedBy: string[];
+}
+
+function evidenceIndex(entries: Entry[]): { sources: EvidenceSource[]; numberOf: Map<string, number> } {
+  const byRaw = new Map<string, EvidenceSource>();
+  const numberOf = new Map<string, number>();
+  for (const e of entries) {
+    if (!e.checkedAgainst) continue;
+    let src = byRaw.get(e.checkedAgainst);
+    if (!src) {
+      const c = classifyCitation(e.checkedAgainst);
+      src = {
+        n: byRaw.size + 1,
+        raw: e.checkedAgainst,
+        span: describeCitation(c),
+        weak: isUnlocated(c) || isWideRange(c),
+        citedBy: [],
+      };
+      byRaw.set(e.checkedAgainst, src);
+    }
+    src.citedBy.push(e.id);
+    numberOf.set(e.id, src.n);
+  }
+  return { sources: [...byRaw.values()], numberOf };
 }
 
 /**
@@ -1647,6 +1706,9 @@ function RoomView({
   }).length;
   const decisions = entries.filter((e) => e.type === "decision");
 
+  /** Every artifact this room rests on, numbered by first appearance. */
+  const evidence = useMemo(() => evidenceIndex(entries), [entries]);
+
   /** What has landed since the reader scrolled away. Derived, never tallied. */
   const missed = bottomSeq === null ? 0 : Math.max(0, (entries.at(-1)?.seq ?? 0) - bottomSeq);
 
@@ -1878,6 +1940,58 @@ function RoomView({
       <div className="bx-panels">
         {/* LEFT — the record, as browsable folders */}
         <aside className="bx-tree">
+          {/*
+            EVIDENCE FIRST, then the folders.
+            Erik's reference put pinned sources at the top of the rail, and the
+            ordering is right for a different reason than his: this is the only
+            panel that answers "what is this room's agreement actually built
+            on". The folders below are a browsing convenience; this is the
+            product's claim about itself.
+          */}
+          {evidence.sources.length > 0 && (
+            <section className="bx-evidence">
+              <h2>
+                Evidence
+                <span className="bx-count">{evidence.sources.length}</span>
+              </h2>
+              <ul>
+                {evidence.sources.map((src) => (
+                  <li key={src.raw}>
+                    <button
+                      type="button"
+                      className={`bx-src ${src.weak ? "thin" : ""} ${
+                        focus && src.citedBy.includes(focus) ? "on" : ""
+                      }`}
+                      title={`Cited by ${src.citedBy.join(", ")}`}
+                      onClick={() => setFocus(focus === src.citedBy[0] ? null : src.citedBy[0])}
+                    >
+                      <span className="cite">{src.n}</span>
+                      <span className="bx-src-body">
+                        <code>{src.raw}</code>
+                        <span className="bx-src-meta">
+                          {src.span}
+                          {/*
+                            The count nothing showed before, and the reason this
+                            is more than a restyle: an artifact holding up six
+                            claims is a different risk from one holding up one.
+                          */}
+                          {src.citedBy.length > 1 && (
+                            <span className="bx-src-times">{src.citedBy.length}×</span>
+                          )}
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <p className="fine">
+                Derived, not pinned. An artifact is here because somebody named it in{" "}
+                <code>checkedAgainst</code> — it is what a claim was checked against, not a
+                document anyone chose in advance.
+              </p>
+            </section>
+          )}
+
           <h2>Record</h2>
           {FOLDERS.map((f) => {
             // "Open questions" is the one folder that is not a plain type
@@ -2032,7 +2146,7 @@ function RoomView({
                             <span>why</span> {e.why}
                           </p>
                         )}
-                        <Provenance entry={e} />
+                        <Provenance entry={e} n={evidence.numberOf.get(e.id)} />
 
                       </article>
                     </div>
@@ -2089,6 +2203,10 @@ function RoomView({
             >
               <strong>{thinEvidence}</strong>
               <span>thin</span>
+            </div>
+            <div title="Distinct artifacts this room's claims rest on.">
+              <strong>{evidence.sources.length}</strong>
+              <span>sources</span>
             </div>
           </section>
 
