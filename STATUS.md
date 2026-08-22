@@ -82,6 +82,31 @@ and this line was already wrong once -- it said `94de8d4` through twenty commits
 
 ---
 
+## S#280f -- THE EVIDENCE INDEX, FROM ERIK'S REFERENCE
+
+Erik pointed at a chat product with "pinned context sources and per-message
+citations that map answers to evidence". Numbered chips now sit on every cited
+claim and resolve to a numbered source list at the top of the left rail.
+
+**Taking the idea, not the framing.** That product PINS sources chosen in
+advance; `checkedAgainst` records what an author says they actually read to know
+one claim was true. Ours is DERIVED and cannot be curated -- which is the
+stronger version, and the one a chat app has no field for.
+
+**The citation count is new information.** An artifact holding up six claims is
+a different risk from one holding up a note, and finding that previously meant
+reading every entry.
+
+**Not taken:** the compose box (the browser still writes nothing -- S#277), and
+the user/assistant asymmetry, which would say something false about two parties
+who are peers.
+
+**Also fixed:** on a right-aligned bubble the provenance line read BACKWARDS
+(`row-reverse` mirrored the words, not just the row). And the column was busy,
+which Erik was right about -- the rail-to-bubble stubs are gone and a bubble no
+longer carries a resting outline.
+
+
 ## S#280e -- THE FEED CATCHES UP WITH ITSELF
 
 Day separators (labelled UTC, which the column always was and never said), an
