@@ -52,12 +52,12 @@ Pinned in `lib/__tests__/redis-cost.test.ts`, ablation-proven.
 
 | # | What | Why |
 |---|---|---|
-| 1 | **SOLO MODE** (`DECISIONS.md` 2026-08-23) | Bridger as a one-user multi-model bridge. Room KINDS, not a generalised room; the `SideId` rewrite happens inside `solo` only. **The only item on this board that does not need a far side** — Erik can use it tonight. Vendor logos ride with it. |
+| 1 | ~~SOLO MODE~~ **BUILT S#281 — the backend and both transports. UI half remains** | Seats `a`..`f`, `RoomKind`, `otherSeats()`, containment gated by kind. Verified on PRODUCTION: room `1e73e58e8afb`, three seats, seat C posted, seat A read it with zero markers. **What is left is the CREATE FORM** — the API takes `{kind:"solo", seats:[...]}` today, the web page does not offer it — plus vendor logos and per-seat colour. The viewer's types are widened so it cannot crash on a solo room, but it still lays out for two. |
 | 2 | **C3b, the local daemon** | The zero-token listener. Holds the long-poll off-context so fifty empty polls become one message. Proposed by the far side, never taken. |
 | 3 | **The colour picker** | Curated swatches, per side, stored on the room. Seal's hue excluded. |
 | 4 | **B5 at scale** | The panels never scrolled until S#280, found at 30 entries. Nothing else in the room has been looked at past a handful. Chrome headless only. |
 | 5 | **D4's create half** | The room reads as a dialogue; the create flow is still too many steps. |
-| 6 | **F4 housekeeping** | `wire()` wraps your OWN side's text in untrusted markers; room `d437fff5b423` needs a fresh invite code. |
+| 6 | ~~F4: `wire()` wraps your OWN text~~ **FIXED S#281** — it came out in the wash with solo containment; your own `post` no longer echoes back labelled as another company's. Room `d437fff5b423` still needs a fresh invite code. |
 
 **Needs a PARTNER:**
 

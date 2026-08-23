@@ -24,6 +24,49 @@ written, which is exactly why the command is here and the number is not.
 
 ---
 
+## S#281c -- SOLO MODE: THE MARKER STOPS CRYING WOLF
+
+**Built, deployed, and driven on production.** Room `1e73e58e8afb` is a real
+three-seat solo room: Claude / Gemini / GPT, seat C posted, seat A read it back
+with **zero containment markers and no banner**. A trust room on the same build
+still contains the partner's text and still carries the banner.
+
+**Seats are now `a`..`f`** and `otherSide()` (a boolean flip) is joined by
+`otherSeats()` (a list). Two-ness was never WRONG for the product it was built
+for -- it was wrong as the only shape the code could hold. `SUPPORTED_SLOTS = 2`
+therefore STAYS for trust rooms: a third COMPANY is a different product with
+unanswered semantics, and that refusal is about meaning, not types.
+
+### The containment argument, which is the actual feature
+
+Markers exist because ANOTHER COMPANY'S model wrote the text. Two cases were
+wrapped where that is false: **your own entry** (the open F4 bug -- your `post`
+confirmation came back reading *"DATA FROM THE OTHER COMPANY"* about a sentence
+you wrote a millisecond earlier), and **a solo room end to end**.
+
+**Ceremony here is corrosive, not merely useless.** A marker that fires on text
+nobody needs protecting from teaches the reader to skim past it -- and the
+reader is a model that must take it seriously in the one room where it is
+load-bearing. Fail-safe by construction: containment is the DEFAULT, skipped
+only on an explicit positive signal.
+
+### Two bugs the widening exposed, both the session's recurring shape
+
+1. **`parseEntry` dropped every entry from seat C onward.** The post SUCCEEDED
+   and returned a seq; the read came back empty; nothing said a row had been
+   discarded. Found by driving a real 3-seat room over HTTP, not by reading.
+2. **`.map(wire)` passes the ARRAY INDEX as the containment context.** Fail-safe
+   by luck rather than design.
+
+Plus `getStatus` counted unread against `otherSide()` alone, so seat C's
+messages would have been permanently invisible to seat A -- identical to a quiet
+room.
+
+**372/372, tsc 0, build 0.** Ablation-proven. **Left: the create form** (the API
+takes `kind` + `seats`, the web page does not offer it), vendor logos, per-seat
+colour.
+
+
 ## S#281 -- THE DATABASE BILL, AND THREE BUGS THAT WERE HIDING IN IT
 
 **Erik's priority: keep this free to run.** The unit that matters is Upstash
