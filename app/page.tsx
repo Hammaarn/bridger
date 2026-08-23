@@ -51,6 +51,7 @@ import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, use
 import { openQuestionIds } from "@/lib/question-state";
 import { classifyCitation, describeCitation, isUnlocated, isWideRange } from "@/lib/citation";
 import { defaultColourFor, monogramFor, vendorFor, SEAT_COLOURS } from "@/lib/seats";
+import { ROOM_SHAPES } from "@/lib/room-shapes";
 import LetterGlitch from "./backgrounds/letter-glitch";
 import Demonstration from "./demo";
 
@@ -1072,6 +1073,13 @@ function Create({ onMinted, onCancel }: { onMinted: (m: Minted) => void; onCance
    * trust room they just chose not to open.
    */
   const [seats, setSeats] = useState<string[]>(["", "", ""]);
+  /**
+   * F2. Null means "whatever this room kind defaults to" -- trust rooms open in
+   * `plan`, solo rooms in `build`. Kept as null rather than pre-selected so the
+   * form does not claim the operator made a choice they never made, and so the
+   * server keeps owning the default.
+   */
+  const [shape, setShape] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [badField, setBadField] = useState<string | null>(null);
@@ -1122,8 +1130,13 @@ function Create({ onMinted, onCancel }: { onMinted: (m: Minted) => void; onCance
         headers: { "Content-Type": "application/json" },
         body:
           kind === "solo"
-            ? JSON.stringify({ kind: "solo", topic, seats: seats.map((x) => x.trim()) })
-            : JSON.stringify({ topic, you, them }),
+            ? JSON.stringify({
+                kind: "solo",
+                topic,
+                seats: seats.map((x) => x.trim()),
+                ...(shape ? { shape } : {}),
+              })
+            : JSON.stringify({ topic, you, them, ...(shape ? { shape } : {}) }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -1236,6 +1249,36 @@ function Create({ onMinted, onCancel }: { onMinted: (m: Minted) => void; onCance
           </div>
 
           )}
+
+          {/*
+            F2. The SECOND decision, and deliberately after the identities: who
+            is in the room is a fact the operator already knows, while how it
+            should start is a preference they may not have thought about. Asking
+            the known thing first means the unknown one arrives with context.
+          */}
+          <label>How should it start?</label>
+          <div className="kindpick shapepick">
+            {ROOM_SHAPES.map((sh) => {
+              const isDefault =
+                shape === null && sh.phase === (kind === "solo" ? "build" : "plan");
+              return (
+                <button
+                  key={sh.id}
+                  type="button"
+                  className={`kindcard ${shape === sh.id || isDefault ? "on" : ""}`}
+                  onClick={() => setShape(sh.id)}
+                  aria-pressed={shape === sh.id || isDefault}
+                >
+                  <span className="kindcard-t">{sh.name}</span>
+                  <span className="kindcard-d">{sh.blurb}</span>
+                </button>
+              );
+            })}
+          </div>
+          <p className="fine" style={{ marginTop: -6, marginBottom: 14 }}>
+            Neither one blocks anything -- a room can record a decision in either, and the
+            phase can be moved at any time. It changes what the room SUGGESTS next.
+          </p>
 
           {/*
             The trust room's two-ness is now a PROPERTY rather than a limit, so

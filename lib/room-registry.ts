@@ -292,6 +292,17 @@ export interface RoomRecord {
 export const ROOM_PHASES = ["plan", "build"] as const;
 export type RoomPhase = (typeof ROOM_PHASES)[number];
 
+/**
+ * F2 room shapes live in `room-shapes.ts`, NOT here.
+ *
+ * They are the one part of the room model a browser needs, and this file
+ * imports the store — so keeping them here dragged `node:fs` into the client
+ * bundle and broke the dev build. Re-exported for callers that already had one
+ * import; new code should reach for `room-shapes` directly.
+ */
+export { ROOM_SHAPES, shapeForPhase, defaultShapeFor, type RoomShape } from "./room-shapes";
+
+
 export type DenyReason =
   | "bridge-disabled"
   | "no-token"
@@ -1030,7 +1041,14 @@ export const MIN_SEATS = 2;
 
 export async function createRoom(
   store: Store,
-  opts: { topic: string; ownerLabel: string; peerLabel: string; now: Date },
+  opts: {
+    topic: string;
+    ownerLabel: string;
+    peerLabel: string;
+    now: Date;
+    /** F2. Omitted keeps the existing default — see `phase` below. */
+    phase?: RoomPhase;
+  },
 ): Promise<CreatedRoom> {
   const roomId = newRoomId();
   const iso = opts.now.toISOString();
@@ -1056,12 +1074,12 @@ export async function createRoom(
     },
     dailyCap: DEFAULT_ROOM_DAILY_CAP,
     kind: "trust",
-    // A NEW room starts in `plan`, and that is the opinionated half of F1.
-    // Two parties opening a bridge have not yet agreed what the work is -- that
-    // is the whole reason they opened one -- so the default should be the phase
-    // that says "list what you can see from your side". Moving to `build` is
-    // one call, and nothing is refused in either phase.
-    phase: "plan",
+    // A NEW trust room still DEFAULTS to `plan`, and that is the opinionated
+    // half of F1: two parties opening a bridge have not yet agreed what the
+    // work is -- that is the whole reason they opened one. F2 makes it a
+    // choice rather than a rule; the default is unchanged, so every existing
+    // caller and every existing test gets exactly what it got before.
+    phase: opts.phase ?? "plan",
   };
 
   await store.set(ROOM_KEY(roomId), JSON.stringify(room));
@@ -1094,7 +1112,7 @@ export interface CreatedSoloRoom {
  */
 export async function createSoloRoom(
   store: Store,
-  opts: { topic: string; seatLabels: string[]; now: Date },
+  opts: { topic: string; seatLabels: string[]; now: Date; phase?: RoomPhase },
 ): Promise<CreatedSoloRoom> {
   const n = opts.seatLabels.length;
   if (n < MIN_SEATS || n > MAX_SOLO_SEATS) {
@@ -1143,10 +1161,12 @@ export async function createSoloRoom(
     sides,
     dailyCap: DEFAULT_ROOM_DAILY_CAP,
     kind: "solo",
-    // `build`, not `plan`. The planning default exists because two COMPANIES
-    // opening a bridge have not yet agreed what the job is. One person putting
-    // three of their own models in a room has already decided.
-    phase: "build",
+    // A solo room DEFAULTS to `build`. The planning default exists because two
+    // COMPANIES opening a bridge have not yet agreed what the job is; one
+    // person putting three of their own models in a room has already decided.
+    // Still choosable -- "plan first" is a perfectly reasonable thing to want
+    // from your own three models.
+    phase: opts.phase ?? "build",
   };
 
   await store.setex(ROOM_KEY(roomId), ROOM_TTL_SECONDS, JSON.stringify(room));
