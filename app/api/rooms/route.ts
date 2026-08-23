@@ -298,6 +298,12 @@ export async function POST(req: Request) {
         },
         slots: made.tokens,
         viewerToken,
+        endpoint: new URL("/api/mcp", req.url).toString(),
+        // ZERO, not the unclaimed TTL. A solo room has nobody to wait for --
+        // every seat joins on creation -- so the "this lapses if nobody turns
+        // up" clock does not apply and the UI must be able to tell the
+        // difference between "no deadline" and "a deadline of zero".
+        unclaimedExpiresInSeconds: 0,
         note:
           "Every seat is yours. Give each token to one model. Nothing here is " +
           "wrapped in untrusted-partner markers, because there is no other " +

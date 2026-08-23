@@ -50,6 +50,7 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { openQuestionIds } from "@/lib/question-state";
 import { classifyCitation, describeCitation, isUnlocated, isWideRange } from "@/lib/citation";
+import { defaultColourFor, monogramFor, vendorFor, SEAT_COLOURS } from "@/lib/seats";
 import LetterGlitch from "./backgrounds/letter-glitch";
 import Demonstration from "./demo";
 
@@ -90,6 +91,20 @@ interface ExportPayload {
     phase?: "plan" | "build";
     you: { side: string; label: string; code: string; joinedAt: string | null; agent?: string | null };
     peer: { side: string; label: string; code: string; joinedAt: string | null; agent?: string | null };
+    /**
+     * Every seat. Optional so an older server -- or a cached response from one
+     * -- renders the two-party room correctly instead of an empty rail.
+     */
+    seats?: {
+      side: Seat;
+      label: string;
+      code: string;
+      joinedAt: string | null;
+      agent?: string | null;
+      colour?: string | null;
+      you: boolean;
+    }[];
+    kind?: "trust" | "solo";
   };
   contract: { body: string; updatedBy: string; updatedAt: string } | null;
   plan?: {
@@ -115,7 +130,7 @@ interface Slot {
 }
 
 interface Minted {
-  room: { id: string; topic: string; createdAt: string };
+  room: { id: string; topic: string; createdAt: string; kind?: "trust" | "solo" };
   slots: Slot[];
   viewerToken: string;
   endpoint: string;
@@ -939,11 +954,124 @@ function Gate({
 
 // ── view: create ─────────────────────────────────────────────────
 
+/**
+ * THE SEAT EDITOR — where a solo room's whole problem is solved or is not.
+ *
+ * The problem: six seats that are all your own models, several of them called
+ * Claude something. Naming them is not enough, which S#280 learned the hard way
+ * when the live room had `label: "claude"` on both sides.
+ *
+ * So the mark is DERIVED AS YOU TYPE. Type "Gemini" and the seat takes Google's
+ * blue and a G; type "backend team" and it takes a monogram. Nothing is picked
+ * from a dropdown, because the vendor is already in the word you just wrote and
+ * asking twice is the kind of form people abandon.
+ *
+ * **The mark is a guess and never says otherwise.** A seat whose label we do not
+ * recognise gets initials, not a fallback logo -- guessing wrong would put a
+ * false statement about who is in the room into a product whose entire argument
+ * is that its record can be trusted.
+ */
+const SEAT_ORDER = ["a", "b", "c", "d", "e", "f"] as const;
+/** The case people actually arrive with, spelled out rather than "Model 1". */
+const SEAT_PLACEHOLDERS = ["Claude", "Gemini", "GPT", "Mistral", "Llama", "Grok"];
+
+function SeatFields({
+  seats,
+  setSeats,
+  badField,
+}: {
+  seats: string[];
+  setSeats: (s: string[]) => void;
+  badField: string | null;
+}) {
+  const set = (i: number, v: string) => setSeats(seats.map((s, j) => (j === i ? v : s)));
+  const add = () => setSeats([...seats, ""]);
+  const drop = (i: number) => setSeats(seats.filter((_, j) => j !== i));
+  const named = seats.filter((x) => x.trim()).length;
+
+  return (
+    <>
+      <label>Who is at the table?</label>
+      <div className="seatlist">
+        {seats.map((value, i) => {
+          const colour = defaultColourFor(SEAT_ORDER[i] ?? "a");
+          const vendor = vendorFor(value);
+          return (
+            <div className="seatrow" key={i} style={{ ["--seat" as string]: `var(--sc-${colour.id})` }}>
+              <span
+                className={`seatmark ${vendor ? "vendor" : ""}`}
+                style={vendor ? { ["--vh" as string]: vendor.hue } : undefined}
+                title={vendor ? `Looks like ${vendor.name}` : "No vendor recognised — initials"}
+                aria-hidden
+              >
+                {vendor ? vendor.glyph : monogramFor(value)}
+              </span>
+              <input
+                value={value}
+                onChange={(e) => set(i, e.target.value)}
+                placeholder={SEAT_PLACEHOLDERS[i] ?? "Another model"}
+                className={badField === `seats[${i}]` ? "bx-bad" : ""}
+                maxLength={60}
+                aria-label={`Seat ${i + 1}`}
+              />
+              {/*
+                Removable only down to two. A one-seat room is a notepad, and
+                the server refuses it -- so the button disappears at the floor
+                rather than offering an action that would be rejected.
+              */}
+              {seats.length > 2 && (
+                <button
+                  type="button"
+                  className="seatdrop"
+                  onClick={() => drop(i)}
+                  aria-label={`Remove seat ${i + 1}`}
+                  title="Remove this seat"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <div className="seatfoot">
+        {seats.length < 6 ? (
+          <button type="button" className="link" onClick={add}>
+            + add a seat
+          </button>
+        ) : (
+          <span className="fine">Six is the most one room holds.</span>
+        )}
+        <span className="fine">
+          {named < 2 ? "Name at least two." : `${named} named.`} Each gets its own token.
+        </span>
+      </div>
+    </>
+  );
+}
+
 function Create({ onMinted, onCancel }: { onMinted: (m: Minted) => void; onCancel: () => void }) {
   const [topic, setTopic] = useState("");
   const [you, setYou] = useState("");
   const [them, setThem] = useState("");
-  const [slots, setSlots] = useState(2);
+  /**
+   * WHAT KIND OF ROOM, and it is the FIRST question because it changes every
+   * question after it.
+   *
+   * This control used to be "Slots: [2] [3 disabled] [4 disabled]" followed by
+   * a paragraph explaining that three was a rewrite of the room model. That
+   * paragraph was honest and it was also the whole problem: the form's most
+   * prominent interactive element did nothing, twice, and then apologised.
+   * Solo mode did the rewrite, so the dead buttons become a real choice
+   * between two things the product genuinely does.
+   */
+  const [kind, setKind] = useState<"trust" | "solo">("trust");
+  /**
+   * Solo seats. Three by default, because the case people arrive with is
+   * "my three subscriptions" -- and because two of anything looks like the
+   * trust room they just chose not to open.
+   */
+  const [seats, setSeats] = useState<string[]>(["", "", ""]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [badField, setBadField] = useState<string | null>(null);
@@ -992,7 +1120,10 @@ function Create({ onMinted, onCancel }: { onMinted: (m: Minted) => void; onCance
       const res = await fetch("/api/rooms", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic, you, them, slots }),
+        body:
+          kind === "solo"
+            ? JSON.stringify({ kind: "solo", topic, seats: seats.map((x) => x.trim()) })
+            : JSON.stringify({ topic, you, them }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -1023,9 +1154,48 @@ function Create({ onMinted, onCancel }: { onMinted: (m: Minted) => void; onCance
       <Nav />
       <div className="sheet-card">
         <h1>Open a room</h1>
-        <p className="sub">Two AI sessions, one record, and a token each.</p>
+        <p className="sub">
+          {kind === "trust"
+            ? "Two companies, one record, and a token each."
+            : "Your own models, one room, and a token each."}
+        </p>
 
         <form onSubmit={submit}>
+          {/*
+            THE FIRST DECISION, and it is a pair of cards rather than a radio
+            group. The two options are not two values of one setting -- they
+            are two different products sharing a transport, and the form below
+            changes completely between them. A card can carry the sentence that
+            makes the choice obvious; a radio label cannot.
+          */}
+          <label>What is this room?</label>
+          <div className="kindpick">
+            <button
+              type="button"
+              className={`kindcard ${kind === "trust" ? "on" : ""}`}
+              onClick={() => setKind("trust")}
+              aria-pressed={kind === "trust"}
+            >
+              <span className="kindcard-t">Two companies</span>
+              <span className="kindcard-d">
+                You and a partner. Neither side can rewrite the record, and their text
+                arrives marked as theirs.
+              </span>
+            </button>
+            <button
+              type="button"
+              className={`kindcard ${kind === "solo" ? "on" : ""}`}
+              onClick={() => setKind("solo")}
+              aria-pressed={kind === "solo"}
+            >
+              <span className="kindcard-t">Your own models</span>
+              <span className="kindcard-d">
+                Claude, Gemini, GPT — up to six seats on subscriptions you already pay
+                for. No partner, no invitations.
+              </span>
+            </button>
+          </div>
+
           <label htmlFor="topic">What is this room for?</label>
           <input
             id="topic"
@@ -1037,6 +1207,9 @@ function Create({ onMinted, onCancel }: { onMinted: (m: Minted) => void; onCance
             autoFocus
           />
 
+          {kind === "solo" ? (
+            <SeatFields seats={seats} setSeats={setSeats} badField={badField} />
+          ) : (
           <div className="bx-pair">
             <div>
               <label htmlFor="you">Your side</label>
@@ -1062,31 +1235,21 @@ function Create({ onMinted, onCancel }: { onMinted: (m: Minted) => void; onCance
             </div>
           </div>
 
-          <label>Slots</label>
-          <div className="bx-slots">
-            {[2, 3, 4].map((n) => (
-              <button
-                key={n}
-                type="button"
-                className={`bx-slot ${slots === n ? "on" : ""} ${n > 2 ? "off" : ""}`}
-                disabled={n > 2}
-                onClick={() => setSlots(n)}
-              >
-                {n}
-              </button>
-            ))}
-          </div>
+          )}
+
           {/*
-            Not a coming-soon tease. Sides are "a" | "b" in room-registry.ts and
-            two-ness is the data model: otherSide() is a boolean flip, entry ids
-            are namespaced per side, and "the peer" is singular in whoami, in
-            the wait cursor and in the idle brake. Saying so is more useful than
-            greying the buttons out silently.
+            The trust room's two-ness is now a PROPERTY rather than a limit, so
+            this says what it means instead of apologising for a disabled
+            button. A third company changes what the record IS -- who an answer
+            closes a question for, who a contract binds -- and those are
+            unanswered questions, not missing code.
           */}
-          <p className="fine" style={{ marginTop: 9 }}>
-            Three or more is a rewrite of the room model, not a bigger number here — every side is{" "}
-            <code>a</code> or <code>b</code> throughout the registry.
-          </p>
+          {kind === "trust" && (
+            <p className="fine" style={{ marginTop: 9 }}>
+              Exactly two. A third company changes what the record means, not just how many
+              seats it has — for several of your <em>own</em> models, pick the other card.
+            </p>
+          )}
 
           {error && <div className="error">{error}</div>}
 
@@ -1112,8 +1275,18 @@ function Create({ onMinted, onCancel }: { onMinted: (m: Minted) => void; onCance
           )}
 
           <div className="bx-row">
-            <button type="submit" className="bx-primary" disabled={busy || !topic || !you || !them}>
-              {busy ? "Opening…" : "Open the room"}
+            <button
+              type="submit"
+              className="bx-primary"
+              disabled={
+                busy ||
+                !topic ||
+                (kind === "solo"
+                  ? seats.filter((x) => x.trim()).length < 2
+                  : !you || !them)
+              }
+            >
+              {busy ? "Opening…" : kind === "solo" ? "Open the room" : "Open the room"}
             </button>
             <button type="button" className="link" onClick={onCancel}>
               back
@@ -1142,6 +1315,12 @@ function TokenBox({
   minted: Minted;
   onWatch: (t: string, invite?: InviteLink | null) => void;
 }) {
+  /**
+   * A solo room has no partner, so three things on this screen mean nothing in
+   * it: the invitation, the "hand one to each side" subtitle, and the
+   * unclaimed-room deadline. Derived once here rather than tested three times.
+   */
+  const isSolo = minted.room.kind === "solo";
   /**
    * THE INVITE LINK, and why it is the primary handoff now.
    *
@@ -1299,7 +1478,8 @@ It names the commit it is running and answers without a token.`;
       <div className="sheet-card bx-wide">
         <h1>{minted.room.topic}</h1>
         <p className="sub">
-          room <code>{minted.room.id}</code> — hand one connector to each side
+          room <code>{minted.room.id}</code> —{" "}
+          {isSolo ? "one connector per model, all yours" : "hand one connector to each side"}
         </p>
 
         <div className="bx-tokens">
@@ -1324,10 +1504,27 @@ It names the commit it is running and answers without a token.`;
         </div>
 
         <div className="bx-warn">
-          {minted.note} A room nobody joins is deleted after{" "}
-          {Math.round(minted.unclaimedExpiresInSeconds / 3600)} hours.
+          {minted.note}{" "}
+          {/*
+            ZERO means "no such deadline", not "a deadline of zero" -- a solo
+            room is claimed the instant it exists, because every seat is yours.
+            Rendering `0 hours` would have told the operator their room was
+            already dead.
+          */}
+          {minted.unclaimedExpiresInSeconds > 0 &&
+            `A room nobody joins is deleted after ${Math.round(
+              minted.unclaimedExpiresInSeconds / 3600,
+            )} hours.`}
         </div>
 
+        {/*
+          The whole INVITE CEREMONY -- the link block and the generate-and-enter
+          action -- is a trust-room thing. Two siblings, so a fragment: there is
+          no wrapper element to reuse and adding one would change the layout for
+          the room type that already works.
+        */}
+        {!isSolo && (
+          <>
         <div className="bx-handoff">
           <div className="bx-handoff-head">
             <div>
@@ -1430,6 +1627,22 @@ It names the commit it is running and answers without a token.`;
             open the room without a link
           </button>
         </div>
+          </>
+        )}
+        {/*
+          A solo room has no invitation to send, so the exit is a plain one.
+        */}
+        {isSolo && (
+          <div className="bx-row" style={{ marginTop: 18 }}>
+            <button
+              type="button"
+              className="bx-primary"
+              onClick={() => onWatch(minted.viewerToken)}
+            >
+              Open the room
+            </button>
+          </div>
+        )}
         {/*
           Said plainly rather than discovered. Leaving this screen loses YOUR
           connector -- the tokens above are shown once and are not recoverable,
@@ -1868,12 +2081,56 @@ function RoomView({
    * When the labels differ this does nothing — a disambiguator that fires when
    * there is nothing to disambiguate is just noise.
    */
-  const sameName =
-    !!data && data.room.you.label.trim().toLowerCase() === data.room.peer.label.trim().toLowerCase();
+  /**
+   * Generalised past two seats (S#281). It used to resolve every side to
+   * you-or-peer, so in a three-seat room seat C would have been rendered with
+   * seat B's name -- a wrong name, which is worse than a missing one.
+   *
+   * The collision test is now per-label across ALL seats rather than a single
+   * you-vs-peer comparison: in a solo room "Claude" and "Claude Opus" differ
+   * while "Claude" and "Claude" do not, and only the colliding ones should
+   * carry the disambiguating code. A disambiguator that fires on names that
+   * were already distinct is just noise.
+   */
+  const allSeats = useMemo(() => {
+    if (!data) return [] as { side: string; label: string; code: string }[];
+    return (
+      data.room.seats ?? [
+        { side: data.room.you.side, label: data.room.you.label, code: data.room.you.code },
+        { side: data.room.peer.side, label: data.room.peer.label, code: data.room.peer.code },
+      ]
+    );
+  }, [data]);
+
+  const collidingLabels = useMemo(() => {
+    const seen = new Map<string, number>();
+    for (const s of allSeats) {
+      const k = s.label.trim().toLowerCase();
+      seen.set(k, (seen.get(k) ?? 0) + 1);
+    }
+    return new Set(Array.from(seen).filter(([, n]) => n > 1).map(([k]) => k));
+  }, [allSeats]);
+
+  /**
+   * The seat's own colour as an inline custom property, or nothing.
+   *
+   * Nothing is the important half: returning `undefined` lets the stylesheet's
+   * `var(--seat, var(--side-a))` fallback take over, so a room without stored
+   * colours -- every room created before S#281, including the live partner one
+   * -- renders exactly as it always did rather than losing its colours to a
+   * feature it never opted into.
+   */
+  const seatColourVar = (side: string): React.CSSProperties | undefined => {
+    const s = data?.room.seats?.find((x) => x.side === side);
+    if (!s?.colour) return undefined;
+    return { ["--seat" as string]: `var(--sc-${s.colour})` };
+  };
+
+  const sameName = collidingLabels.size > 0;
   const nameFor = (side: string) => {
-    if (!data) return "";
-    const s = side === data.room.you.side ? data.room.you : data.room.peer;
-    return sameName ? `${s.label} ${s.code}` : s.label;
+    const s = allSeats.find((x) => x.side === side);
+    if (!s) return "";
+    return collidingLabels.has(s.label.trim().toLowerCase()) ? `${s.label} ${s.code}` : s.label;
   };
   /** Which agent sits on a side, for the feed. Self-declared; may be absent. */
   const agentFor = (side: string) =>
@@ -1997,20 +2254,31 @@ function RoomView({
                     connected yet" as prose, which is the load-bearing fact of an
                     unstarted room written in the least visible way available.
                   */}
-                  <SideChip
-                    side={data.room.you.side}
-                    label={nameFor(data.room.you.side)}
-                    joinedAt={data.room.you.joinedAt}
-                    agent={data.room.you.agent}
-                    you
-                  />
-                  <span className="bx-chip-wire" aria-hidden="true" />
-                  <SideChip
-                    side={data.room.peer.side}
-                    label={nameFor(data.room.peer.side)}
-                    joinedAt={data.room.peer.joinedAt}
-                    agent={data.room.peer.agent}
-                  />
+                  {/*
+                    EVERY seat, wired in order. Was a hardcoded you-then-peer
+                    pair, so a three-seat room rendered two chips and the third
+                    model was simply absent from the room it was writing in --
+                    which reads as "nobody else is here", not as "the UI cannot
+                    show this". Falls back to the pair when `seats` is missing,
+                    so an older response still renders the trust room correctly.
+                  */}
+                  {(
+                    data.room.seats ?? [
+                      { ...data.room.you, side: data.room.you.side as Seat, you: true },
+                      { ...data.room.peer, side: data.room.peer.side as Seat, you: false },
+                    ]
+                  ).map((s, i) => (
+                    <Fragment key={s.side}>
+                      {i > 0 && <span className="bx-chip-wire" aria-hidden="true" />}
+                      <SideChip
+                        side={s.side}
+                        label={nameFor(s.side)}
+                        joinedAt={s.joinedAt}
+                        agent={s.agent ?? null}
+                        you={s.you}
+                      />
+                    </Fragment>
+                  ))}
                   <span className="mono dim bx-roomid">room {data.room.id}</span>
                 </>
               ) : (
@@ -2285,6 +2553,7 @@ function RoomView({
                   )}
                 <div
                   key={`${turn.entries[0].id}-turn`}
+                  style={seatColourVar(turn.side)}
                   className={`turn ${turn.mine ? "mine" : "theirs"} ${
                     turn.side === "a" ? "sideA" : "sideB"
                   }`}

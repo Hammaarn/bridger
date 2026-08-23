@@ -18,7 +18,7 @@
 
 import { getContract, readEntries } from "@/lib/entries";
 import { verifyChain, type ChainedEntry } from "@/lib/chain";
-import { authorize, readPlan, writeAudit } from "@/lib/room-registry";
+import { authorize, otherSide, readPlan, seat, seatsFor, writeAudit } from "@/lib/room-registry";
 import { refusalResponse } from "@/lib/http-gate";
 import { createStore } from "@/lib/store";
 import { readiness } from "@/lib/plan";
@@ -87,8 +87,17 @@ export async function GET(req: Request) {
       id: room.id,
       topic: room.topic,
       createdAt: room.createdAt,
-      you: { side: tok.side, ...room.sides[tok.side] },
-      peer: { side: tok.side === "a" ? "b" : "a", ...room.sides[tok.side === "a" ? "b" : "a"] },
+      you: { side: tok.side, ...seat(room, tok.side) },
+      // Singular, and kept: `peer` is correct in a trust room and a partner may
+      // already read it. `seats` below is the additive answer for rooms that
+      // have more than two.
+      peer: { side: otherSide(tok.side), ...seat(room, otherSide(tok.side)) },
+      seats: seatsFor(room).map((id) => ({
+        side: id,
+        ...seat(room, id),
+        you: id === tok.side,
+      })),
+      kind: room.kind,
       phase: room.phase,
     },
     contract,
