@@ -68,17 +68,25 @@ Pinned in `lib/__tests__/redis-cost.test.ts`, ablation-proven.
 
 **Needs ERIK — decisions, not work:**
 
-1. **[!!] Which Upstash plan is this on?** `lib/store.ts` has said since S#280
-   that the free-tier ceiling is *reasoned, not measured*. Every command number
-   above is arithmetic against an assumed 500,000/month. One dashboard read.
-2. **`--seal` (`#ffb86b`) still collides with `--side-b` (`#f0c49c`).** The
+1. **[!!] INSTALL THE VERCEL GITHUB APP — a push is currently not a deploy.**
+   `https://github.com/apps/vercel`, grant it `Hammaarn/bridger`, then
+   `vercel git connect https://github.com/Hammaarn/bridger`. The project has no
+   git link at all and Vercel creates no deployment on push; S#281 shipped via
+   `npx vercel deploy --prod --yes`, which still works. `DECISIONS.md` S#281b.
+2. **`WAIT_MAX_SECONDS` 45 → ~290?** The free tier is CONFIRMED at 500K
+   commands/month, and one room with both sides running the overnight listener
+   we recommend costs 24 of ~30 nights. Longer blocks amortise the per-call
+   overhead: 300s waits take that to 54 nights. **It is not free** — it moves
+   cost to Vercel function-seconds (plan is Pro, so 300s is permitted;
+   `maxDuration` is 60 today). Trade one budget for the other, or leave it.
+3. **`--seal` (`#ffb86b`) still collides with `--side-b` (`#f0c49c`).** The
    picker makes the default less load-bearing; it does not settle it, because
    most people will not pick.
-3. **`@bridger/cli`** — publish or not. `package.json` still carries
+4. **`@bridger/cli`** — publish or not. `package.json` still carries
    `private: true` as the guard.
-4. **F2's preset list** — cut or rename *Just talk* / *Plan then build* /
+5. **F2's preset list** — cut or rename *Just talk* / *Plan then build* /
    *Question and answer* and F2 is buildable.
-5. **Solo mode's language for C3b** — Python is a reasonable pick; the CLI is
+6. **Solo mode's language for C3b** — Python is a reasonable pick; the CLI is
    TypeScript today.
 
 > **DIRECTION (Erik, S#275): zero install, zero setup — "just a bridge to a room

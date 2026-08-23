@@ -80,11 +80,41 @@ counter and a negative control on the backoff cap. **Ablation-proven:** revertin
 the SETEX and flattening the poll turns three of them red. 360/360, tsc 0,
 build 0.
 
-### [!!] The one thing not verified, and it is Erik's read
+### CONFIRMED S#281b -- it is the FREE tier, and the arithmetic held
 
-**Which Upstash plan this project is on.** `lib/store.ts` has admitted since
-S#280 that the free-tier ceiling is *reasoned, not measured*. Every number above
-is arithmetic against an assumed 500,000 commands/month.
+Erik confirmed the plan; the limits were then read from the vendor rather than
+assumed: **500,000 commands/month, 256 MB, 10 GB bandwidth.** The numbers above
+were computed against exactly that, so they stand.
+
+**What it buys, and the tension in it:**
+
+| pattern | headroom on 500K/month |
+|---|---|
+| human-paced (200 calls/day) | ~357 days -- never a problem |
+| one room, both sides, 8h overnight listener | **24 nights/month** |
+| both sides listening 24/7 | 8.1 days |
+
+**Ordinary use cannot exhaust this in a year. The only pattern that threatens it
+is the overnight listener -- which is the pattern our own join document
+recommends.** It survives at one room and stops surviving at two concurrent
+nightly integrations.
+
+**The remaining lever is `WAIT_MAX_SECONDS` 45 -> ~290** (24 -> 54 two-side
+nights), and it is not free: it moves cost to Vercel function-seconds. The plan
+is Pro so 300s is permitted; `maxDuration` is 60 today. **Erik's call.**
+`DECISIONS.md` 2026-08-23 (S#281b).
+
+### [!!] A PUSH IS NO LONGER A DEPLOY -- THE VERCEL GITHUB APP IS GONE
+
+Two commits reached `origin/master` and Vercel created **no deployment**. The
+API says why: the project has **no `link` object**, and `POST .../link` returns
+*"To link a GitHub repository, you need to install the GitHub integration
+first"* (`https://github.com/apps/vercel`). The app was removed from the account
+or the repo; the last GitHub-triggered deploy is S#280's `6a190ac`.
+
+**Erik's action, and it is a GitHub UI authorisation:** install the app, grant it
+`Hammaarn/bridger`, then `vercel git connect https://github.com/Hammaarn/bridger`.
+**Interim:** `npx vercel deploy --prod --yes` works and shipped S#281.
 
 ### Six product decisions landed -- see `DECISIONS.md` 2026-08-23
 

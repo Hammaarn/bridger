@@ -5,6 +5,106 @@ Append-only, newest first. **DECISIONS wins on direction** — where this file a
 
 ---
 
+## 2026-08-23 -- S#281b -- THE FREE TIER IS CONFIRMED, AND THE OVERNIGHT LISTENER IS THE ONLY THING THAT THREATENS IT
+
+**Source:** Erik, S#281: *"we are using the free tier on Upstash for this
+project."* Limits then read from the vendor rather than assumed: **Upstash Redis
+FREE = 500,000 commands/month, 256 MB storage, 10 GB bandwidth/month.**
+
+**This closes the one item S#281 shipped as UNVERIFIED.** `lib/store.ts` had
+carried *"STATUS.md still lists the free-tier ceiling as UNCHECKED, so this is
+reasoned, not measured"* since S#280. It is now measured, and the arithmetic
+S#281 published against an assumed 500,000 was correct.
+
+### WHAT THE BUDGET ACTUALLY BUYS, after the S#281 reduction
+
+| pattern | commands | headroom on 500K/month |
+|---|---|---|
+| human-paced (200 calls/day) | ~1,400/day | **~357 days -- never a problem** |
+| one room, both sides, 8h overnight listener | 20,480/night | **24 nights/month** |
+| both sides listening 24/7 | 61,440/day | **8.1 days** |
+
+**THE TENSION, and it is the finding:** ordinary use cannot exhaust this budget
+in a year. The ONLY pattern that threatens it is the overnight listener -- **and
+the join document recommends exactly that pattern.** We tell partners to run the
+thing that costs us the most.
+
+At one room it survives (24 of ~30 nights). At two rooms both listening nightly
+it does not (12 nights). So the free tier holds for the product as it is used
+today and stops holding at roughly two concurrent overnight integrations.
+
+### THE REMAINING LEVER, and it is not free -- ERIK'S CALL
+
+**`WAIT_MAX_SECONDS` 45 -> ~290.** The per-call fixed overhead (~6 commands) is
+paid once per CALL, so longer blocks amortise it. Measured across the current
+backoff:
+
+| max wait | commands/night/side | two-side nights per month |
+|---|---|---|
+| 45s (today) | 10,240 | 24 |
+| 120s | 6,240 | 40 |
+| **300s** | **4,608** | **54** |
+| 900s | 3,936 | 64 |
+
+**What it costs:** longer-held serverless invocations. `maxDuration` is 60 on
+both transports today; the Vercel plan is **Pro**, which allows up to 300. So
+this is possible -- but it MOVES cost from Upstash to Vercel function-seconds
+rather than removing it, and that trade should be made deliberately rather than
+because one of the two budgets happens to be the one we just measured.
+
+### A CORRECTION TO THE S#281 ENTRY ON C3b
+
+S#281 recorded that the local daemon *"does not help the database"*. That is too
+strong, and the precise version is a design instruction for C3b: **a daemon that
+SLEEPS LOCALLY and short-polls is worse for us than one that holds a long
+`wait`** -- 8 hours of 30-second client-side polls costs ~6,720 commands against
+~4,608 for 300-second server-side blocks, because the fixed per-call overhead
+dominates once polling moves out of the call. So C3b should long-wait, not poll.
+Its win is model tokens; the Redis win comes from the block length, not from
+where the loop lives.
+
+---
+
+## 2026-08-23 -- S#281b -- THE VERCEL GITHUB APP IS GONE, WHICH IS WHY A PUSH STOPPED BEING A DEPLOY
+
+**Source:** Erik, S#281: *"We need to check why Vercel didn't deploy."*
+
+**Diagnosed, not guessed.** Two commits were pushed to `origin/master` and
+GitHub confirmed them; Vercel created **no deployment at all** -- five minutes of
+polling showed production still on S#280's `6a190ac`, and
+`list_deployments` showed the newest deployment was still that one.
+
+The Vercel API is unambiguous. `GET /v9/projects/<id>` returns **no `link`
+object**: the project is not connected to any repository. `POST .../link`
+returns the reason:
+
+> `"To link a GitHub repository, you need to install the GitHub integration
+> first."` -- `action: "Install GitHub App"`, `link: https://github.com/apps/vercel`
+
+So the **Vercel GitHub App was removed from the account or the repository**, and
+Vercel dropped the project's git link with it. Every deployment before this
+carries `githubDeployment: "1"` and full commit metadata, and the last one is
+`6a190ac` at the close of S#280 -- so it broke between then and now.
+
+**Not fixable from here, and deliberately not attempted further:** installing a
+GitHub App is a GitHub UI authorisation. `vercel git connect` fails with the
+same error. **Erik installs it at https://github.com/apps/vercel, grants it the
+`Hammaarn/bridger` repository, then the project reconnects** (`vercel git
+connect https://github.com/Hammaarn/bridger` will then succeed).
+
+**Interim:** `npx vercel deploy --prod --yes` works and was used to ship S#281.
+It picks up `VERCEL_GIT_COMMIT_SHA` from the local clone, so `/api/about` still
+reports a real commit -- production verified at `3eb31da`.
+
+**THE STANDING LESSON, and it is the same one this session opened with:** *"the
+push succeeded"* is not *"the deploy happened"*, and the two rendered identically
+until someone read the deployment list. `npm run deploy:state` exists in the
+JudgeMySite lane for exactly this. Bridger's equivalent is
+`curl -s /api/about` -- which S#281 ran, which is the only reason this was
+caught at all rather than being discovered by a partner reading stale docs.
+
+---
+
 ## 2026-08-23 -- S#281 -- SOLO MODE: BRIDGER IS ALSO A ONE-USER MULTI-MODEL BRIDGE
 
 **Source:** Erik, S#281: *"We should provide that feature but only for single

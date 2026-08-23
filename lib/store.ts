@@ -270,9 +270,14 @@ export const ORPHAN_RENEW_EVERY = 100;
  * day, 5000 rows is weeks.
  *
  * Cost: ~5000 x ~200B ~= 1 MB of Upstash storage, and two extra Redis commands
- * (lpush + ltrim) per successful call. Both are noise against the free tier's
- * limits — but note STATUS.md still lists the free-tier ceiling as UNCHECKED,
- * so this is reasoned, not measured.
+ * (lpush + ltrim) per successful call.
+ *
+ * THE CEILING IS NO LONGER UNCHECKED (S#281). Erik confirmed the plan and the
+ * published limits were read: **Upstash Redis FREE — 500,000 commands/month,
+ * 256 MB storage, 10 GB bandwidth/month.** So the storage line above is indeed
+ * noise (1 MB of 256), and the LTRIM half is not: it was one command per call
+ * against a monthly command budget, which is why it is now amortised. See
+ * `AUDIT_TRIM_SLACK`.
  */
 /**
  * D6. Raised 5,000 -> 20,000 at S#280, and the number is the SMALLER half of the
