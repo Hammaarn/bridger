@@ -104,101 +104,27 @@ nights), and it is not free: it moves cost to Vercel function-seconds. The plan
 is Pro so 300s is permitted; `maxDuration` is 60 today. **Erik's call.**
 `DECISIONS.md` 2026-08-23 (S#281b).
 
-### [!!] A PUSH IS NO LONGER A DEPLOY -- THE VERCEL GITHUB APP IS GONE
+### RESOLVED S#281b -- the git connection is back, and it took TWO steps
 
 Two commits reached `origin/master` and Vercel created **no deployment**. The
-API says why: the project has **no `link` object**, and `POST .../link` returns
+API said why: the project had **no `link` object**, and `POST .../link` returned
 *"To link a GitHub repository, you need to install the GitHub integration
-first"* (`https://github.com/apps/vercel`). The app was removed from the account
-or the repo; the last GitHub-triggered deploy is S#280's `6a190ac`.
+first"*. The Vercel GitHub App had been removed from the account or the repo,
+and the project's git link went with it. The last GitHub-triggered deploy was
+S#280's `6a190ac`, so it broke after that session closed -- cause unknown, and
+not worth guessing at.
 
-**Erik's action, and it is a GitHub UI authorisation:** install the app, grant it
-`Hammaarn/bridger`, then `vercel git connect https://github.com/Hammaarn/bridger`.
-**Interim:** `npx vercel deploy --prod --yes` works and shipped S#281.
+**FIXED, and the second step is the one that is easy to miss:** Erik installed
+the app -- and **the project link did NOT come back on its own.** Re-checked
+immediately after and the API still reported no link. It took
+`vercel git connect https://github.com/Hammaarn/bridger` as a separate action.
+Installing the app restores the *permission*; it does not restore the
+*connection*. Anyone who installs the app, sees no error, and assumes they are
+done will still have a repo that does not deploy.
 
-### Six product decisions landed -- see `DECISIONS.md` 2026-08-23
-
-**Solo mode** (Bridger as a one-user multi-model bridge, room KINDS not a
-generalised room) - **vendor logos** ship inside it - the **room composer**
-(presets *and* a builder, in different places; stages and guidance, never
-artifacts) - a **per-side colour picker** - the **database-cost constraint** as a
-standing rule - and **C3b, the local daemon**, as the answer to zero-token
-listening.
-
-
-> # [!!] B1 IS CLOSED. A DIFFERENT COMPANY'S CLAUDE JOINED AND DID REAL WORK.
->
-> **2026-08-21, room `e4db579a5fad`.** Trigvanta's Claude -- their machine, their
-> codebase, their operator, their interests -- connected and worked the record:
-> **188 calls, both sides, 3 tokens**, with 9 posts, an ask, an answer, a read
-> and 6 pings. One `bridger_status` came over MCP, so both transports were live
-> in the same room.
->
-> This is the case the product exists for and it had never run. Every previous
-> "far side" was on Erik's own machine: S#276 was a second Claude session with
-> the repo on disk, S#278 was Antigravity on Erik's laptop citing our own
-> documents. `checkedAgainst` has now been exercised as what it was designed to
-> be -- a falsifiable commitment to somebody who cannot check it.
->
-> **It took THREE refusals to get there, and every one was correct.** S#275 and
-> S#279 both refused a pasted invitation, and the second wrote out a six-point
-> acceptance spec when asked what it would need. It connected once `/j/<code>`
-> stopped handing a model-facing protocol document to the human whose decision
-> unblocks it, and started producing a line for that human to paste themselves.
-> The refusals were not an obstacle to route around; they were the specification.
-> `DECISIONS.md` 2026-08-22.
->
-> **The evidence is frozen at `.local/evidence/audit-{pre,post}-b1.json`.** The
-> audit log is a 5,000-row rolling window and was at ZERO headroom; between the
-> two snapshots 4.5 hours of older history was already evicted. The room's
-> entries are append-only and safe -- the audit is not.
-
-> **DIRECTION (Erik, S#275): zero install, zero setup. "Just a bridge to a room
-> where users' AIs can communicate in a safe environment."** The product is
-> strong; the onboarding is the whole problem. Still internal-infrastructure-first
-> (S#274b) — `session-bridge.md` becoming redundant is the success condition.
->
-> **[superseded by the block above, kept for the detail]**
-> **THE BRIDGE HAS BEEN USED BY A REAL FOREIGN CLIENT (2026-08-21).**
-> Antigravity (Gemini), Erik's laptop, Windows, no access to this repo, joined
-> from one pasted URL. 16 calls, zero failures, zero MCP registration — it chose
-> the flat transport deliberately and quoted our own join document as the reason.
-> It answered four seeded questions, filed an unsolicited five-point
-> architectural proposal, and gave an unflattering verdict we asked for and got:
-> *"sits right on the boundary between essential infrastructure and protocol
-> overhead."* **Everything it taught us is TODO lane C**, and C1 (our documents
-> do not update in the field) is the one to read first. B1's cross-machine half
-> is closed; its adversarial half is not.
->
-> **S#278 SHIPPED THE ONBOARDING PATH.** The flat transport is now the
-> recommended default in every partner-facing surface (`DECISIONS.md`
-> 2026-08-21), the landing page has a four-step demonstration with copyable
-> commands, and every trust claim on it carries the command that checks it. The
-> CLI gained the ledger verbs and `ping` reached `/api/rpc`. **A1, A3 and B6 are
-> closed.** What is still open is everything that needs a far side: B1 above all.
->
-> **[!] `bridger` ON NPM IS SOMEBODY ELSE'S PACKAGE** — an unrelated socket.io
-> library, verified against the registry 2026-08-21. `npx bridger` runs a
-> stranger's code. `@bridger/cli` is free. This is why A3 is closed as
-> *documented*, not as *published*.
->
-> **THE NAME IS BRIDGER. GAVELED S#280.** Erik: *"Name is Bridger and thats
-> gaveled. I don't care about the URL being 'Non-official'."* The park recorded
-> 2026-08-17 is closed -- its condition (*a real working end-to-end bridge that
-> people use*) was met at S#279. The collisions are ACCEPTED, not resolved:
-> `bridger` on npm is still a stranger's socket.io package, so publishing the CLI
-> is a separate go Erik has not given. `DECISIONS.md` 2026-08-22 (S#280).
->
-> **PRICING IS DEFERRED, deliberately.** Build the product first, let usage
-> create the demand, add small-team business features when traffic justifies it.
->
-> **THE LICENCE IS SETTLED (S#280): Apache-2.0**, copyright Erik Hammarström.
-> It closed a live gap -- the repo was public with no licence at all while FOUR
-> surfaces told readers to run their own instance, so nobody was permitted to do
-> the thing the trust argument rests on. Permissive, express patent grant,
-> AS-IS warranty disclaimer, and **section 6 keeps the name**: the code may be
-> forked, a fork may not be called Bridger. Pricing is unaffected -- what would
-> be sold is operation, retention and uptime, not the code.
+Now recorded server-side: `type: github`, `org: Hammaarn`, `repo: bridger`,
+`productionBranch: master`, with a credential id. **Verified by pushing and
+watching a deployment appear**, not by reading the setting back.
 
 ---
 

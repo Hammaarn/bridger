@@ -86,11 +86,18 @@ Vercel dropped the project's git link with it. Every deployment before this
 carries `githubDeployment: "1"` and full commit metadata, and the last one is
 `6a190ac` at the close of S#280 -- so it broke between then and now.
 
-**Not fixable from here, and deliberately not attempted further:** installing a
-GitHub App is a GitHub UI authorisation. `vercel git connect` fails with the
-same error. **Erik installs it at https://github.com/apps/vercel, grants it the
-`Hammaarn/bridger` repository, then the project reconnects** (`vercel git
-connect https://github.com/Hammaarn/bridger` will then succeed).
+**RESOLVED the same session, and it took TWO steps rather than one.** Erik
+installed the app at https://github.com/apps/vercel -- and the project link did
+**not** come back on its own. Re-checked immediately: the API still reported no
+`link`. It took `vercel git connect https://github.com/Hammaarn/bridger` as a
+separate action, which then succeeded where it had failed minutes earlier.
+
+**That is the part worth keeping:** installing the app restores the PERMISSION,
+not the CONNECTION. The two failure states look identical from the dashboard --
+app present, repo visible, nothing deploying -- so anyone who installs the app,
+sees no error and assumes they are done still has a repo that silently does not
+deploy. Link now recorded server-side: `type: github`, `org: Hammaarn`,
+`repo: bridger`, `productionBranch: master`, with a credential id.
 
 **Interim:** `npx vercel deploy --prod --yes` works and was used to ship S#281.
 It picks up `VERCEL_GIT_COMMIT_SHA` from the local clone, so `/api/about` still
