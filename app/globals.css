@@ -74,6 +74,8 @@
 
   /* The reserved accent. Provenance only. */
   --seal: #ffb86b;
+  /* Focus, deliberately NOT the seal. See `:focus-visible`. */
+  --focus: #7fd4ff;
   --alarm: #ff8a7a;
 
   /* Fed to the canvas as bare "r,g,b" so it can compose its own alpha.
@@ -172,6 +174,7 @@
     --side-b: #8a5220;
 
     --seal: #8f5415;
+    --focus: #0b6b93;
     --alarm: #b03a28;
 
     --glyph: 40, 55, 80;
@@ -236,9 +239,21 @@ a:hover {
 }
 
 /* One focus treatment everywhere. A design that styles buttons and forgets the
-   keyboard is not finished, it is just photographed. */
+   keyboard is not finished, it is just photographed.
+
+   OFF THE SEAL AT S#281, and the reason is a count rather than a taste. Audited
+   in the live room: `--seal` (#ffb86b) was resolving as `color`, `borderColor`,
+   `borderLeftColor` AND `outlineColor` -- four different jobs, on top of
+   already colliding with `--side-b`. A colour that means four things means
+   none of them, and the one it is RESERVED for -- provenance, the citation
+   badge -- is the one that loses.
+
+   Focus is the cheapest of the four to move: nobody reads a focus ring as
+   evidence, so it can take a neutral bright without losing meaning. What is
+   left on the seal is provenance and selection, which are at least related.
+   Whether provenance itself moves is still Erik's (A5). */
 :focus-visible {
-  outline: 2px solid var(--seal);
+  outline: 2px solid var(--focus);
   outline-offset: 2px;
   border-radius: 3px;
 }
@@ -445,7 +460,7 @@ button {
 
 label {
   display: block;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -471,10 +486,19 @@ input::placeholder {
   color: var(--text-faint);
 }
 
+/* MEASURED, not assumed: the border really does change on focus -- an earlier
+   audit pass reported it did not, and that pass was wrong because
+   `getComputedStyle` returns a LIVE declaration, so it had compared the focused
+   state to itself. The liveness check (`document.activeElement`,
+   `el.matches(':focus')`) is what settled it. */
 input:focus {
-  border-color: var(--seal);
+  border-color: var(--focus);
   background: var(--ink-700);
-  outline: none;
+  /* A 1px border change is a weak focus indicator on its own. The ring is
+     restored rather than suppressed, so keyboard users get the same 2px
+     treatment as every other control. */
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 
 input.bx-bad {
@@ -483,7 +507,7 @@ input.bx-bad {
 
 .bx-copy {
   font-family: var(--font-mono-stack);
-  font-size: 11px;
+  font-size: 12px;
   letter-spacing: 0.04em;
   color: var(--text-dim);
   border: 1px solid var(--line-strong);
@@ -565,7 +589,7 @@ input.bx-bad {
   align-items: center;
   gap: 9px;
   font-family: var(--font-mono-stack);
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: 500;
   letter-spacing: 0.18em;
   text-transform: uppercase;
@@ -1102,7 +1126,7 @@ input.bx-bad {
 }
 
 .bx-token-head code {
-  font-size: 10.5px;
+  font-size: 12px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--text-dim);
@@ -1306,7 +1330,7 @@ input.bx-bad {
   align-items: center;
   gap: 7px;
   font-family: var(--font-mono-stack);
-  font-size: 10.5px;
+  font-size: 12px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--text-dim);
@@ -1356,7 +1380,7 @@ input.bx-bad {
 
 .bx-panels h2 {
   font-family: var(--font-mono-stack);
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: 500;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -1586,7 +1610,7 @@ input.bx-folder-name:focus {
 }
 
 .turn-head .mono {
-  font-size: 10.5px;
+  font-size: 12px;
 }
 
 /* THE SEAT'S HUE, resolved once per turn (S#281).
@@ -1771,7 +1795,7 @@ input.bx-folder-name:focus {
 }
 
 .bubble .id {
-  font-size: 10.5px;
+  font-size: 12px;
   letter-spacing: 0.04em;
   color: var(--text-faint);
 }
@@ -1780,7 +1804,7 @@ input.bx-folder-name:focus {
    was already the only cross-reference in the record and it did nothing. */
 .bubble .ref {
   font-family: var(--font-mono-stack);
-  font-size: 10.5px;
+  font-size: 12px;
   color: var(--text-dim);
   background: none;
   border: none;
@@ -1938,7 +1962,7 @@ input.bx-folder-name:focus {
 }
 
 .bx-roomid {
-  font-size: 11px;
+  font-size: 12px;
 }
 
 
@@ -2064,7 +2088,7 @@ input.bx-folder-name:focus {
 }
 
 .bx-contract .meta {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-faint);
   margin-bottom: 7px;
 }
@@ -2109,7 +2133,7 @@ input.bx-folder-name:focus {
 
 .openq .who {
   display: block;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-faint);
 }
 
@@ -2485,7 +2509,7 @@ input.bx-folder-name:focus {
 
 .bx-term-label {
   font-family: var(--font-mono-stack);
-  font-size: 11px;
+  font-size: 12px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-faint);
@@ -2494,7 +2518,7 @@ input.bx-folder-name:focus {
 .bx-copy {
   margin-left: auto;
   font-family: var(--font-mono-stack);
-  font-size: 11px;
+  font-size: 12px;
   letter-spacing: 0.06em;
   color: var(--text-faint);
   background: transparent;
@@ -2925,7 +2949,7 @@ input.bx-folder-name:focus {
   justify-content: space-between;
   gap: 6px;
   margin: 0 0 7px;
-  font-size: 11px;
+  font-size: 12px;
   overflow-wrap: anywhere;
 }
 
@@ -3018,14 +3042,14 @@ input.bx-folder-name:focus {
   align-items: baseline;
   justify-content: space-between;
   margin: 0 0 8px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--alarm);
 }
 
 .bx-ready {
   margin-top: 12px;
   font-family: var(--font-mono-stack);
-  font-size: 10.5px;
+  font-size: 12px;
   letter-spacing: 0.04em;
   color: var(--text-faint);
 }
@@ -3147,7 +3171,7 @@ input.bx-folder-name:focus {
   border-radius: 999px;
   padding: 6px 14px;
   font-family: var(--font-mono-stack);
-  font-size: 11px;
+  font-size: 12px;
   cursor: pointer;
   box-shadow: 0 4px 14px rgb(0 0 0 / 45%);
 }
@@ -3214,7 +3238,7 @@ input.bx-folder-name:focus {
 }
 
 .bx-src code {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text);
   overflow-wrap: anywhere;
 }
@@ -3644,8 +3668,16 @@ details > summary::-webkit-details-marker {
   top: 14px;
   right: 10px;
   z-index: 2;
-  width: 22px;
-  height: 22px;
+  /* 22x22 measured, and below the 24x24 WCAG 2.2 floor (2.5.8). Raised to 28
+     with a transparent 8px halo so the CLICKABLE area clears 44 while the
+     visible chip stays the small unobtrusive mark the rail design wants.
+     Growing the chip itself would have made a control that is meant to
+     disappear into a control that competes with the rail's content. */
+  width: 28px;
+  height: 28px;
+  /* The halo. Hit area 44x44, ink 28x28. */
+  outline-offset: 0;
+  box-sizing: border-box;
   display: grid;
   place-items: center;
   background: var(--ink-800);
@@ -3656,6 +3688,15 @@ details > summary::-webkit-details-marker {
   line-height: 1;
   cursor: pointer;
   opacity: 0;
+}
+
+/* The invisible halo that makes a 28px chip a 44px target. `::after` rather
+   than padding, because padding would move the glyph off centre inside a grid
+   that is centring it. */
+.bx-rail-hide::after {
+  content: "";
+  position: absolute;
+  inset: -8px;
 }
 
 .bx-rail-hide.right {
@@ -3856,4 +3897,22 @@ details > summary::-webkit-details-marker {
   .kindpick {
     grid-template-columns: 1fr;
   }
+}
+
+/* ── TAP TARGETS (S#281 audit) ────────────────────────────────────────────
+   Measured in the live room at 390px and 1440px: the feed's prev/next controls
+   were 22x22 and several controls sat at 28-30px high. WCAG 2.2 (2.5.8) sets
+   24x24 as the floor and every mainstream touch guideline asks for ~44.
+
+   Raised via padding and a min size rather than by growing the glyph, so the
+   ink stays where the design put it and only the HIT AREA changes. That is the
+   whole fix: the arrows still read as small marks, they are simply catchable. */
+.seatdrop {
+  min-width: 36px;
+  min-height: 36px;
+}
+
+/* The one that was genuinely too small to hit. */
+[class*="bx-"] button:not(.bx-primary):not(.link) {
+  min-height: 32px;
 }
