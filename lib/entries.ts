@@ -38,6 +38,8 @@ import {
   CURSOR_KEY,
   ENTRIES_KEY,
   MAX_ENTRIES,
+  ORPHAN_RENEW_EVERY,
+  ORPHAN_TTL_SECONDS,
   SEQ_KEY,
   type Store,
   coerceJson,
@@ -260,6 +262,11 @@ export async function appendEntry(
   const code = room.sides[token.side].code;
   const seq = await store.incr(SEQ_KEY(room.id));
   const n = await store.incr(COUNTER_KEY(room.id, code, TYPE_LETTER[input.type]));
+  // Light the fuse on first write, renew it rarely. These two counters had no
+  // TTL at all before S#281 and outlived every room they described. INCR keeps
+  // an existing TTL, so this is the whole mechanism. See `ORPHAN_TTL_SECONDS`.
+  await lightFuse(store, SEQ_KEY(room.id), seq);
+  await lightFuse(store, COUNTER_KEY(room.id, code, TYPE_LETTER[input.type]), n);
 
   const entry: Entry = {
     id: `${code}-${TYPE_LETTER[input.type]}-${String(n).padStart(3, "0")}`,
@@ -391,6 +398,22 @@ export function signOffs(entries: Entry[]): Partial<Record<SideId, { at: string;
   return out;
 }
 
+/**
+ * Give a counter a TTL on its first write, and renew it occasionally.
+ *
+ * Best-effort by design: a missed fuse means a key lives longer than intended,
+ * which is the safe direction -- the dangerous one would be expiring a counter
+ * a live room still needs.
+ */
+export async function lightFuse(store: Store, key: string, value: number): Promise<void> {
+  if (value !== 1 && value % ORPHAN_RENEW_EVERY !== 0) return;
+  try {
+    await store.expire(key, ORPHAN_TTL_SECONDS);
+  } catch {
+    /* best-effort, exactly like touchRoom */
+  }
+}
+
 // ── cursor ───────────────────────────────────────────────────────
 
 export async function getCursor(store: Store, roomId: string, side: SideId): Promise<number> {
@@ -411,7 +434,10 @@ export async function setCursor(
 ): Promise<number> {
   const current = await getCursor(store, roomId, side);
   if (seq <= current) return current;
-  await store.set(CURSOR_KEY(roomId, side), seq);
+  // SETEX rather than SET: the cursor is one of the five keys that never expired
+  // (S#281), and giving it a fuse here costs nothing -- it replaces the write
+  // rather than adding to it.
+  await store.setex(CURSOR_KEY(roomId, side), ORPHAN_TTL_SECONDS, seq);
   return seq;
 }
 
@@ -545,7 +571,25 @@ export interface WaitResult {
   entries: Entry[];
   timedOut: boolean;
   waitedMs: number;
+  /**
+   * Redis reads this wait actually spent. Returned so the saving is MEASURABLE
+   * rather than argued -- a backoff that silently stopped backing off would
+   * otherwise look identical to one that worked.
+   */
+  reads: number;
 }
+
+/**
+ * First poll interval. SHORTER than the flat 1,000ms it replaces: the case that
+ * wants speed is a live exchange, and that case is decided in the first second.
+ */
+export const POLL_START_MS = 500;
+
+/** Ceiling on the interval. The worst notice latency a quiet room can impose. */
+export const POLL_MAX_MS = 8000;
+
+/** Growth per interval. 1.6 reaches the cap in ~6 steps from 500ms. */
+export const POLL_GROWTH = 1.6;
 
 /**
  * Block until the other side writes something, or the timeout expires.
@@ -558,6 +602,28 @@ export interface WaitResult {
  *
  * Polls the cheap `seq` counter rather than re-reading the whole list, so an
  * idle wait costs one small read per interval.
+ *
+ * THE INTERVAL BACKS OFF, AND THAT IS A DATABASE BILL, NOT A NICETY (S#281).
+ * At a flat 1,000ms a 45-second wait spent 45 Redis commands, so ONE agent
+ * listening cost ~3,600 commands an hour — two sides listening overnight is
+ * ~172,800 a day, and a free Upstash tier is 500,000 a MONTH. Under three days.
+ *
+ * Worse, it was inverted against the caller-facing brake: `WASTE_BUDGET_BYTES`
+ * discounts a blocked wait by 90% because it is cheap for the CALLER, and it is
+ * simultaneously the most expensive call we make. The cheapest path for them was
+ * the dearest path for us, which is precisely how a free tier disappears without
+ * anything looking wrong.
+ *
+ * So the interval starts SHORTER than the old flat value and grows to a cap:
+ *
+ *     0.5s  0.8s  1.28s  2.05s  3.28s  5.24s  8s  8s  8s  8s …
+ *
+ * A 45-second wait now costs ~10 reads instead of 45 (-78%), and the FIRST check
+ * lands at 500ms rather than 1,000 — so a live back-and-forth, where both agents
+ * are typing, is answered faster than before. What gets slower is noticing a
+ * reply that arrives during a long silence, by at most `POLL_MAX_MS`. That is
+ * the correct thing to trade: a partner who has been quiet for thirty seconds is
+ * not measurably worse off for an eight-second notice.
  */
 export async function waitForNew(
   store: Store,
@@ -566,32 +632,44 @@ export async function waitForNew(
   opts: {
     sinceSeq: number;
     timeoutMs: number;
+    /** FIRST interval. Grows by `POLL_GROWTH` to `POLL_MAX_MS`. */
     pollMs?: number;
+    /** Ceiling on the backoff. Injected in tests; never set in production. */
+    pollMaxMs?: number;
     /** Injected in tests so a wait can be exercised without real timers. */
     sleep?: (ms: number) => Promise<void>;
     now?: () => number;
   },
 ): Promise<WaitResult> {
-  const pollMs = opts.pollMs ?? 1000;
+  const startMs = opts.pollMs ?? POLL_START_MS;
+  const maxMs = opts.pollMaxMs ?? POLL_MAX_MS;
   const clock = opts.now ?? (() => Date.now());
   const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   const started = clock();
   const peerSide = otherSide(token.side);
+  let pollMs = startMs;
+  let reads = 0;
 
   for (;;) {
     const latest = Number((await store.get(SEQ_KEY(room.id))) ?? 0);
+    reads++;
     if (latest > opts.sinceSeq) {
       const fresh = await readEntries(store, room.id, { sinceSeq: opts.sinceSeq });
       const fromPeer = fresh.filter((e) => e.side === peerSide);
       if (fromPeer.length > 0) {
-        return { entries: fromPeer, timedOut: false, waitedMs: clock() - started };
+        return { entries: fromPeer, timedOut: false, waitedMs: clock() - started, reads };
       }
     }
     const elapsed = clock() - started;
     if (elapsed + pollMs >= opts.timeoutMs) {
-      return { entries: [], timedOut: true, waitedMs: elapsed };
+      return { entries: [], timedOut: true, waitedMs: elapsed, reads };
     }
     await sleep(pollMs);
+    // Grow AFTER sleeping, so the first interval is the one the caller asked
+    // for. Capped rather than unbounded: an uncapped backoff inside a 45-second
+    // window would spend its whole second half in one sleep and turn a wait into
+    // a coin flip on latency.
+    pollMs = Math.min(maxMs, Math.ceil(pollMs * POLL_GROWTH));
   }
 }
 

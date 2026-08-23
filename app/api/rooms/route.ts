@@ -195,11 +195,27 @@ export async function POST(req: Request) {
       status: "deny",
       reason: "mint-quota",
     });
+    // RULED S#281 (Erik: "the best possible solution that doesn't cause friction").
+    //
+    // This used to send 429 WITH `terminal: true`, which says two opposite
+    // things at once: the status invites a retry and the body forbids one. The
+    // status wins, because it is read by SDK retry middleware underneath the
+    // model, before a single word of the refusal text reaches anything able to
+    // understand it -- the exact bug S#276 fixed for `daily-cap` over in
+    // `DENY_STATUS`. It survived here because this is the one route that never
+    // calls `authorize()` (ARCHITECTURE #30), so the invariant in
+    // `refusal-status.test.ts` could not see it.
+    //
+    // Resolved TOWARDS 429 rather than away from it, because 429 is TRUE here:
+    // the window really does reopen, `Retry-After` says exactly when, and a
+    // client that backs off and returns after midnight gets a room. What was
+    // false was `terminal`. A caller who wants to know whether to give up now
+    // reads the header instead of a flag that contradicted it.
     return Response.json(
       {
         error: `That is ${verdict.limit} rooms today from this connection, which is the limit. It resets at midnight UTC.`,
         code: "mint-quota",
-        terminal: true,
+        terminal: false,
         limit: verdict.limit,
         resetsAt: verdict.resetsAt,
       },
