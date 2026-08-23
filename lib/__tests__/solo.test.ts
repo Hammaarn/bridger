@@ -25,6 +25,7 @@ import {
   MAX_SOLO_SEATS,
   SEAT_IDS,
 } from "../room-registry";
+import { ROOM_SHAPES, defaultShapeFor } from "../room-shapes";
 import { appendEntry } from "../entries";
 import { wire, wireCtxFor, type OpContext } from "../operations";
 
@@ -191,5 +192,59 @@ describe("the kind default protects existing rooms", () => {
     const { room } = await trust();
     assert.equal(room.kind, "trust");
     assert.deepEqual(seatsFor(room), ["a", "b"]);
+  });
+});
+
+describe("F2 room shapes", () => {
+  it("there are exactly two, and each maps to a real phase", async () => {
+    const { ROOM_SHAPES, shapeForPhase, defaultShapeFor } = await import("../room-shapes");
+    assert.equal(ROOM_SHAPES.length, 2, "a third shape needs a third stage to exist first");
+    assert.deepEqual(
+      ROOM_SHAPES.map((s) => s.phase).sort(),
+      ["build", "plan"],
+      "every shape must correspond to a phase the room can actually be in",
+    );
+    assert.equal(shapeForPhase("plan").id, "plan-first");
+    assert.equal(shapeForPhase("build").id, "record");
+  });
+
+  it("[!!] the defaults are the behaviour each room kind ALREADY had", () => {
+    // The point of F2 is to make the phase a choice, not to change what anyone
+    // gets by not choosing. If these ever flip, existing callers silently get a
+    // different room than they got yesterday.
+    assert.equal(defaultShapeFor("trust").phase, "plan");
+    assert.equal(defaultShapeFor("solo").phase, "build");
+  });
+
+  it("every shape has a name that says what you GET", () => {
+    for (const s of ROOM_SHAPES) {
+      assert.ok(s.name.length > 0 && s.blurb.length > 0, `${s.id} needs a name and a blurb`);
+      assert.doesNotMatch(
+        s.name,
+        /\bjust\b/i,
+        `"${s.name}" — "just" tells someone their choice is the lesser one`,
+      );
+    }
+  });
+
+  it("[!!] room-shapes imports nothing that cannot run in a browser", async () => {
+    // THE BUG THIS PINS: these constants first lived in `room-registry`, which
+    // imports the store, which imports @upstash/redis and node:fs. Importing one
+    // presentational constant into a client component therefore dragged the
+    // whole server stack into the browser bundle and `next dev` died with
+    // "the chunking context does not support external modules (request:
+    // node:fs)".
+    //
+    // `next build` PASSED throughout — measured by ablation, not assumed — so
+    // tsc + tests + build could not see it. This assertion is the only cheap
+    // check that can.
+    const { readFileSync } = await import("node:fs");
+    const src = readFileSync(new URL("../room-shapes.ts", import.meta.url), "utf8");
+    const imports = [...src.matchAll(/^\s*import[^;]*from\s+"([^"]+)"/gm)].map((m) => m[1]!);
+    assert.deepEqual(
+      imports,
+      [],
+      `room-shapes must stay import-free so the client can read it; found: ${imports.join(", ")}`,
+    );
   });
 });

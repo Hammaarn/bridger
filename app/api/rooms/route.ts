@@ -37,6 +37,7 @@ import { gate, refusalResponse } from "@/lib/http-gate";
 import { canWrite, clearRegistryCache, createRoom, issueToken, writeAudit,
   seat,
   createSoloRoom,
+  ROOM_SHAPES,
   MIN_SEATS,
   MAX_SOLO_SEATS,
 } from "@/lib/room-registry";
@@ -168,7 +169,18 @@ export async function POST(req: Request) {
     return bad("Body must be JSON.");
   }
   if (typeof body !== "object" || body === null) return bad("Body must be a JSON object.");
-  const { topic, you, them, slots, kind, seats } = body as Record<string, unknown>;
+  const { topic, you, them, slots, kind, seats, shape } = body as Record<string, unknown>;
+
+  // F2. A shape id rather than a raw phase: the phase is an internal word that
+  // may gain members, and a caller should be choosing a documented SHAPE.
+  const chosenShape =
+    shape === undefined ? null : (ROOM_SHAPES.find((x) => x.id === shape) ?? undefined);
+  if (chosenShape === undefined) {
+    return bad(
+      `\`shape\` must be one of: ${ROOM_SHAPES.map((x) => x.id).join(", ")}.`,
+      "shape",
+    );
+  }
 
   if (kind !== undefined && kind !== "trust" && kind !== "solo") {
     return bad('`kind` must be "trust" (two companies) or "solo" (your own models).', "kind");
@@ -272,6 +284,7 @@ export async function POST(req: Request) {
         topic: topic as string,
         seatLabels: seats as string[],
         now,
+        ...(chosenShape ? { phase: chosenShape.phase } : {}),
       });
     } catch (e) {
       if (e instanceof RoomTextRejected) return bad(e.why, e.field);
@@ -295,6 +308,7 @@ export async function POST(req: Request) {
           topic: made.room.topic,
           createdAt: made.room.createdAt,
           kind: "solo",
+          phase: made.room.phase,
         },
         slots: made.tokens,
         viewerToken,
@@ -320,6 +334,7 @@ export async function POST(req: Request) {
       ownerLabel: you,
       peerLabel: them,
       now,
+      ...(chosenShape ? { phase: chosenShape.phase } : {}),
     } as Parameters<typeof createRoom>[1]);
   } catch (e) {
     // The sanitiser names the field it rejected, so the form can highlight it
@@ -352,7 +367,7 @@ export async function POST(req: Request) {
 
   return Response.json(
     {
-      room: { id: room.id, topic: room.topic, createdAt: room.createdAt },
+      room: { id: room.id, topic: room.topic, createdAt: room.createdAt, phase: room.phase },
       slots: [
         { side: "a", label: seat(room, "a").label, code: seat(room, "a").code, token: ownerToken },
         { side: "b", label: seat(room, "b").label, code: seat(room, "b").code, token: peerToken },

@@ -3916,3 +3916,18 @@ details > summary::-webkit-details-marker {
 [class*="bx-"] button:not(.bx-primary):not(.link) {
   min-height: 32px;
 }
+
+/* The shape picker reuses the kind picker's cards, one size down: it is the
+   SECOND decision on the screen and should not compete with the first. Same
+   component, quieter — rather than a second card style to keep in sync. */
+.shapepick .kindcard {
+  padding: 11px 12px;
+}
+
+.shapepick .kindcard-t {
+  font-size: 0.88rem;
+}
+
+.shapepick .kindcard-d {
+  font-size: 0.74rem;
+}
