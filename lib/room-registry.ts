@@ -39,6 +39,7 @@ import { EMPTY_PLAN, parsePlan, type Plan } from "./plan";
 import {
   AUDIT_LOG,
   AUDIT_LOG_MAX,
+  AUDIT_TRIM_SLACK,
   PLAN_KEY,
   ROOM_ACTIVITY_KEY,
   ROOM_ACTIVITY_DAYS_MAX,
@@ -402,13 +403,22 @@ export const otherSide = (s: SideId): SideId => (s === "a" ? "b" : "a");
 // ── cache ────────────────────────────────────────────────────────
 
 type CacheEntry<T> = { record: T | null; fetchedAt: number };
+let killSwitchCache: { on: boolean; at: number } | null = null;
 const tokenCache = new Map<string, CacheEntry<TokenRecord>>();
 const roomCache = new Map<string, CacheEntry<RoomRecord>>();
 
-/** Test seam; also called after any mutation so a revoke is visible immediately. */
+/**
+ * Test seam; also called after any mutation so a revoke is visible immediately.
+ *
+ * The kill-switch reading is cleared here too (S#281). It lives in a separate
+ * variable but it is the same KIND of thing -- a cached answer about registry
+ * state -- and a second reset function would be one more thing every caller has
+ * to remember, which is how a cache-invalidation bug is born.
+ */
 export function clearRegistryCache(): void {
   tokenCache.clear();
   roomCache.clear();
+  killSwitchCache = null;
 }
 
 // ── parsing ──────────────────────────────────────────────────────
@@ -506,6 +516,33 @@ export interface AuthContext {
 }
 
 /**
+ * How long a kill-switch READING may be reused.
+ *
+ * Deliberately short. The switch is the break-glass control, so the cost of
+ * staleness is measured in how long a stopped bridge keeps answering -- and the
+ * asymmetry below keeps that bounded to this window even in the worst case.
+ */
+export const KILL_SWITCH_CACHE_MS = 5_000;
+
+/**
+ * Read the kill switch, reusing a recent reading.
+ *
+ * ASYMMETRIC ON PURPOSE: only an OFF reading is cached. An ON reading is
+ * returned and then re-read next call, so RESTARTING the bridge is immediate
+ * while STOPPING it is delayed by at most one window. Cache the ON and a
+ * restart would appear not to work, which is the direction that produces panic.
+ */
+async function killSwitchOn(store: Store, now: Date): Promise<boolean> {
+  const t = now.getTime();
+  if (killSwitchCache && !killSwitchCache.on && t - killSwitchCache.at < KILL_SWITCH_CACHE_MS) {
+    return false;
+  }
+  const on = Boolean(await store.get(KILL_SWITCH));
+  killSwitchCache = { on, at: t };
+  return on;
+}
+
+/**
  * Resolve a presented token to a room and a side, or say precisely why not.
  *
  * Order is deliberate and mirrors the JudgeMySite original: the kill switch is
@@ -518,8 +555,14 @@ export async function authorize(store: Store | null, ctx: AuthContext): Promise<
   if (!ctx.presentedToken) return { ok: false, reason: "no-token" };
   if (!store) return { ok: false, reason: "registry-unavailable" };
 
+  // Cached for KILL_SWITCH_CACHE_MS. This read ran on literally every call and
+  // is almost always the same answer -- one command per request, forever, to
+  // learn "no" (S#281). The cache is short and FAILS TOWARDS STOPPING: a cached
+  // ON is trusted for its whole window, a cached OFF is re-read every few
+  // seconds, so the panic button's worst case is a few seconds of delay rather
+  // than a bridge that cannot be stopped.
   try {
-    if (await store.get(KILL_SWITCH)) return { ok: false, reason: "bridge-disabled" };
+    if (await killSwitchOn(store, ctx.now)) return { ok: false, reason: "bridge-disabled" };
   } catch {
     // A kill switch we cannot read is one we must assume is ON: if this read
     // failed, the token record and the rate limiter are equally unreadable.
@@ -675,8 +718,12 @@ export async function noteOp(store: Store, tokenId: string, code: string): Promi
     const key = OP_TRAIL_KEY(tokenId);
     const prev = String((await store.get(key)) ?? "");
     const next = (prev + code).slice(-OP_TRAIL_MAX);
-    await store.set(key, next);
-    if (!prev) await store.expire(key, OP_TRAIL_TTL_SECONDS);
+    // One SETEX rather than SET + conditional EXPIRE (S#281). The old form
+    // saved a command on the common path by only expiring the FIRST write --
+    // but a plain SET clears the TTL, so every subsequent write stripped the
+    // expiry the first one set. The trail was immortal in practice; the
+    // conditional was not an optimisation, it was the bug.
+    await store.setex(key, OP_TRAIL_TTL_SECONDS, next);
     return next;
   } catch {
     return ""; // advisory bookkeeping never refuses a call that was otherwise fine
@@ -710,8 +757,11 @@ export async function bumpWaste(store: Store, tokenId: string, bytes: number): P
     const key = WASTE_KEY(tokenId);
     const prev = Number(await store.get(key)) || 0;
     const next = prev + Math.max(0, Math.floor(bytes));
-    await store.set(key, next);
-    if (prev === 0) await store.expire(key, WASTE_WINDOW_SECONDS);
+    // SETEX, and it fixes the same latent bug as `noteOp`: SET clears the TTL,
+    // so expiring only when `prev === 0` meant every later bump un-expired the
+    // counter. A waste counter that never resets refuses an honest caller
+    // forever. (S#281)
+    await store.setex(key, WASTE_WINDOW_SECONDS, next);
     return next;
   } catch {
     return 0; // bookkeeping never refuses a call that was otherwise fine
@@ -743,8 +793,7 @@ export async function noteServed(store: Store, tokenId: string, maxSeq: number):
     const key = SERVED_KEY(tokenId);
     const prev = Number(await store.get(key)) || 0;
     if (maxSeq <= prev) return false; // re-serving what it already had is not learning
-    await store.set(key, maxSeq);
-    await store.expire(key, WASTE_WINDOW_SECONDS);
+    await store.setex(key, WASTE_WINDOW_SECONDS, maxSeq); // S#281: was SET + EXPIRE
     return true;
   } catch {
     return true; // bookkeeping failure must not manufacture a refusal
@@ -1057,9 +1106,8 @@ export async function readPlan(store: Store, roomId: string): Promise<Plan> {
 }
 
 export async function writePlan(store: Store, roomId: string, plan: Plan): Promise<void> {
-  await store.set(PLAN_KEY(roomId), JSON.stringify(plan));
+  await store.setex(PLAN_KEY(roomId), ROOM_TTL_SECONDS, JSON.stringify(plan));
   // Expires with the room it belongs to, like the contract.
-  await store.expire(PLAN_KEY(roomId), ROOM_TTL_SECONDS);
 }
 
 // ── audit ────────────────────────────────────────────────────────
@@ -1114,8 +1162,17 @@ export async function readRoomActivity(store: Store, roomId: string): Promise<Ro
 export async function writeAudit(store: Store | null, entry: AuditEntry): Promise<void> {
   if (!store) return;
   try {
-    await store.lpush(AUDIT_LOG, JSON.stringify(entry));
-    await store.ltrim(AUDIT_LOG, 0, AUDIT_LOG_MAX - 1);
+    // LPUSH returns the new length, so the trim can be conditional instead of
+    // unconditional -- it ran on every single write to enforce a bound that
+    // moves once every AUDIT_TRIM_SLACK rows (S#281). Same ceiling, ~1/500th of
+    // the commands. The list is allowed to overshoot by the slack and is then
+    // cut back to AUDIT_LOG_MAX, so the promise "at most MAX + slack rows"
+    // replaces "at most MAX rows" -- a bound either way, and the storage
+    // difference is a few hundred kilobytes.
+    const len = await store.lpush(AUDIT_LOG, JSON.stringify(entry));
+    if (typeof len === "number" && len > AUDIT_LOG_MAX + AUDIT_TRIM_SLACK) {
+      await store.ltrim(AUDIT_LOG, 0, AUDIT_LOG_MAX - 1);
+    }
   } catch {
     /* logging is best-effort by design */
   }
@@ -1143,10 +1200,9 @@ export async function writeAudit(store: Store | null, entry: AuditEntry): Promis
         ? days
         : [...days, day].sort().slice(-ROOM_ACTIVITY_DAYS_MAX),
     };
-    await store.set(ROOM_ACTIVITY_KEY(entry.roomId), JSON.stringify(next));
     // Expires WITH the room it describes, so a finished room takes its own
-    // bookkeeping with it rather than leaving a tombstone behind.
-    await store.expire(ROOM_ACTIVITY_KEY(entry.roomId), ROOM_TTL_SECONDS);
+    // bookkeeping with it rather than leaving a tombstone behind. One command.
+    await store.setex(ROOM_ACTIVITY_KEY(entry.roomId), ROOM_TTL_SECONDS, JSON.stringify(next));
   } catch {
     /* best-effort, exactly like the line above it */
   }

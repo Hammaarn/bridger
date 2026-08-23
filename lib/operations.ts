@@ -29,6 +29,7 @@ import {
   readEntries,
   setContract,
   setCursor,
+  lightFuse,
   waitForNew,
   type ClaimBasis,
   type Entry,
@@ -226,12 +227,23 @@ export function discountedCost(rawBytes: number, blockedMs: number): number {
 }
 
 /**
- * The budget in a unit a reader can act on. "12000 bytes" means nothing to an
+ * The budget in a unit a reader can act on. "18000 bytes" means nothing to an
  * agent; "an hour of waiting" is a quantity it can weigh against its task.
  * Derived rather than written down twice, so it cannot drift from the constant.
+ *
+ * THE OLD FORMULA WAS WRONG AND OVERSTATED IT (S#281). It divided by 60, which
+ * silently assumed calls arrive one per MINUTE -- but `WAIT_MAX_SECONDS` is 45,
+ * so a 60-second interval is not reachable. It advertised 13 hours against a
+ * real best case of 9.4 and a real DEFAULT case of 5.2. This is the sentence a
+ * braked partner reads to decide whether waiting is viable at all, so an
+ * overstatement here is the expensive kind: it tells them to keep waiting for
+ * hours they do not have. Now derived from the actual interval ceiling, which
+ * is the number the budget is really denominated in.
  */
 const BUDGET_IN_HUMAN =
-  `${Math.round(WASTE_BUDGET_BYTES / 155 / BLOCKED_CALL_DISCOUNT / 60)} hours of continuous waiting, ` +
+  `${Math.round(
+    (WASTE_BUDGET_BYTES / Math.ceil(155 * BLOCKED_CALL_DISCOUNT)) * WAIT_MAX_SECONDS / 3600,
+  )} hours of continuous waiting, ` +
   `or about ${Math.round(WASTE_BUDGET_BYTES / 1220)} status checks`;
 
 /** What a braked reader should do instead. MUST NOT name another polling tool. */
@@ -747,6 +759,8 @@ export async function opPlan(
     if (args.add) {
       const code = ctx.room.sides[you].code;
       const n = await ctx.store.incr(PLAN_COUNTER_KEY(ctx.room.id, code));
+      // The fifth of the five keys that never expired before S#281.
+      await lightFuse(ctx.store, PLAN_COUNTER_KEY(ctx.room.id, code), n);
       const id = `${code}-P-${String(n).padStart(3, "0")}`;
       const out = applyPlan(
         working,

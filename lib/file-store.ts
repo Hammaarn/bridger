@@ -195,6 +195,15 @@ export class FileStore implements Store {
     return "OK";
   }
 
+  /**
+   * A plain `set`, because `expire` here is a deliberate no-op (see below).
+   * The TTL is accepted and ignored for the same reason: a local file belongs
+   * to the person whose disk it is on.
+   */
+  async setex(key: string, _seconds: number, value: unknown) {
+    return this.set(key, value);
+  }
+
   async del(...keys: string[]) {
     // Count what was REMOVED, not what was requested. See the `Store` contract:
     // `redeemInvite` treats this number as a lock, so returning `keys.length`

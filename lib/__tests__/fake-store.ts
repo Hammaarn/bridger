@@ -39,7 +39,23 @@ export class FakeStore implements Store {
   async set(key: string, value: unknown) {
     this.guard(key);
     this.kv.set(key, value);
+    // A plain SET clears any TTL in Redis. Mirrored here so a test can catch a
+    // `set` that was supposed to be a `setex` -- otherwise the fake would be
+    // more forgiving than production, which is the wrong direction for a fake.
+    this.expires.delete(key);
     return "OK";
+  }
+
+  async setex(key: string, seconds: number, value: unknown) {
+    this.guard(key);
+    this.kv.set(key, value);
+    this.expires.set(key, seconds);
+    return "OK";
+  }
+
+  /** Test-only: the TTL currently recorded for a key, or undefined. */
+  ttlOf(key: string) {
+    return this.expires.get(key);
   }
 
   async del(...keys: string[]) {

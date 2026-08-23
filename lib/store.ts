@@ -40,6 +40,19 @@ export interface Store {
   get(key: string): Promise<unknown>;
   set(key: string, value: unknown): Promise<unknown>;
   /**
+   * Set a value AND its TTL in one command.
+   *
+   * Exists for the database bill (S#281). `set` clears any existing TTL, so
+   * every expiring key was written as `set` + `expire` -- two billed commands
+   * where Redis has always had one. On the hot paths (the op trail, the waste
+   * counter, the served cursor, the per-room tally) that pair ran on EVERY call.
+   *
+   * It also removes a whole failure mode rather than only a cost: between the
+   * `set` and the `expire` the key existed with no TTL, so an interruption in
+   * that gap left an immortal key behind. `SETEX` is atomic, so there is no gap.
+   */
+  setex(key: string, seconds: number, value: unknown): Promise<unknown>;
+  /**
    * Delete keys. **Returns the number ACTUALLY REMOVED, not the number asked
    * for** — Redis semantics, and load-bearing: `redeemInvite` uses the count as
    * its MINT lock so exactly one of two concurrent redemptions can win. An
@@ -219,6 +232,33 @@ export const MAX_ENTRIES = 5000;
 
 /** Idle TTL. Refreshed on every write to the room. */
 export const ROOM_TTL_SECONDS = 30 * 24 * 60 * 60;
+
+/**
+ * THE FUSE ON A ROOM'S SMALL COUNTERS -- the five keys that used to be immortal.
+ *
+ * Audited S#281: of 22 key namespaces, seventeen expired and FIVE never did --
+ * `CURSOR_KEY` (x2 per room), `SEQ_KEY`, `COUNTER_KEY` (up to 14), and
+ * `PLAN_COUNTER_KEY` (x2). `touchRoom` refreshed four keys; nothing covered
+ * these. So when a room's 30-day idle TTL fired and the room, its entries, its
+ * contract and its tokens all vanished, ~19 small keys per dead room stayed
+ * behind forever. Only `purge` removed them, and purge is a deliberate act.
+ *
+ * WHY A LONG FUSE RATHER THAN A REFRESH. Refreshing all nineteen on every write
+ * would cost nineteen commands per write to solve a storage problem worth about
+ * a kilobyte per room -- trading the expensive resource for the cheap one, in a
+ * session whose whole point is the opposite. Instead each counter gets a TTL far
+ * longer than any room's life, set on its FIRST write and renewed every hundred
+ * or so, which is a rounding error in commands and still bounded.
+ *
+ * The renewal is what makes it safe: `INCR` (unlike `SET`) preserves a TTL, so
+ * a counter that keeps being written keeps its fuse, and one whose room died
+ * stops being renewed and burns down. A room is capped at 5,000 entries anyway,
+ * so the renewal interval cannot be outrun.
+ */
+export const ORPHAN_TTL_SECONDS = 400 * 24 * 60 * 60;
+
+/** Renew a counter's fuse every this-many increments. See `ORPHAN_TTL_SECONDS`. */
+export const ORPHAN_RENEW_EVERY = 100;
 /**
  * Audit entries retained — enough to answer "what happened last week", bounded.
  *
@@ -250,6 +290,18 @@ export const ROOM_TTL_SECONDS = 30 * 24 * 60 * 60;
  * whole funnel argument runs on, and it must not live in something evictable.
  */
 export const AUDIT_LOG_MAX = 20000;
+
+/**
+ * How far the audit list may overshoot `AUDIT_LOG_MAX` before it is trimmed.
+ *
+ * The trim used to run on EVERY write to hold an exact ceiling -- one extra
+ * Redis command per call, forever, to enforce a boundary that actually moves
+ * once per row. Trimming only when the list has drifted this far past the
+ * ceiling costs one command per `AUDIT_TRIM_SLACK` writes instead of one per
+ * write, and the bound becomes "MAX + slack" rather than "MAX", which is still
+ * a bound. At ~200 B a row the slack is ~100 kB.
+ */
+export const AUDIT_TRIM_SLACK = 500;
 
 /**
  * PER-ROOM ACTIVITY THAT CANNOT BE EVICTED.
@@ -439,7 +491,24 @@ export const MAX_EMPTY_WAIT_STREAK = 3;
  * under two turns of resident MCP tool schema, which is ~1,800 tokens EVERY
  * turn whether the bridge is touched or not.
  */
-export const WASTE_BUDGET_BYTES = 12_000;
+/**
+ * RAISED 12,000 -> 18,000 at S#281, on Erik's ruling, and only once the poll
+ * backoff made the raise cheap on OUR side.
+ *
+ * The old value bought ~5.2 hours of continuous blocking at the 25-second
+ * default interval, against the ~8 hours the join document tells a partner to
+ * run overnight. So the recommended use case did not fit the budget written to
+ * allow it. 18,000 buys ~7.8 hours at the default and ~14 at the 45-second
+ * maximum, and the expensive path barely moves: a status spinner still trips in
+ * ~15 calls.
+ *
+ * ORDERING MATTERED HERE. Raising this alone would have raised the ceiling on
+ * the most Redis-hungry path in the product -- a blocked wait is discounted 90%
+ * for the CALLER and was simultaneously our single most expensive call. The
+ * backoff in `waitForNew` cut that 78% first; this raise then costs fewer
+ * commands than the old budget did. See `POLL_START_MS`.
+ */
+export const WASTE_BUDGET_BYTES = 18_000;
 
 /**
  * Highest entry seq ever HANDED to one token. Server-side, because the caller's
@@ -590,6 +659,7 @@ export function createStore(): Store | null {
   return {
     get: (k) => redis.get(k),
     set: (k, v) => redis.set(k, v),
+    setex: (k, sec, v) => redis.set(k, v, { ex: sec }),
     // Upstash types `del` as a non-empty tuple, but the Redis command itself is
     // genuinely variadic. Narrow cast for that one signature; deleting nothing
     // short-circuits so an empty call is a no-op rather than a runtime error.
