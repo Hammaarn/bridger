@@ -55,6 +55,10 @@ export interface Citation {
   lines?: number;
   /** The file path, when one was found. */
   path?: string;
+  /** First line, when the citation states one. Added S#281 for permalinks. */
+  start?: number;
+  /** Last line of a range. Equal to `start` for a single line. */
+  end?: number;
 }
 
 /**
@@ -140,11 +144,21 @@ export function classifyCitation(raw: string | null | undefined): Citation {
     const start = Number(loc[2]);
     const end = loc[3] === undefined ? undefined : Number(loc[3]);
     if (end === undefined || end === start) {
-      return { kind: "line", raw, path: loc[1], lines: 1 };
+      return { kind: "line", raw, path: loc[1], lines: 1, start, end: start };
     }
     // A reversed range (`:90-10`) is a typo, not a 0-line span. Take the width
     // rather than propagating a negative, and never report fewer than 1.
-    return { kind: "range", raw, path: loc[1], lines: Math.max(1, Math.abs(end - start) + 1) };
+    // Normalised so a reversed range still yields a usable permalink anchor.
+    const lo = Math.min(start, end);
+    const hi = Math.max(start, end);
+    return {
+      kind: "range",
+      raw,
+      path: loc[1],
+      lines: Math.max(1, hi - lo + 1),
+      start: lo,
+      end: hi,
+    };
   }
 
   // AFTER the locator, BEFORE the file. After, so `lib/store.ts:41` stays the
