@@ -32,7 +32,8 @@ import {
   rotateSide,
   type SideId,
   readRoomActivity,
-} from "../lib/room-registry";
+  seat,
+  otherSide,} from "../lib/room-registry";
 import {
   AUDIT_LOG,
   DEFAULT_DAILY_CAP,
@@ -219,9 +220,9 @@ async function cmdOpen() {
       {
         roomId: room.id,
         side: "a",
-        label: room.sides.a.label,
-        code: room.sides.a.code,
-        peerLabel: room.sides.b.label,
+        label: seat(room, "a").label,
+        code: seat(room, "a").code,
+        peerLabel: seat(room, "b").label,
         server,
         topic: room.topic,
       } satisfies LocalRoom,
@@ -232,7 +233,7 @@ async function cmdOpen() {
 
   console.log(`
   Bridge open — ${room.topic}
-  room ${room.id}   you: ${room.sides.a.label} (${room.sides.a.code})   partner: ${room.sides.b.label} (${room.sides.b.code})
+  room ${room.id}   you: ${seat(room, "a").label} (${seat(room, "a").code})   partner: ${seat(room, "b").label} (${seat(room, "b").code})
 
   ── YOURS — connect this session ──────────────────────────────────
   ${joinCommand(server, ownerToken)}
@@ -258,7 +259,7 @@ async function cmdRotate() {
   const fresh = await rotateSide(store, room!, side, new Date());
   const server = readLocalRoomSafe()?.server ?? DEFAULT_SERVER;
   console.log(`
-  Rotated side ${side} (${room!.sides[side].label}). The previous token now answers "revoked".
+  Rotated side ${side} (${seat(room!, side).label}). The previous token now answers "revoked".
 
   ${joinCommand(server, fresh)}
 `);
@@ -303,7 +304,7 @@ async function cmdInvite() {
   });
 
   console.log(`
-  Join code for ${room!.sides[side].label} on "${room!.topic}".
+  Join code for ${seat(room!, side).label} on "${room!.topic}".
   Unredeemed it lasts ${minutes} minutes. It mints EXACTLY ONE token, and then
   keeps handing that same token to anyone who fetches the link for
   ${Math.round(INVITE_REREAD_SECONDS / 60)} minutes before going dead for good.
@@ -491,8 +492,15 @@ async function cmdPurge() {
   const force = process.argv.includes("--force");
 
   let state = await purgeState(store, room!);
-  if (!state[side]) state = await recordPurgeConsent(store, room!, side, new Date());
+  // `PurgeState` is deliberately two-seat (see lib/purge.ts) because the
+  // two-consent ritual is a TRUST-room property. Narrow explicitly rather than
+  // widening the state shape into something a solo room would never use.
+  const consentSeat = side === "b" ? "b" : "a";
+  if (!state[consentSeat]) state = await recordPurgeConsent(store, room!, side, new Date());
 
+  // The CLI purge flow is a TRUST-room ritual (two consents). A solo room has
+  // one operator and does not need a second signature, so this stays two-seat
+  // deliberately rather than being generalised into something meaningless.
   const theirs = side === "a" ? state.b : state.a;
   // The branch itself lives in lib/purge.ts so it can be tested. A gate whose
   // logic is only reachable through argv and stdout is a gate nobody has
@@ -502,7 +510,7 @@ async function cmdPurge() {
     console.log(`
   Your consent is recorded for "${room!.topic}".
 
-  WAITING ON ${room!.sides[side === "a" ? "b" : "a"].label.toUpperCase()}.
+  WAITING ON ${seat(room!, otherSide(side)).label.toUpperCase()}.
   Nothing has been deleted. Ask them to call bridger_purge with consent: true,
   then run this again. Consent expires after 7 days on both sides.
 
@@ -513,7 +521,7 @@ async function cmdPurge() {
 
   if (decision === "force") {
     console.log(`
-  [!!] FORCING. ${room!.sides[side === "a" ? "b" : "a"].label} has NOT agreed.
+  [!!] FORCING. ${seat(room!, otherSide(side)).label} has NOT agreed.
 
   You are deleting a shared record without the other side's consent. This is
   here for the case where a partner has genuinely vanished -- not as a way
@@ -545,7 +553,7 @@ async function cmdViewer() {
   const token = await issueToken(store, room!, side, new Date(), undefined, "viewer");
   const server = local?.server ?? DEFAULT_SERVER;
   console.log(`
-  Read-only token for ${room!.sides[side].label}'s view of "${room!.topic}".
+  Read-only token for ${seat(room!, side).label}'s view of "${room!.topic}".
   It can read the record and nothing else — every write tool refuses it.
 
   Watch in a browser:   ${server.replace(/\/$/, "")}
@@ -578,7 +586,7 @@ async function cmdAnswerer() {
   const token = await issueToken(store, room!, side, new Date(), undefined, "answerer");
   const server = local?.server ?? DEFAULT_SERVER;
   console.log(`
-  Answerer token for ${room!.sides[side].label} on "${room!.topic}".
+  Answerer token for ${seat(room!, side).label} on "${room!.topic}".
   Two tools only: bridger_ping (one call, everything) and bridger_answer.
 
   ── IF THEY RUN CLAUDE CODE ───────────────────────────────────────
@@ -640,7 +648,7 @@ async function cmdRevoke() {
   const room = parseRoom(await store.get(ROOM_KEY(roomId)));
   if (!room) die(`No such room: ${roomId}`);
   const n = await revokeSide(store, room!, side);
-  console.log(`\n  Revoked ${n} token(s) on side ${side} (${room!.sides[side].label}).\n`);
+  console.log(`\n  Revoked ${n} token(s) on side ${side} (${seat(room!, side).label}).\n`);
 }
 
 async function cmdClose() {

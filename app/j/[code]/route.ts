@@ -27,7 +27,9 @@
  * the window, and for what holding the token in plaintext during it costs.
  */
 
-import { parseRoom } from "@/lib/room-registry";
+import { parseRoom,
+  seat,
+  otherSide,} from "@/lib/room-registry";
 import { parseInvite, redeemInvite } from "@/lib/invites";
 import { createStore, INVITE_KEY, ROOM_KEY } from "@/lib/store";
 import { pastePathEnabled } from "@/app/api/rpc/route";
@@ -234,8 +236,8 @@ export async function GET(
         origin,
         code,
         topic: room.topic,
-        youLabel: room.sides[invite.side].label,
-        peerLabel: room.sides[invite.side === "a" ? "b" : "a"].label,
+        youLabel: seat(room, invite.side).label,
+        peerLabel: seat(room, otherSide(invite.side)).label,
         headline: "Someone opened a shared record with you.",
       }),
     );

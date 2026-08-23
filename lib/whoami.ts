@@ -9,7 +9,7 @@
  * side and prove they are indistinguishable.
  */
 
-import type { RoomRecord, TokenRecord } from "./room-registry";
+import { seat, type RoomRecord, type TokenRecord } from "./room-registry";
 
 /** Reasons `authorize` can refuse. Kept structural so the union stays honest. */
 export type RefusalReason = string;
@@ -78,22 +78,22 @@ export function whoamiBody(room: RoomRecord, token: TokenRecord): WhoamiBody {
     room: { id: room.id, topic: room.topic },
     you: {
       side: token.side,
-      label: room.sides[token.side].label,
-      code: room.sides[token.side].code,
-      agent: room.sides[token.side].agent ?? null,
+      label: seat(room, token.side).label,
+      code: seat(room, token.side).code,
+      agent: seat(room, token.side).agent ?? null,
       role: token.role,
       canWrite: token.role !== "viewer",
       expiresAt: token.expiresAt,
     },
     peer: {
       side: peerSide,
-      label: room.sides[peerSide].label,
-      code: room.sides[peerSide].code,
+      label: seat(room, peerSide).label,
+      code: seat(room, peerSide).code,
       // Self-declared by THEM, unverified by us. Carried so a reader can tell
       // two identically-named parties apart, never as a claim about who they
       // actually are.
-      agent: room.sides[peerSide].agent ?? null,
-      joined: room.sides[peerSide].joinedAt !== null,
+      agent: seat(room, peerSide).agent ?? null,
+      joined: seat(room, peerSide).joinedAt !== null,
     },
     next:
       token.role === "answerer"

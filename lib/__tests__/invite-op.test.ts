@@ -62,8 +62,8 @@ function token(room: RoomRecord, side: SideId, role: TokenRecord["role"]): Token
     id: `tok-${side}-${role}`,
     roomId: room.id,
     side,
-    label: room.sides[side].label,
-    code: room.sides[side].code,
+    label: room.sides[side]!.label,
+    code: room.sides[side]!.code,
     role,
     dailyCap: 400,
     active: true,
@@ -99,7 +99,7 @@ describe("opInvite — the join link the browser could not make", () => {
       assert.equal(redeemed.ok && redeemed.invite.side, "b");
     }));
 
-  it("[!!] a VIEWER cannot mint a credential for anyone", async () =>
+  it("[!] a VIEWER cannot mint a credential for anyone", async () =>
     await withPastePath("1", async () => {
       const { store, room } = await bridge();
       await assert.rejects(
@@ -111,7 +111,7 @@ describe("opInvite — the join link the browser could not make", () => {
       assert.equal(await store.get(ROOM_INVITE_KEY(room.id, "b")), null);
     }));
 
-  it("[!!] refuses when join links are switched off, rather than minting a link that 404s", async () =>
+  it("[!] refuses when join links are switched off, rather than minting a link that 404s", async () =>
     await withPastePath(undefined, async () => {
       const { store, room } = await bridge();
       await assert.rejects(
@@ -126,7 +126,7 @@ describe("opInvite — the join link the browser could not make", () => {
       );
     }));
 
-  it("[!!] a second link SUPERSEDES the first — two live codes for one seat is the bug", async () =>
+  it("[!] a second link SUPERSEDES the first — two live codes for one seat is the bug", async () =>
     await withPastePath("1", async () => {
       const { store, room, loadRoom } = await bridge();
       const ctx = ctxOf(store, room, token(room, "a", "participant"));
@@ -148,7 +148,7 @@ describe("opInvite — the join link the browser could not make", () => {
       assert.equal(live.ok, true);
     }));
 
-  it("[!!] does NOT supersede a link that has already been redeemed — the re-read window is load-bearing", async () =>
+  it("[!] does NOT supersede a link that has already been redeemed — the re-read window is load-bearing", async () =>
     await withPastePath("1", async () => {
       const { store, room, loadRoom } = await bridge();
       const ctx = ctxOf(store, room, token(room, "a", "participant"));

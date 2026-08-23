@@ -53,11 +53,18 @@ import { classifyCitation, describeCitation, isUnlocated, isWideRange } from "@/
 import LetterGlitch from "./backgrounds/letter-glitch";
 import Demonstration from "./demo";
 
+/**
+ * A seat id. Widened from `"a" | "b"` at S#281: a `trust` room still has
+ * exactly two, a `solo` room has up to six. The viewer must not crash on a
+ * room shape the server can legitimately produce.
+ */
+type Seat = "a" | "b" | "c" | "d" | "e" | "f";
+
 interface Entry {
   id: string;
   seq: number;
   type: "question" | "answer" | "decision" | "note" | "contract" | "reopen" | "signoff";
-  side: "a" | "b";
+  side: Seat;
   code: string;
   author: string;
   ts: string;
@@ -90,9 +97,9 @@ interface ExportPayload {
       id: string;
       title: string;
       note: string;
-      owner: "a" | "b" | "both" | null;
+      owner: Seat | "both" | null;
       state: "open" | "agreed" | "dropped";
-      raisedBy: "a" | "b";
+      raisedBy: Seat;
     }[];
     readiness: { complete: boolean; open: number; unowned: number; agreed: number; blocking: string[] };
   };
@@ -101,7 +108,7 @@ interface ExportPayload {
 }
 
 interface Slot {
-  side: "a" | "b";
+  side: Seat;
   label: string;
   code: string;
   token: string;
@@ -244,7 +251,7 @@ const RAILS_KEY = "bridger.rails";
 
 /** Consecutive entries from one side, close in time, drawn under one header. */
 interface Turn {
-  side: "a" | "b";
+  side: Seat;
   author: string;
   mine: boolean;
   entries: Entry[];

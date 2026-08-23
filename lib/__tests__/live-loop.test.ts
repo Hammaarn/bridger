@@ -61,8 +61,8 @@ async function ctxFor(store: FakeStore, room: RoomRecord, side: "a" | "b", now: 
       id: `tok-${side}`,
       roomId: room.id,
       side,
-      label: room.sides[side].label,
-      code: room.sides[side].code,
+      label: room.sides[side]!.label,
+      code: room.sides[side]!.code,
       role: "participant" as const,
       dailyCap: 400,
       active: true,
@@ -72,7 +72,7 @@ async function ctxFor(store: FakeStore, room: RoomRecord, side: "a" | "b", now: 
   };
 }
 
-describe("[!!] wait must never block while the caller has something unread", () => {
+describe("[!] wait must never block while the caller has something unread", () => {
   it("returns an entry written BEFORE the wait started", async () => {
     // THE DEADLOCK, reproduced. B answers, THEN A waits. Before the fix, A's
     // `since` defaulted to latestSeq -- already past B's entry -- so A blocked
@@ -115,7 +115,7 @@ describe("[!!] wait must never block while the caller has something unread", () 
   });
 });
 
-describe("[!!] the brake is denominated in WASTED BYTES, not in call count", () => {
+describe("[!] the brake is denominated in WASTED BYTES, not in call count", () => {
   it("a long run of empty waits does NOT terminate the caller", async () => {
     // THE PROPERTY THE WHOLE REWORK EXISTS FOR. A listener is by construction a
     // run of empty waits. Under the old consecutive-count brake it died on the
@@ -184,7 +184,7 @@ describe("[!!] the brake is denominated in WASTED BYTES, not in call count", () 
     assert.equal(await peekIdleStreak(store, a.token.id), 0, "and the streak the docstring promised");
   });
 
-  it("[!!] a STUCK CURSOR loop is charged, not reset — the hole the cursor fix opened", async () => {
+  it("[!] a STUCK CURSOR loop is charged, not reset — the hole the cursor fix opened", async () => {
     // Found by side B, S#276, and it is a regression THIS session introduced:
     // defaulting `wait` to the caller's cursor fixed a deadlock and, in the same
     // stroke, made a client that never calls markRead get the same entries back
@@ -258,7 +258,7 @@ describe("[!!] the brake is denominated in WASTED BYTES, not in call count", () 
   });
 });
 
-describe("[!!] a DECISION can cite its evidence", () => {
+describe("[!] a DECISION can cite its evidence", () => {
   it("carries checkedAgainst through to the wire", async () => {
     // The most consequential entry type was the only one that structurally
     // could not say what it was checked against (S#276, found by side B).
@@ -284,19 +284,19 @@ describe("[!!] a DECISION can cite its evidence", () => {
   });
 });
 
-describe("[!!] joining is recorded on EVERY transport, not just MCP", () => {
+describe("[!] joining is recorded on EVERY transport, not just MCP", () => {
   it("a side that has acted is not reported as never having connected", async () => {
     const { store, room, load } = await bridge();
 
     const before = await load();
-    assert.equal(before.sides.b.joinedAt, null, "control: B has not acted yet");
+    assert.equal(before.sides.b!.joinedAt, null, "control: B has not acted yet");
 
     // What the shared gate now does on any authenticated request.
     await markJoined(store, before, "b", T0);
 
     const after = await load();
     assert.notEqual(
-      after.sides.b.joinedAt,
+      after.sides.b!.joinedAt,
       null,
       "B acted, so every surface reporting 'has not connected' would be lying",
     );
@@ -310,8 +310,8 @@ describe("[!!] joining is recorded on EVERY transport, not just MCP", () => {
   it("marking is idempotent — the first contact time is not overwritten", async () => {
     const { store, room, load } = await bridge();
     await markJoined(store, room, "b", T0);
-    const first = (await load()).sides.b.joinedAt;
+    const first = (await load()).sides.b!.joinedAt;
     await markJoined(store, await load(), "b", plus(T0, 60_000));
-    assert.equal((await load()).sides.b.joinedAt, first, "joinedAt records the FIRST contact");
+    assert.equal((await load()).sides.b!.joinedAt, first, "joinedAt records the FIRST contact");
   });
 });

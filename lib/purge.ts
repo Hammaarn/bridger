@@ -39,7 +39,7 @@ import {
   coerceJson,
   type Store,
 } from "./store";
-import type { RoomRecord, SideId } from "./room-registry";
+import { seat, seatsFor, type RoomRecord, type SideId } from "./room-registry";
 
 /** Consent expires — an agreement to delete made months ago is not consent now. */
 export const PURGE_CONSENT_TTL_SECONDS = 7 * 24 * 60 * 60;
@@ -103,9 +103,11 @@ export async function executePurge(store: Store, room: RoomRecord): Promise<stri
   ];
 
   // Per-side, per-type ID counters. Both codes x every entry-type letter.
-  for (const side of ["a", "b"] as SideId[]) {
+  // Every seat the room actually has, not a hardcoded pair -- a solo room
+  // has up to six and each carries its own counters (S#281).
+  for (const side of seatsFor(room)) {
     for (const letter of ["Q", "A", "D", "N", "C", "R", "S"]) {
-      keys.push(COUNTER_KEY(room.id, room.sides[side].code, letter));
+      keys.push(COUNTER_KEY(room.id, seat(room, side).code, letter));
     }
   }
 
