@@ -123,8 +123,21 @@ Installing the app restores the *permission*; it does not restore the
 done will still have a repo that does not deploy.
 
 Now recorded server-side: `type: github`, `org: Hammaarn`, `repo: bridger`,
-`productionBranch: master`, with a credential id. **Verified by pushing and
-watching a deployment appear**, not by reading the setting back.
+`productionBranch: master`, with a credential id.
+
+**PROVEN BY OBSERVATION, and the discriminator matters** -- a deployment
+appearing is not by itself evidence, because this session had been deploying by
+CLI all along and those also land on production. Commit `0c8a53b` was pushed and
+nothing else was run. The deployment that appeared carries `githubDeployment: 1`,
+`repoPushedAt`, `branchAlias` and `githubRepoId` -- and **does not carry the
+`actor: claude-code_..._agent` field that both CLI deploys carry.** That absence
+is what proves GitHub triggered it rather than us.
+
+**What is known and what is not.** Known: the app was missing, and Vercel drops a
+project's git link when it goes. Not known: why it went. The connection was alive
+through S#280 and gone by S#281, and there is no cheap read that distinguishes an
+uninstall from a revoked repository grant. Not guessed at -- naming a cause here
+would be the *"transient"* move this project has already been caught making.
 
 ---
 
