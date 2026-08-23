@@ -47,7 +47,15 @@ import {
 } from "./store";
 import type { RoomRecord, SideId, TokenRecord } from "./room-registry";
 import { entryHash, type ChainedEntry } from "./chain";
-import { otherSide, otherSeats, resetIdleStreak, seat, SEAT_IDS } from "./room-registry";
+import {
+  otherSide,
+  otherSeats,
+  resetIdleStreak,
+  seat,
+  seatsFor,
+  SEAT_IDS,
+  type RoomKind,
+} from "./room-registry";
 import { scanForSecrets, secretRefusal } from "./secrets";
 import { openQuestionIds, wasReopened } from "./question-state";
 
@@ -151,6 +159,17 @@ export interface RoomStatus {
   /** `role` is surfaced so an agent knows up front whether it can write, rather than discovering it by being refused mid-task. */
   you: { side: SideId; label: string; code: string; agent: string | null; role: string; canWrite: boolean };
   peer: { side: SideId; label: string; code: string; agent: string | null; joined: boolean };
+  /** Every seat. Additive — see the comment where it is built. */
+  seats: {
+    side: SideId;
+    label: string;
+    code: string;
+    agent: string | null;
+    colour: string | null;
+    joined: boolean;
+    you: boolean;
+  }[];
+  kind: RoomKind;
   /** Entries from the other side you have not read. */
   unread: number;
   /** Your cursor, and the room's newest seq. */
@@ -500,6 +519,25 @@ export async function getStatus(
       agent: seat(room, peerSide).agent ?? null,
       joined: seat(room, peerSide).joinedAt !== null,
     },
+    /**
+     * EVERY SEAT, added alongside `you`/`peer` rather than replacing them.
+     *
+     * `peer` is singular and CORRECT in a trust room, where "the other side" is
+     * a real thing a partner may already be building against. Replacing it
+     * would break that contract to serve a room type they do not have. So this
+     * is additive: two seats here in a trust room, up to six in a solo one, and
+     * a reader that only knows `peer` keeps working unchanged.
+     */
+    seats: seatsFor(room).map((id) => ({
+      side: id,
+      label: seat(room, id).label,
+      code: seat(room, id).code,
+      agent: seat(room, id).agent ?? null,
+      colour: seat(room, id).colour ?? null,
+      joined: seat(room, id).joinedAt !== null,
+      you: id === token.side,
+    })),
+    kind: room.kind,
     unread,
     cursor,
     latestSeq,

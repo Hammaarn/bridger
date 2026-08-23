@@ -42,6 +42,7 @@ import {
   sanitiseRoomText,
 } from "./room-text";
 import { EMPTY_PLAN, parsePlan, type Plan } from "./plan";
+import { defaultColourFor } from "./seats";
 import {
   AUDIT_LOG,
   AUDIT_LOG_MAX,
@@ -231,6 +232,19 @@ export interface RoomSide {
    * not evidence about who you are talking to.
    */
   agent?: string | null;
+  /**
+   * WHICH COLOUR THIS SEAT PICKED, by palette id (see `lib/seats.ts`).
+   *
+   * An id rather than a hex, for two reasons that are really one: a hex chosen
+   * by a user is a hex that can be invisible in one of the two themes, and a
+   * palette id resolves to a DIFFERENT rendering per theme. Storing the colour
+   * itself would freeze one theme's answer into the record.
+   *
+   * Absent means "the default for this seat position", which is what every room
+   * created before S#281 gets -- and for seats `a` and `b` that default is what
+   * a trust room already looked like.
+   */
+  colour?: string | null;
 }
 
 export interface RoomRecord {
@@ -581,6 +595,7 @@ export function parseRoom(raw: unknown): RoomRecord | null {
       // A room minted before this field existed reads as `null`, not as a
       // guess. We do not know what was sitting there and will not invent it.
       agent: typeof v.agent === "string" && v.agent ? v.agent : null,
+      colour: typeof v.colour === "string" && v.colour ? v.colour : null,
     };
   };
   return {
@@ -1107,7 +1122,17 @@ export async function createSoloRoom(
 
   const sides: Partial<Record<SideId, RoomSide>> = {};
   labels.forEach((label, i) => {
-    sides[SEAT_IDS[i]!] = { label, code: codes[i]!, joinedAt: iso, agent: null };
+    const id = SEAT_IDS[i]!;
+    // Coloured ON CREATION rather than left to the operator. A solo room's
+    // whole problem is telling six of your own models apart, and a room that
+    // opens monochrome asks you to solve that by hand before you can use it.
+    sides[id] = {
+      label,
+      code: codes[i]!,
+      joinedAt: iso,
+      agent: null,
+      colour: defaultColourFor(id).id,
+    };
   });
 
   const room: RoomRecord = {
@@ -1268,7 +1293,7 @@ export async function setSideIdentity(
   store: Store,
   room: RoomRecord,
   sideId: SideId,
-  patch: { label?: string; agent?: string | null },
+  patch: { label?: string; agent?: string | null; colour?: string | null },
 ): Promise<RoomRecord> {
   const current = seat(room, sideId);
   const next: RoomRecord = {
@@ -1279,6 +1304,7 @@ export async function setSideIdentity(
         ...current,
         label: patch.label !== undefined ? patch.label : current.label,
         agent: patch.agent !== undefined ? patch.agent : (current.agent ?? null),
+        colour: patch.colour !== undefined ? patch.colour : (current.colour ?? null),
       },
     },
   };

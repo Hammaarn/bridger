@@ -132,6 +132,21 @@
   /* Strong deceleration for things ARRIVING. Reads as precise rather than
      springy, and it is the same shape as a trace settling on a scope. */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* ── SEAT PALETTE (S#281) ───────────────────────────────────────────────
+     One token per palette entry in `lib/seats.ts`, and the id is the join.
+     Storing a HEX on the seat record would freeze one theme's answer into the
+     data; storing an id lets the same seat render correctly in both.
+
+     The seal's warm orange is deliberately ABSENT from this set. `--seal` means
+     provenance, and a seat that looks like a citation badge is a worse bug than
+     two seats that look alike. */
+  --sc-azure: #9cc4f0;
+  --sc-moss: #a8d5b5;
+  --sc-plum: #d3b3e8;
+  --sc-clay: #e8b3a8;
+  --sc-slate: #b8c2cc;
+  --sc-gold: #e8d5a0;
 }
 
 @media (prefers-color-scheme: light) {
@@ -166,6 +181,14 @@
     --grid-dot: rgba(0, 0, 0, 0.07);
 
     --lift: 0 1px 0 rgba(255, 255, 255, 0.8), 0 12px 30px -20px rgba(0, 0, 0, 0.35);
+
+    /* Seat palette, light rendering. Same ids, darker values -- see :root. */
+    --sc-azure: #2b5c8f;
+    --sc-moss: #2f6b45;
+    --sc-plum: #5c3a78;
+    --sc-clay: #8a4436;
+    --sc-slate: #4a5560;
+    --sc-gold: #7a6420;
   }
 }
 
@@ -1566,12 +1589,23 @@ input.bx-folder-name:focus {
   font-size: 10.5px;
 }
 
-.turn.sideA .turn-head .who {
-  color: var(--side-a);
+/* THE SEAT'S HUE, resolved once per turn (S#281).
+
+   `--seat` is set inline from the seat's palette id when the room has one, and
+   falls back to the side default otherwise -- so a two-party room renders
+   EXACTLY as it did, and seats c..f stop inheriting seat B's colour. That
+   inheritance was the bug: a third model looked like the second one, in the
+   panel whose entire job is saying who spoke. */
+.turn.sideA {
+  --seat-hue: var(--seat, var(--side-a));
 }
 
-.turn.sideB .turn-head .who {
-  color: var(--side-b);
+.turn.sideB {
+  --seat-hue: var(--seat, var(--side-b));
+}
+
+.turn .turn-head .who {
+  color: var(--seat-hue);
 }
 
 /* MINE right, THEIRS left. Position is the first signal and it costs no ink. */
@@ -1628,12 +1662,8 @@ input.bx-folder-name:focus {
   right: -21px;
 }
 
-.turn.sideA .row::before {
-  border-color: var(--side-a);
-}
-
-.turn.sideB .row::before {
-  border-color: var(--side-b);
+.turn .row::before {
+  border-color: var(--seat-hue);
 }
 
 /* THE BUBBLE. Filled, not the old transparent-until-hover card: a bubble that
@@ -1650,13 +1680,10 @@ input.bx-folder-name:focus {
   min-width: 0;
 }
 
-.turn.sideA .bubble {
-  background: color-mix(in oklab, var(--side-a) 9%, var(--ink-800));
-  border-color: transparent;
-}
-
-.turn.sideB .bubble {
-  background: color-mix(in oklab, var(--side-b) 9%, var(--ink-800));
+.turn.sideA .bubble,
+.turn.sideB .bubble,
+.turn .bubble {
+  background: color-mix(in oklab, var(--seat-hue) 9%, var(--ink-800));
   border-color: transparent;
 }
 
@@ -3263,28 +3290,27 @@ input.bx-folder-name:focus {
   border-right-width: 3px;
 }
 
-.turn.sideA.theirs .bubble {
-  border-left-color: var(--side-a);
+/* THE EDGE AND THE TINT, both on `--seat-hue` (S#281).
+
+   These were four per-side rules, and they sat LATER in the file than the
+   per-seat block above -- so the author name took its seat colour while the
+   bubble silently kept side B's, and seats b..f rendered identically. Measured
+   in the browser rather than read here: `getComputedStyle` returned the SAME
+   background for Gemini and GPT while their names differed.
+
+   That is the S#280 lesson arriving a second time in the same file. Reading a
+   rule is not reading what the rule produces, and a colour system can be half
+   wired without anything looking broken. */
+.turn.theirs .bubble {
+  border-left-color: var(--seat-hue);
 }
 
-.turn.sideA.mine .bubble {
-  border-right-color: var(--side-a);
+.turn.mine .bubble {
+  border-right-color: var(--seat-hue);
 }
 
-.turn.sideB.theirs .bubble {
-  border-left-color: var(--side-b);
-}
-
-.turn.sideB.mine .bubble {
-  border-right-color: var(--side-b);
-}
-
-.turn.sideA .bubble {
-  background: color-mix(in oklab, var(--side-a) 13%, var(--ink-800));
-}
-
-.turn.sideB .bubble {
-  background: color-mix(in oklab, var(--side-b) 13%, var(--ink-800));
+.turn .bubble {
+  background: color-mix(in oklab, var(--seat-hue) 13%, var(--ink-800));
 }
 
 /* The name is the other place a reader looks to answer "who". With identical
@@ -3667,5 +3693,167 @@ details > summary::-webkit-details-marker {
   .bx-tree[hidden],
   .bx-agree[hidden] {
     display: block;
+  }
+}
+
+
+/* ── THE ROOM-KIND CHOICE (S#281) ──────────────────────────────────────────
+   Two cards, not a radio group. The options are not two values of one setting
+   -- they are two products sharing a transport, and the form below changes
+   completely between them. A card carries the sentence that makes the choice
+   obvious; a radio label cannot. */
+.kindpick {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.kindcard {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 13px 14px;
+  text-align: left;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--text-dim);
+  cursor: pointer;
+  /* Instrument register: the card SETTLES into selection. Nothing overshoots,
+     because a control that springs past its value and comes back is exactly
+     what an instrument must never do. */
+  transition:
+    border-color var(--t-ui) var(--ease-out),
+    background var(--t-ui) var(--ease-out),
+    color var(--t-ui) var(--ease-out);
+}
+
+.kindcard:hover {
+  border-color: var(--line-strong);
+  color: var(--text);
+}
+
+/* Depress on press, faster than it hovers -- the whole vocabulary of "this
+   is a real button" in one declaration. */
+.kindcard:active {
+  transform: translateY(1px);
+  transition-duration: var(--t-tap);
+}
+
+.kindcard.on {
+  border-color: var(--side-a);
+  background: color-mix(in srgb, var(--side-a) 9%, var(--panel));
+  color: var(--text);
+}
+
+.kindcard-t {
+  font-weight: 600;
+  font-size: 0.95rem;
+  letter-spacing: -0.01em;
+}
+
+.kindcard-d {
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--text-faint);
+}
+
+.kindcard.on .kindcard-d {
+  color: var(--text-dim);
+}
+
+/* ── THE SEAT LIST ────────────────────────────────────────────────────────
+   The mark is derived from the label AS YOU TYPE. Nothing is picked from a
+   dropdown, because the vendor is already in the word you just wrote. */
+.seatlist {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.seatrow {
+  display: grid;
+  grid-template-columns: 34px 1fr auto;
+  align-items: center;
+  gap: 9px;
+}
+
+.seatrow input {
+  /* The form's inputs carry their own margin; inside a row that becomes a gap
+     the grid already provides. */
+  margin: 0;
+}
+
+/* The seat's own colour, as a left edge on its mark. Colour goes where it
+   survives text -- an edge and a filled glyph, never a tinted background that
+   fights the label sitting on it. */
+.seatmark {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--seat, var(--text-dim));
+  background: color-mix(in srgb, var(--seat, var(--text-faint)) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--seat, var(--line)) 45%, transparent);
+  transition:
+    color var(--t-ui) var(--ease-out),
+    background var(--t-ui) var(--ease-out),
+    border-color var(--t-ui) var(--ease-out);
+}
+
+/* A RECOGNISED vendor takes its own hue and says so. An unrecognised label
+   keeps the seat colour and shows initials -- a guess that renders as a guess,
+   never as a fallback logo. */
+.seatmark.vendor {
+  color: var(--vh);
+  background: color-mix(in srgb, var(--vh) 14%, transparent);
+  border-color: color-mix(in srgb, var(--vh) 45%, transparent);
+}
+
+.seatdrop {
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-faint);
+  font-size: 1.05rem;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    color var(--t-ui) var(--ease-out),
+    border-color var(--t-ui) var(--ease-out),
+    background var(--t-ui) var(--ease-out);
+}
+
+.seatdrop:hover {
+  color: var(--alarm);
+  border-color: color-mix(in srgb, var(--alarm) 40%, transparent);
+  background: color-mix(in srgb, var(--alarm) 8%, transparent);
+}
+
+.seatdrop:active {
+  transform: translateY(1px);
+  transition-duration: var(--t-tap);
+}
+
+.seatfoot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 9px;
+  margin-bottom: 4px;
+}
+
+@media (max-width: 560px) {
+  .kindpick {
+    grid-template-columns: 1fr;
   }
 }
