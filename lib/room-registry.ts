@@ -245,6 +245,21 @@ export interface RoomSide {
    * a trust room already looked like.
    */
   colour?: string | null;
+  /**
+   * THIS SIDE'S REPOSITORY, so its citations can be opened rather than trusted.
+   *
+   * Self-declared and never verified, exactly like `agent` -- nothing here
+   * knows whether a side owns the repo it names. Stored as the operator typed
+   * it and VALIDATED AT THE EDGE by `parseRepo`, which rejects anything that is
+   * not `https://<known forge>/owner/name`. A rejected value simply produces no
+   * links, which is what the room did before this existed.
+   */
+  repo?: string | null;
+  /**
+   * Branch, tag or commit for the links above. A SHA is the only ref that makes
+   * a permalink permanent; a branch moves and takes the line numbers with it.
+   */
+  repoRef?: string | null;
 }
 
 export interface RoomRecord {
@@ -607,6 +622,8 @@ export function parseRoom(raw: unknown): RoomRecord | null {
       // guess. We do not know what was sitting there and will not invent it.
       agent: typeof v.agent === "string" && v.agent ? v.agent : null,
       colour: typeof v.colour === "string" && v.colour ? v.colour : null,
+      repo: typeof v.repo === "string" && v.repo ? v.repo : null,
+      repoRef: typeof v.repoRef === "string" && v.repoRef ? v.repoRef : null,
     };
   };
   return {
@@ -1313,7 +1330,13 @@ export async function setSideIdentity(
   store: Store,
   room: RoomRecord,
   sideId: SideId,
-  patch: { label?: string; agent?: string | null; colour?: string | null },
+  patch: {
+    label?: string;
+    agent?: string | null;
+    colour?: string | null;
+    repo?: string | null;
+    repoRef?: string | null;
+  },
 ): Promise<RoomRecord> {
   const current = seat(room, sideId);
   const next: RoomRecord = {
@@ -1325,6 +1348,8 @@ export async function setSideIdentity(
         label: patch.label !== undefined ? patch.label : current.label,
         agent: patch.agent !== undefined ? patch.agent : (current.agent ?? null),
         colour: patch.colour !== undefined ? patch.colour : (current.colour ?? null),
+        repo: patch.repo !== undefined ? patch.repo : (current.repo ?? null),
+        repoRef: patch.repoRef !== undefined ? patch.repoRef : (current.repoRef ?? null),
       },
     },
   };

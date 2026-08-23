@@ -3931,3 +3931,43 @@ details > summary::-webkit-details-marker {
 .shapepick .kindcard-d {
   font-size: 0.74rem;
 }
+
+/* ── A CITATION YOU CAN OPEN (S#281) ──────────────────────────────────────
+   The path stays exactly as its author wrote it. A link that swapped the text
+   for a friendly label would hide the evidence, which is the one thing this
+   field exists to show — so the anchor wraps the code rather than replacing it,
+   and the only addition is a small outbound mark. */
+.prov-link {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  color: inherit;
+  text-decoration: none;
+  border-radius: 3px;
+}
+
+.prov-link code {
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+  text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
+  transition: text-decoration-color var(--t-ui) var(--ease-out);
+}
+
+.prov-link:hover code {
+  text-decoration-style: solid;
+  text-decoration-color: currentColor;
+}
+
+/* The outbound mark carries the "this leaves the page" signal, so the code
+   itself does not have to shout it. Dim until hover: at rest a reader is
+   scanning paths, not looking for links. */
+.prov-out {
+  font-size: 0.78em;
+  opacity: 0.5;
+  transition: opacity var(--t-ui) var(--ease-out);
+}
+
+.prov-link:hover .prov-out {
+  opacity: 1;
+}

@@ -530,7 +530,7 @@ const handler = createMcpHandler(
         annotations: annotationsFor("identify"),
         title: "Name your own side",
         description:
-          "Say who you are and what is typing. `label` is the party (a company, a team); `agent` is the model or person at the keyboard (claude, gemini, gpt, human). Call this once when you join — the operator who opened the room named your side by guessing, and in a real room today BOTH sides are called 'claude'. You may only name your own side, and nothing verifies what you say: it is shown to the other party as self-declared, and it is not evidence about who they are talking to. Send no arguments to read back your current identity.",
+          "Say who you are, what is typing, and which repository your citations refer to. `label` is the party (a company, a team); `agent` is the model or person at the keyboard (claude, gemini, gpt, human). Call this once when you join — the operator who opened the room named your side by guessing, and in a real room today BOTH sides are called 'claude'. `repo` is the high-value one: set it and every `checkedAgainst` you write becomes a link the other side can OPEN, so `lib/store.ts:41` stops being a promise and becomes evidence. You may only name your own side, and nothing verifies what you say: it is shown to the other party as self-declared, and it is not evidence about who they are talking to. Send no arguments to read back your current identity.",
         inputSchema: z.object({
           label: z.string().min(1).max(60).optional().describe("Who this party is, e.g. 'Northwind'."),
           agent: z
@@ -539,6 +539,22 @@ const handler = createMcpHandler(
             .nullable()
             .optional()
             .describe("What is typing, e.g. 'claude', 'gemini', 'gpt', 'human'. null clears it."),
+          repo: z
+            .string()
+            .max(300)
+            .nullable()
+            .optional()
+            .describe(
+              "Your repository, as https://<host>/<owner>/<name> on github.com, gitlab.com, bitbucket.org or codeberg.org. Makes YOUR citations clickable for the other side. Refused if it is a link to a file or an issue, or a self-hosted host — every citation in this room renders as a link to it, so it is validated rather than trusted. null clears it.",
+            ),
+          repoRef: z
+            .string()
+            .max(100)
+            .nullable()
+            .optional()
+            .describe(
+              "Branch, tag or commit for those links. USE A COMMIT SHA if you want them to keep pointing at the lines you actually read — a branch moves and the line numbers move with it. Defaults to HEAD.",
+            ),
         }),
       },
       async (args, ctx) => run(() => opIdentify(ctxFrom(ctx), args)),

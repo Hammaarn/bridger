@@ -189,6 +189,10 @@ const OPS = {
     schema: z.object({
       label: z.string().min(1).max(60).optional(),
       agent: z.string().max(40).nullable().optional(),
+      // S#281. Validated in `opIdentify` against a forge allow-list rather than
+      // here, so both transports get the same refusal with the same reason.
+      repo: z.string().max(300).nullable().optional(),
+      repoRef: z.string().max(100).nullable().optional(),
     }),
     run: opIdentify,
   },

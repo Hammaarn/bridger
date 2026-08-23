@@ -19,6 +19,8 @@
 import { getContract, readEntries } from "@/lib/entries";
 import { verifyChain, type ChainedEntry } from "@/lib/chain";
 import { authorize, otherSide, readPlan, seat, seatsFor, writeAudit } from "@/lib/room-registry";
+import { classifyCitation } from "@/lib/citation";
+import { citationUrl, parseRepo } from "@/lib/repo-link";
 import { refusalResponse } from "@/lib/http-gate";
 import { createStore } from "@/lib/store";
 import { readiness } from "@/lib/plan";
@@ -105,7 +107,25 @@ export async function GET(req: Request) {
     // route -- the plan is written through the tools, same single write path as
     // every other part of the record.
     plan: { items: plan.items, readiness: readiness(plan) },
-    entries,
+    /**
+     * Entries carry their citation's resolved URL (S#281).
+     *
+     * Added HERE as well as in `wire()` because the room view reads this route,
+     * not the tool surface — so resolving in only one of them would have made
+     * the links work over MCP and silently not work in the browser, which is
+     * where a human is the one clicking.
+     *
+     * Resolved per entry against the repo of the seat that WROTE it. The entry
+     * is otherwise untouched: this route serves the raw record, and the field
+     * is additive.
+     */
+    entries: entries.map((e) => {
+      const url = citationUrl(
+        classifyCitation(e.checkedAgainst),
+        parseRepo(room.sides[e.side]?.repo, room.sides[e.side]?.repoRef),
+      );
+      return url ? { ...e, checkedUrl: url } : e;
+    }),
     chain,
     exportedAt: now.toISOString(),
   });

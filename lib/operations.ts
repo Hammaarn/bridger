@@ -85,6 +85,7 @@ import {
 } from "./plan";
 import { MAX_LABEL, sanitiseRoomText } from "./room-text";
 import { contain as containForeign, CONTAINMENT_NOTE } from "./untrusted";
+import { citationUrl, isPinned, parseRepo } from "./repo-link";
 import { recordPurgeConsent, withdrawPurgeConsent } from "./purge";
 
 export const WAIT_DEFAULT_SECONDS = 25;
@@ -153,8 +154,14 @@ function requireWrite(token: TokenRecord): void {
  * exposed — which is the only acceptable direction for this particular bug.
  */
 export interface WireContext {
-  /** The room, for its `kind`. Absent = assume `trust` = contain. */
-  room?: Pick<RoomRecord, "kind">;
+  /**
+   * The room, for its `kind` and its seats.
+   *
+   * `sides` is here so a citation can be resolved against the repo of the seat
+   * that WROTE it (S#281). Optional, so a caller with only the kind still gets
+   * correct containment and simply no links.
+   */
+  room?: Pick<RoomRecord, "kind"> & Partial<Pick<RoomRecord, "sides">>;
   /** The seat READING this. Their own entries need no containment. */
   viewerSide?: SideId;
 }
@@ -211,6 +218,24 @@ export function wire(e: Entry, ctx?: WireContext) {
   const hold = needsContainment(e, ctx);
   const contain = (t: string | null | undefined, author: string) =>
     hold ? containForeign(t, author) : (t ?? null);
+
+  /**
+   * THE CITATION'S LINK, resolved against the AUTHOR'S repo — never the
+   * reader's. An entry written by side B names a file in B's codebase, so
+   * resolving it against whoever happens to be reading would produce a
+   * confident link to a same-named file in the wrong project. That is worse
+   * than no link, because it looks like it worked.
+   *
+   * Absent whenever anything is missing or unrecognised: no repo declared, an
+   * unlocated citation, a citation that is already a URL. The field simply is
+   * not there, which is exactly what every reader saw before this existed.
+   */
+  const authorRepo = ctx?.room?.sides
+    ? parseRepo(ctx.room.sides[e.side]?.repo, ctx.room.sides[e.side]?.repoRef)
+    : null;
+  const citation = classifyCitation(e.checkedAgainst);
+  const url = citationUrl(citation, authorRepo);
+
   return {
     id: e.id,
     seq: e.seq,
@@ -239,7 +264,10 @@ export function wire(e: Entry, ctx?: WireContext) {
     // pointed, not whether they were right. A reader weighing a peer's evidence
     // can see the difference between a pinpoint and a gesture, which is the
     // whole difference S#271 had to audit by hand.
-    checkedSpan: describeCitation(classifyCitation(e.checkedAgainst)),
+    checkedSpan: describeCitation(citation),
+    // Only when it resolves. A missing field reads as "no link"; a null one
+    // invites a caller to render an empty anchor.
+    ...(url ? { checkedUrl: url } : {}),
   };
 }
 
@@ -731,16 +759,27 @@ export async function opContract(
  */
 export async function opIdentify(
   ctx: OpContext,
-  args: { label?: string; agent?: string | null },
+  args: { label?: string; agent?: string | null; repo?: string | null; repoRef?: string | null },
 ) {
   requireWrite(ctx.token);
-  if (args.label === undefined && args.agent === undefined) {
+  if (
+    args.label === undefined &&
+    args.agent === undefined &&
+    args.repo === undefined &&
+    args.repoRef === undefined
+  ) {
     const me = seat(ctx.room, ctx.token.side);
+    const mine = parseRepo(me.repo, me.repoRef);
     return {
       side: ctx.token.side,
       label: me.label,
       agent: me.agent ?? null,
-      note: "Send `label` and/or `agent` to change how your side is shown. This is self-declared and is not verified by anything.",
+      repo: mine ? { ...mine, pinned: isPinned(mine) } : null,
+      note:
+        "Send `label`, `agent`, `repo` and/or `repoRef` to change how your side is shown. " +
+        "All of it is self-declared and none of it is verified by anything. " +
+        "`repo` is what makes your `checkedAgainst` citations clickable for the other side — " +
+        "set `repoRef` to a COMMIT SHA if you want those links to keep pointing at the same lines.",
     };
   }
   const label =
@@ -754,13 +793,52 @@ export async function opIdentify(
         ? null
         : sanitiseRoomText(args.agent, "agent", 40).toLowerCase() || null;
 
-  const next = await setSideIdentity(ctx.store, ctx.room, ctx.token.side, { label, agent });
+  /**
+   * The repo is validated HERE, at the edge, and a bad one is REFUSED rather
+   * than stored-and-ignored. Storing it would leave a side believing its links
+   * work; refusing says which part failed while there is still somebody to
+   * read it. `null` clears.
+   */
+  let repo: string | null | undefined;
+  if (args.repo !== undefined) {
+    if (args.repo === null || args.repo.trim() === "") {
+      repo = null;
+    } else if (!parseRepo(args.repo, args.repoRef ?? null)) {
+      throw new OperationRefused(
+        "That repository was not accepted. It must be `https://<host>/<owner>/<name>` on a " +
+          "known forge (github.com, gitlab.com, bitbucket.org, codeberg.org) — not a link to a " +
+          "file, an issue, or a self-hosted instance. Every citation in this room would render " +
+          "as a link to whatever is stored here, so it is validated rather than trusted.",
+        // NOT terminal: the caller can fix the string and try again, and this
+        // is precisely the case where retrying is the correct response.
+        false,
+      );
+    } else {
+      repo = args.repo.trim();
+    }
+  }
+
+  const next = await setSideIdentity(ctx.store, ctx.room, ctx.token.side, {
+    label,
+    agent,
+    ...(repo !== undefined ? { repo } : {}),
+    ...(args.repoRef !== undefined ? { repoRef: args.repoRef } : {}),
+  });
   const me = seat(next, ctx.token.side);
+  const mine = parseRepo(me.repo, me.repoRef);
   return {
     updated: true,
     side: ctx.token.side,
     label: me.label,
     agent: me.agent ?? null,
+    repo: mine ? { ...mine, pinned: isPinned(mine) } : null,
+    ...(mine && !isPinned(mine)
+      ? {
+          refWarning:
+            `Links will follow \`${mine.ref}\`, so they point at whatever that ref holds when ` +
+            "someone clicks — not at what you read. Set `repoRef` to a commit SHA to freeze them.",
+        }
+      : {}),
     note: "Recorded as YOUR OWN declaration. Nothing here verifies it, and the other side is shown it as self-declared.",
   };
 }

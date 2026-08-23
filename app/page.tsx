@@ -76,6 +76,11 @@ interface Entry {
   why: string | null;
   checkedAgainst: string | null;
   /**
+   * The citation resolved to a URL, when its AUTHOR declared a repository.
+   * Absent means no link — never an empty string, so a falsy check is enough.
+   */
+  checkedUrl?: string | null;
+  /**
    * Three readings, not two. Shipped server-side in S#279 (`lib/entries.ts`)
    * and never plumbed to this page, so every honest `opinion` rendered here as
    * "unchecked -- nobody named what this rests on" -- the exact shaming the
@@ -335,6 +340,10 @@ function Provenance({ entry, n }: { entry: Entry; n?: number }) {
   if (entry.checkedAgainst) {
     const c = classifyCitation(entry.checkedAgainst);
     const weak = isUnlocated(c) || isWideRange(c);
+    // Server-resolved, against the AUTHOR's repo. Deliberately not recomputed
+    // here: the browser does not know which seat wrote this entry's citation
+    // without threading the room through, and two resolvers would drift.
+    const citeUrl = entry.checkedUrl ?? null;
     return (
       <p className={`prov ${weak ? "thin" : "ok"}`}>
         {/*
@@ -349,7 +358,28 @@ function Provenance({ entry, n }: { entry: Entry; n?: number }) {
         ) : (
           <span className="glyph">{weak ? "◐" : "✓"}</span>
         )}
-        checked against <code>{entry.checkedAgainst}</code>
+        checked against{" "}
+        {/*
+          THE CITATION BECOMES OPENABLE (S#281), when and only when its author
+          declared a repository. The path stays exactly as written either way --
+          it is the evidence, and a link that replaced the text with a friendly
+          label would hide the thing this field exists for.
+
+          `rel="noreferrer"` and `target="_blank"` because the destination is a
+          host the FAR SIDE named: it is validated against a forge allow-list
+          before it is ever stored, and it still does not get a referrer or a
+          window handle from us.
+        */}
+        {citeUrl ? (
+          <a className="prov-link" href={citeUrl} target="_blank" rel="noreferrer noopener">
+            <code>{entry.checkedAgainst}</code>
+            <span className="prov-out" aria-hidden="true">
+              ↗
+            </span>
+          </a>
+        ) : (
+          <code>{entry.checkedAgainst}</code>
+        )}
         <span
           className="span"
           title="How specific the citation is. Says nothing about whether the answer is correct."
