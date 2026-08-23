@@ -5,6 +5,215 @@ Append-only, newest first. **DECISIONS wins on direction** — where this file a
 
 ---
 
+## 2026-08-23 -- S#281 -- SOLO MODE: BRIDGER IS ALSO A ONE-USER MULTI-MODEL BRIDGE
+
+**Source:** Erik, S#281: *"We should provide that feature but only for single
+users. Bridger should be a tool to connect multiple models as well for single
+users that want to have an easy multi model bridge between their subscriptions
+in my opinion (Like when we created Triplemind) Its very useful and would
+attract users."*
+
+**Reverses:** the F5 conclusion of S#280, PARTIALLY and in a specific way.
+
+**The S#280 argument was:** copying the Shared Chat topology (one operator, many
+models) would cost Bridger its differentiator, because `checkedAgainst`, `basis`,
+the hash chain and the untrusted-partner containment all exist because the far
+side is *somebody else* -- point them at seven models on one person's
+subscriptions and every one becomes ceremony.
+
+**That argument only holds if the new topology REPLACES the trust story.** As a
+second MODE for a different user it does not, and the objection dissolves. What
+survives from S#280 is the taxonomy, not the refusal: the two shapes are
+genuinely different products and must not be merged into one confused room.
+
+**And there is an argument S#280 under-weighted.** Every open item on this board
+is blocked on *needs a far side* -- F1 has never met a partner, D3 is unverified,
+B1's adversarial half needs a stranger. Solo mode has no such blocker: Erik can
+use it tonight with subscriptions he already pays for. It is the only self-serve
+on-ramp this product has ever had.
+
+**Scope -- ROOM KINDS, not a generalised room.** The two-ness rewrite happens
+INSIDE `solo` only:
+
+| | `trust` (today) | `solo` (new) |
+|---|---|---|
+| parties | two companies | one operator, N agent seats |
+| untrusted-partner markers | yes | no -- there is no containment against yourself |
+| hash chain | the whole point | kept, cheap, but not the argument |
+| vendor logos | monogram (trademark call) | yes -- see the next decision |
+
+They share transport, storage, entries and the whole UI. The unanswered E2
+semantics (does an answer close a question for everyone, who does a contract
+bind, who signs off) mostly evaporate in `solo`, because there is one operator to
+decide -- which is what makes it materially cheaper than the multi-COMPANY
+rewrite E4 parked.
+
+**E4 stays parked.** Erik's want is real signal but it is not the signal E4 was
+waiting for: E4 wants somebody who used a two-party room and hit the wall, and
+this came from a screenshot. Recorded honestly rather than laundered into
+evidence. Solo mode does not un-park it.
+
+**Code impact:** `SideId = "a" | "b"` in `lib/room-registry.ts:71`, and its
+consumers `entries.ts`, `operations.ts`, `room-registry.ts`, `api/rooms/route.ts`,
+`page.tsx`. `SUPPORTED_SLOTS = 2` at `app/api/rooms/route.ts:58`. Grep-verified,
+not remembered. **Not started.**
+
+**Doc impact:** ARCHITECTURE #31 (*"Two-ness is the data model, not a setting"*)
+becomes true of `trust` rooms rather than of Bridger. TODO F5/E2/E4.
+
+---
+
+## 2026-08-23 -- S#281 -- VENDOR LOGOS SHIP, IN SOLO MODE
+
+**Source:** Erik, S#281: *"I'd say we implement it in case you are a single user
+and just wants to use our tool as a bridge between your AIs which you have a
+subscription to"*, and *"Is it really trademarked? If we can't use their Icons
+then thats fine."*
+
+**Answered:** yes, they are registered marks (Anthropic, Google, OpenAI). But
+**nominative fair use** covers using a mark to identify its own product, and
+*"this shows which service is connected"* is the textbook shape of it. The live
+constraints are brand guidelines -- no modification, no implied endorsement --
+not the trademark itself.
+
+**Ruled:** logos ride with `solo` mode, where they are unambiguously identifying
+the user's own connected subscriptions. `trust` rooms keep the monogram, where
+a vendor mark beside a stranger's agent would imply something we cannot verify:
+a transport cannot know what model is on the other end of a bearer token.
+
+**Code impact:** the CSP allows no external hosts, so marks are inlined from our
+own origin. One function (the agent monogram renderer). **Not started.**
+
+---
+
+## 2026-08-23 -- S#281 -- THE ROOM COMPOSER: PRESETS *AND* A BUILDER, IN DIFFERENT PLACES
+
+**Source:** Erik, S#281: *"We need a room composer as well so users can set their
+own agenda in their own flow of how the rooms should be built. There should be
+presets and then there should be preset builder to offer maximum value and
+direction."* Then the constraint: *"like we stated previously we are just a
+communication Bridge service, we don't store repos or other huge codebases. We
+want to remain lightweight."*
+
+**Reverses:** F2's *"presets, not a builder"* -- on PLACEMENT, not on the reason.
+
+F2's objection was never that a builder is wrong; it was that D4 already says the
+create flow is too many steps, and a stage-designer on the create screen is the
+fastest way to make that worse. That objection is about WHERE, so:
+
+- **Create screen** -> pick a preset. One line each, simplest preselected.
+- **Builder** -> its own surface. What it emits is a saved shape that then
+  appears in the create list like any other preset.
+
+**THE LIGHTWEIGHT CONSTRAINT IS THE SHARPER HALF, and it is now a rule:** the
+composer plans STAGES AND GUIDANCE, never artifacts. Bridger does not store
+repos, codebases or large blobs. This is the same call F3 already made on its own
+-- mermaid over Excalidraw, because text chains, diffs and costs ~0 KB.
+
+**Blocked, and honestly:** a shape is an ordered list of stages, and only one
+stage exists (F1). F1 has never been touched by a far side. The builder is
+downstream of that test. **Not started.**
+
+---
+
+## 2026-08-23 -- S#281 -- EACH SIDE PICKS ITS OWN COLOUR
+
+**Source:** Erik, S#281: *"Perhaps we should have a color picker inside the chat
+room and when you are creating the room in order to establish a clear choice and
+also visual of who is who."*
+
+**Supersedes** the open A5 question of whether `--seal` moves -- it makes the
+DEFAULT palette less load-bearing rather than settling the collision.
+
+The live problem was never the palette. Room `e4db579a5fad` has `label: "claude"`
+on BOTH sides; nothing distinguished two identically-named parties. A picker is
+the same move `identify` already made -- self-declared, visible, no verification
+theatre.
+
+**Three constraints, and the first is the one that matters:**
+
+1. **A curated set, not a free colour wheel.** A free picker lets someone choose
+   a hue that vanishes in dark mode or lands on `--seal` -- reintroducing exactly
+   the bug it fixes. Six to eight swatches, tested in both themes, seal's hue
+   excluded.
+2. **Stored on the room, per side**, or "my Claude is blue" holds only on one
+   screen.
+3. **The default still matters**, because most people will not pick. So `--seal`
+   at `#ffb86b` against `--side-b` at `#f0c49c` remains a real collision to
+   resolve, not one the picker retires.
+
+**Not started.**
+
+---
+
+## 2026-08-23 -- S#281 -- THE DATABASE MUST STAY FREE TO RUN
+
+**Source:** Erik, S#281: *"we must maintain the database with smart functionality
+so it maintains itself and clears any lingering data which we don't want to
+store, also make sure we don't cause feedback loops that use up all the commands
+we are given from Upstash for free, it was a bug on Faver where the commands
+suddenly were all consumed due to feedback loops"*, and *"priority should be to
+decrease the Redis command usage as much as possible. We want to have this tool
+for free as much as we can."*
+
+**Ruled as a standing constraint, not a task:** Upstash COMMANDS are a
+first-class budget alongside caller tokens, and the two can point in opposite
+directions. They already did -- `WASTE_BUDGET_BYTES` discounts a blocked wait 90%
+because it is cheap for the CALLER, while a blocked wait was the most
+command-expensive call we make.
+
+**So the rule: any change that makes a path cheaper for the caller must state
+what it costs the database.** A saving on one side is not a saving.
+
+**Shipped this session** (`93b3e24`): poll backoff 45 -> 10 reads per 45s wait;
+SETEX replacing SET+EXPIRE on four hot paths, which also fixed two keys that were
+immortal because SET clears a TTL; a fuse on the five namespaces of 22 that never
+expired; the kill-switch read cached 5s; the audit LTRIM amortised 1-in-500.
+Measured end-to-end: **16 commands per idle wait, down from 51.** Two sides
+listening all day: 195,840 -> 61,440. Days to burn a 500,000/month free tier:
+2.6 -> 8.1.
+
+**No feedback loop of the Faver kind exists here** -- verified, nothing reacts to
+a write by issuing another write. The runaway risk was a poll interval, not a
+cycle.
+
+**[!!] STILL UNVERIFIED AND IT IS THE OPERATOR'S READ:** which Upstash plan this
+project is actually on. `lib/store.ts` has admitted since S#280 that the
+free-tier ceiling is *reasoned, not measured*. Every number above is arithmetic
+against an assumed 500,000/month.
+
+---
+
+## 2026-08-23 -- S#281 -- THE ZERO-TOKEN LISTENER IS A LOCAL DAEMON (C3b), AND IT IS ACHIEVABLE
+
+**Source:** Erik, S#281: *"We should strive for a smart solution that can somehow
+let sessions stay connected and knowing when the other side responds without
+costing tokens... perhaps Python can solve this for us?"*
+
+**Answered: yes for model tokens, and the mechanism already has a ticket.**
+
+The two costs are separable and conflating them is why this looks impossible.
+Nothing costs MODEL tokens unless bytes enter the model's context. A local
+process holding the long-poll costs zero, because it is a process on the user's
+machine rather than a turn in a conversation -- fifty empty polls become one
+message that says *"they replied"*. `lib/store.ts` already says this is the
+correct way to run a listener; it is TODO **C3b**, proposed by Trigvanta's AI
+and never taken.
+
+**The honest limit, stated rather than glossed:** there is no interrupt into a
+language model. You cannot make it *notice* anything without putting bytes in its
+context. What is achievable is compressing "did anything happen" from ~1,000
+wasted calls to one message carrying only the answer. That is the dream scenario
+and it is a build, not a research problem.
+
+**And it does not help the database** -- the daemon makes the user's cost zero
+while leaving ours unchanged, which is why the backoff above mattered first.
+
+**Not started.** Language is Erik's call; Python is a reasonable pick and the
+CLI is TypeScript today.
+
+---
+
 ## 2026-08-22 -- S#280 -- THE LICENCE IS APACHE-2.0, AND IT CLOSES A LIVE GAP
 
 **Source:** Erik, S#280: *"Lets fix that License stuff right away"* -- then chose

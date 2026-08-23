@@ -1,21 +1,100 @@
 # STATUS — Bridger
 
-**True as of 2026-08-23, close of S#280.** `DECISIONS.md` wins on direction;
+**True as of 2026-08-23, close of S#281.** `DECISIONS.md` wins on direction;
 `ARCHITECTURE.md` wins on how it works; this file is what is *true right now*.
 **Never read a commit out of this file:** `curl -s https://bridger-nu.vercel.app/api/about`
-reports the revision that actually answered. At the time of writing it was
-`39fb530` -- and this line has been wrong before, which is why the command is
-here rather than the number.
+reports the revision that actually answered. The S#280 copy of this line said
+`39fb530` while production was already `6a190ac` -- wrong within a day of being
+written, which is exactly why the command is here and the number is not.
 
-> # [!!] AN UNANSWERED MESSAGE IS WAITING ON THE BRIDGE, AND IT IS JUDGEMYSITE'S
+> # THE PARTNER'S QUESTION WAS ANSWERED. This block used to say it was not.
 >
-> `CLA-N-006`, 2026-08-22 10:01, room `e4db579a5fad`. Trigvanta's operator asks
-> through their Claude whether a **Full Trial can run under 60 seconds end to
-> end**, and says plainly that "no" is a useful answer -- it would tell them to
-> change their own UX rather than keep asking for capture to be shaved. They
-> have done the arithmetic themselves (capture ~32-34s, synthesis ~150s
-> constant, floor ~190-200s), so it is not "fix the capture bug". It is an
-> architecture and business question for the JudgeMySite lane.
+> `CLA-N-006` (can a Full Trial run under 60s end to end) was answered
+> **2026-08-22 19:19** as `CLB-N-006` by the JudgeMySite lane -- *no*, with the
+> 50-54 tok/s measurement, the p50 191s / p95 237s distribution, an admission
+> that our own single-run quote broke their timeout, and the streaming
+> counter-offer. Full `checkedAgainst`. `bridger_status` returns
+> `openQuestions: []`, `unread: 0`, 15 entries.
+>
+> **It was answered the same night this file was written, by the other lane, and
+> nothing reconciled the two.** Four surfaces carried it as OPEN into S#281:
+> here, `TODO.md`, `session-state.md` (both S#280 blocks) and `MEMORY.md`. The
+> lesson is the one this project already knows and keeps re-learning: **a note
+> about mutable state is not a reading of it.** The check was one tool call.
+
+---
+
+## S#281 -- THE DATABASE BILL, AND THREE BUGS THAT WERE HIDING IN IT
+
+**Erik's priority: keep this free to run.** The unit that matters is Upstash
+COMMANDS, and nothing in the codebase could see them.
+
+**Measured end-to-end against the real `opWait`, not derived: one 45-second idle
+wait cost 51 Redis commands and now costs 16.** Two sides listening all day:
+195,840 -> 61,440. Days to burn a 500,000/month free tier: **2.6 -> 8.1**.
+
+### The finding, and it is the shape to carry
+
+**The cheapest path for the caller was the most expensive path for us.**
+`waitForNew` polled `seq` every flat 1,000ms, so a 45-second wait spent 45 reads
+-- while `WASTE_BUDGET_BYTES` discounted that same call by 90% because it is
+cheap for the CALLER. Two budgets pointing opposite ways, with only one of them
+instrumented. That is how a free tier disappears with nothing looking wrong.
+
+The interval now starts at **500ms -- faster than the flat value it replaces**,
+so a live exchange is answered sooner -- and grows 1.6x to an 8s cap. What gets
+slower is noticing a reply during a long silence, by at most 8 seconds.
+
+### Three real bugs, none of them filed, all found on the way
+
+1. **`SET` clears a TTL, so `set` + conditional `expire` was a leak, not an
+   optimisation.** `noteOp` and `bumpWaste` expired only their FIRST write; every
+   later write stripped it. Both keys were immortal in practice -- and a waste
+   counter that never resets refuses an honest caller **forever**. Confirmed at
+   the vendor source rather than assumed: Upstash's types carry `keepTtl`
+   precisely because the default discards.
+2. **Five of 22 key namespaces never expired at all** -- `CURSOR` (x2/room),
+   `SEQ`, `COUNTER` (up to 14), `PLAN_COUNTER` (x2). `touchRoom` refreshed four
+   keys; nothing covered these, so a dead room left ~19 keys behind forever.
+3. **The budget string overstated itself 2.5x.** It divided by 60 as if calls
+   arrive once a minute, but `WAIT_MAX_SECONDS` is 45. It advertised *"13 hours
+   of continuous waiting"* against a real default of 5.2 -- and that is the
+   sentence a braked partner reads to decide whether waiting is viable.
+
+### Also shipped
+
+- **A2/C5 RULED (Erik):** waste budget 12,000 -> 18,000. **Ordering mattered** --
+  alone it would have raised the ceiling on the hungriest path; the backoff
+  landed first, so the raise now costs fewer commands than the old budget did.
+  Buys 7.8h at the default interval against the ~8h we tell partners to run.
+- **A8 RULED (Erik, "no friction"):** the mint refusal keeps `429` +
+  `Retry-After` and drops `terminal: true`. It said two opposite things at once
+  and the status wins, being read by retry middleware beneath the model. Resolved
+  TOWARDS 429 because 429 is the true half: the window does reopen, and the
+  header says when.
+- Kill-switch read cached 5s, **asymmetric** so a RESTART is instant and only a
+  STOP is delayed. Audit `LTRIM` amortised 1-in-500 via `LPUSH`'s return length.
+
+**Pinned** in `lib/__tests__/redis-cost.test.ts` with a liveness guard on the
+counter and a negative control on the backoff cap. **Ablation-proven:** reverting
+the SETEX and flattening the poll turns three of them red. 360/360, tsc 0,
+build 0.
+
+### [!!] The one thing not verified, and it is Erik's read
+
+**Which Upstash plan this project is on.** `lib/store.ts` has admitted since
+S#280 that the free-tier ceiling is *reasoned, not measured*. Every number above
+is arithmetic against an assumed 500,000 commands/month.
+
+### Six product decisions landed -- see `DECISIONS.md` 2026-08-23
+
+**Solo mode** (Bridger as a one-user multi-model bridge, room KINDS not a
+generalised room) - **vendor logos** ship inside it - the **room composer**
+(presets *and* a builder, in different places; stages and guidance, never
+artifacts) - a **per-side colour picker** - the **database-cost constraint** as a
+standing rule - and **C3b, the local daemon**, as the answer to zero-token
+listening.
+
 
 > # [!!] B1 IS CLOSED. A DIFFERENT COMPANY'S CLAUDE JOINED AND DID REAL WORK.
 >

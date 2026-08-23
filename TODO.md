@@ -1,6 +1,6 @@
 # TODO — Bridger
 
-## START HERE — rewritten at the close of S#280 (2026-08-23)
+## START HERE — rewritten at the close of S#281 (2026-08-23)
 
 **Three commands before you believe anything in this file:**
 
@@ -10,90 +10,83 @@ curl -s https://bridger-nu.vercel.app/api/health   # killSwitch on|off
 git -C . log --oneline -5                          # what shipped last
 ```
 
-**State at the close of S#280.** Production was `39fb530`, master in sync, 0
-unpushed, tree clean, 351/351, tsc 0, next build 0. Twenty-five commits, eleven
-deploys, every one verified from `/api/about` rather than from the CLI's own
-"completed". The bridge is RUNNING, the repo is PUBLIC, `BRIDGER_PASTE_PATH=1`
-is ON, and the partner room `e4db579a5fad` is open and healthy (13 entries,
-chain verifies 13/13).
+**State at the close of S#281.** 360/360, tsc 0, next build 0. The bridge is
+RUNNING, the repo is PUBLIC under Apache-2.0, `BRIDGER_PASTE_PATH=1` is ON, and
+the partner room `e4db579a5fad` is open and healthy — **15 entries, 0 unread, 0
+open questions.**
 
-**[!!] THERE IS AN UNANSWERED MESSAGE FROM THE PARTNER, AND IT IS NOT OURS.**
-`CLA-N-006`, 2026-08-22 10:01. Trigvanta's operator asks, through their Claude,
-whether a **Full Trial can come in under 60 seconds end to end** — and says
-plainly that "no" is a useful answer, because it tells them to change their own
-UX rather than keep asking JudgeMySite to shave capture. They have already done
-the arithmetic (capture ~32-34s, synthesis ~150s constant, floor ~190-200s), so
-this is not "fix the capture bug". **It is a JudgeMySite architecture and
-business question. It belongs to that lane, not this one.**
+> **THE PARTNER'S QUESTION IS ANSWERED — and four files said otherwise.**
+> `CLA-N-006` was answered 2026-08-22 19:19 as `CLB-N-006` by the JudgeMySite
+> lane. It was answered *the same night* the S#280 alert was written, by the
+> other lane, and nothing reconciled them: this file, `STATUS.md`,
+> `session-state.md` and `MEMORY.md` all carried it into S#281 as OPEN. **A note
+> about mutable state is not a reading of it.** The check was one tool call.
 
-### WHAT SHIPPED IN S#280, grouped rather than listed
+### WHAT SHIPPED IN S#281 — the database bill
 
-- **PRODUCT DIRECTION SETTLED (Erik):** the name is **Bridger**, gaveled. Pricing
-  **deferred** behind a funnel argument. **The licence is Apache-2.0** — which
-  closed a live gap: the repo was public with no licence while FOUR surfaces
-  told readers to self-host, so nobody was permitted to do the thing the trust
-  argument rests on.
-- **THE ROOM BECAME A DIALOGUE** (D1+D2+D4's room half): turns, alignment,
-  bubbles, per-side rails, presence chips, agent marks, day separators, an
-  unread line, following that never steals the scroll, collapsible rails, and
-  motion built on the instrument register.
-- **THE PLAN STAGE (F1)** — a document both sides converge on, not a
-  conversation they have. Items with owners and states, completion COMPUTED,
-  one enforced rule (only the owner may agree), phase shaping guidance and
-  layout but never permissions, and a three-column board that is also F3's
-  answer.
-- **THE EVIDENCE INDEX** — numbered citations resolving to a derived source
-  list, with the citation count nothing had shown before.
-- **PROTOCOL:** `contract` + `sections` merge-patch with `ifUnchangedSince`
-  (C3c), `identify`, `help` (D5), tool annotations (D3), `basis` on MCP,
-  field guidance on the wire (C1), and a per-room tally the audit cannot evict
-  (D6).
-- **REAL DEFECTS FOUND AND FIXED:** the viewer burned 400 calls/day and was
-  shown a machine code; `/api/export` hand-rolled its refusal; the panels had
-  never scrolled; **the per-side colour system had never rendered at all**;
-  answers rendered without their answer text; `basis` was invisible to the UI;
-  a watcher could starve the participants' room budget.
+**Erik: *"priority should be to decrease the Redis command usage as much as
+possible. We want to have this tool for free as much as we can."***
+
+**Measured end-to-end, not derived: a 45-second idle wait cost 51 Redis commands
+and now costs 16.** Two sides listening all day: 195,840 → 61,440. Days to burn a
+500,000/month free tier: **2.6 → 8.1**.
+
+- **The poll backoff.** `waitForNew` polled a flat 1,000ms — 45 reads per 45s
+  wait — while our own waste budget discounted that same call 90% because it is
+  cheap *for the caller*. Two budgets pointing opposite ways, one instrumented.
+  Now 500ms (faster than before for a live exchange) growing 1.6× to an 8s cap.
+- **Three real bugs nobody had filed:** `SET` clears a TTL, so `set` +
+  conditional `expire` left `noteOp` and `bumpWaste` immortal — and a waste
+  counter that never resets refuses an honest caller forever · five of 22 key
+  namespaces never expired at all, leaving ~19 orphans per dead room · the budget
+  string advertised "13 hours" against a real default of 5.2.
+- **A2/C5 ruled:** budget 12,000 → 18,000, shipped *behind* the backoff so the
+  raise costs fewer commands than the old value did.
+- **A8 ruled:** mint refusal keeps `429` + `Retry-After`, drops `terminal: true`.
+
+Pinned in `lib/__tests__/redis-cost.test.ts`, ablation-proven.
 
 ### WHERE TO GO NEXT
 
-**Needs a PARTNER, not a patch — and these are the top of the list:**
+**Claude can do solo — and the top item no longer needs a partner:**
 
 | # | What | Why |
 |---|---|---|
-| 1 | **F1 in a real room, and D3's live test** | The plan stage has never been touched by a far side, and its DEFAULT partner state is plan mode. Whether our tool annotations unblock that depends on Trigvanta's harness and is UNVERIFIED. |
-| 2 | **B1's adversarial half**, B2, B4 | Still owed from earlier sessions. |
+| 1 | **SOLO MODE** (`DECISIONS.md` 2026-08-23) | Bridger as a one-user multi-model bridge. Room KINDS, not a generalised room; the `SideId` rewrite happens inside `solo` only. **The only item on this board that does not need a far side** — Erik can use it tonight. Vendor logos ride with it. |
+| 2 | **C3b, the local daemon** | The zero-token listener. Holds the long-poll off-context so fifty empty polls become one message. Proposed by the far side, never taken. |
+| 3 | **The colour picker** | Curated swatches, per side, stored on the room. Seal's hue excluded. |
+| 4 | **B5 at scale** | The panels never scrolled until S#280, found at 30 entries. Nothing else in the room has been looked at past a handful. Chrome headless only. |
+| 5 | **D4's create half** | The room reads as a dialogue; the create flow is still too many steps. |
+| 6 | **F4 housekeeping** | `wire()` wraps your OWN side's text in untrusted markers; room `d437fff5b423` needs a fresh invite code. |
 
-**Claude can do solo:**
+**Needs a PARTNER:**
 
 | # | What | Why |
 |---|---|---|
-| 3 | **B5 at scale** | The panels never scrolled until S#280 — `min-height` let the box grow so the PAGE scrolled, found only at 30 entries. Nothing else in the room has been looked at past a handful. No real monitor, no phone, no Safari, no Firefox, five sessions running. |
-| 4 | **D4's create half** | The ROOM reads as a dialogue now; the CREATE flow is still too many steps. |
-| 5 | **C3a citation bundles, C3b the local daemon** | The far side's other two proposals, both still untaken. |
-| 6 | **F4 housekeeping** | `wire()` wraps your OWN side's text in untrusted-partner markers; room `d437fff5b423` needs a fresh invite code. |
+| 7 | **F1 in a real room, and D3's live test** | The plan stage has never been touched by a far side, and its DEFAULT partner state is plan mode. Whether our tool annotations unblock that depends on Trigvanta's harness and is UNVERIFIED. **The room composer (F2) is downstream of this** — a shape is a list of stages, and only one stage exists. |
+| 8 | **B1's adversarial half**, B2, B4 | Still owed from earlier sessions. |
 
-**Needs ERIK — every one is a decision, none is work:**
+**Needs ERIK — decisions, not work:**
 
-1. **`--side-b` is warm orange and so is `--seal`** (reserved for provenance).
-   Two meanings on one hue. A5 already asks whether `--seal` moves; this is the
-   argument for it.
-2. **`@bridger/cli`** — publish or not. Claims a public identifier permanently;
-   `package.json` still carries `private: true` as the guard.
-3. **A2/C5 — the blocked-wait allowance.** A blocked wait is rationed like the
-   polling it exists to replace.
-4. **The mint refusal is `terminal: true` at HTTP 429**, contradicting the S#276
-   ladder. Changing it changes a contract a partner may build against.
-5. **F2's preset list** — cut or rename *Just talk* / *Plan then build* /
+1. **[!!] Which Upstash plan is this on?** `lib/store.ts` has said since S#280
+   that the free-tier ceiling is *reasoned, not measured*. Every command number
+   above is arithmetic against an assumed 500,000/month. One dashboard read.
+2. **`--seal` (`#ffb86b`) still collides with `--side-b` (`#f0c49c`).** The
+   picker makes the default less load-bearing; it does not settle it, because
+   most people will not pick.
+3. **`@bridger/cli`** — publish or not. `package.json` still carries
+   `private: true` as the guard.
+4. **F2's preset list** — cut or rename *Just talk* / *Plan then build* /
    *Question and answer* and F2 is buildable.
-6. **Vendor logos** — swap the agent monogram for real marks? A trademark call
-   about other companies' brands, and one function to change.
-7. **F5** — did the two-party limit actually get in your way with Trigvanta, or
-   was it a good screenshot? That un-parks or re-parks multi-party (E2/E4).
+5. **Solo mode's language for C3b** — Python is a reasonable pick; the CLI is
+   TypeScript today.
 
 > **DIRECTION (Erik, S#275): zero install, zero setup — "just a bridge to a room
-> where users' AIs can communicate in a safe environment."** Still
-> internal-infrastructure-first (S#274b). The name is **gaveled as Bridger**
-> (S#280). Pricing is deferred; the licence is not, and is settled.
+> where users' AIs can communicate in a safe environment."** The name is
+> **gaveled as Bridger** (S#280), the licence is **Apache-2.0** (S#280), pricing
+> is deferred. **New standing constraint (S#281): we are a communication bridge —
+> no repos, no codebases, no large blobs. Stay lightweight.** And: any change
+> that makes a path cheaper for the caller must state what it costs the database.
 ---
 
 ## WHERE WE ARE — S#277 (2026-08-20)
