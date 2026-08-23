@@ -87,8 +87,8 @@ describe("token secrecy", () => {
       now: T0,
     });
     assert.notEqual(
-      room.sides.a.code,
-      room.sides.b.code,
+      room.sides.a!.code,
+      room.sides.b!.code,
       "colliding codes would let one side overwrite the other's entry IDs",
     );
   });
@@ -369,7 +369,7 @@ describe("deriveCode", () => {
     assert.equal(deriveCode("acme corp"), "ACX");
     assert.equal(deriveCode("Big Red Widget Co"), "BRW");
     assert.equal(deriveCode(""), "XXX");
-    assert.equal(deriveCode("!!!"), "XXX");
+    assert.equal(deriveCode("!!"), "XXX");
     assert.equal(deriveCode("x"), "XXX");
   });
 
@@ -386,7 +386,11 @@ describe("parseRoom", () => {
     assert.equal(parseRoom("not json"), null);
     assert.equal(parseRoom(JSON.stringify({ nope: 1 })), null);
     const ok = parseRoom(JSON.stringify({ id: "r1" }));
-    assert.equal(ok?.sides.a.code, "XXX");
+    assert.equal(ok?.sides.a!.code, "XXX");
+    // S#281: a room stored before `kind` existed must read as `trust`, never
+    // as `solo` -- the wrong default would strip a real partner room of its
+    // untrusted-partner containment markers.
+    assert.equal(ok?.kind, "trust", "a legacy room must not be reclassified as solo");
     assert.equal(ok?.closed, false);
   });
 });

@@ -34,8 +34,19 @@
  */
 
 import { gate, refusalResponse } from "@/lib/http-gate";
-import { canWrite, clearRegistryCache, createRoom, issueToken, writeAudit } from "@/lib/room-registry";
-import { MAX_TOPIC, RoomTextRejected, sanitiseRoomMetadata, sanitiseRoomText } from "@/lib/room-text";
+import { canWrite, clearRegistryCache, createRoom, issueToken, writeAudit,
+  seat,
+  createSoloRoom,
+  MIN_SEATS,
+  MAX_SOLO_SEATS,
+} from "@/lib/room-registry";
+import {
+  MAX_LABEL,
+  MAX_TOPIC,
+  RoomTextRejected,
+  sanitiseRoomMetadata,
+  sanitiseRoomText,
+} from "@/lib/room-text";
 import {
   UNCLAIMED_ROOM_TTL_SECONDS,
   chargeMint,
@@ -48,12 +59,17 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * Sides are `"a" | "b"` in `room-registry.ts`, and two-ness is the data model
- * rather than a setting: `otherSide()` is a boolean flip, `sides` is a
- * fixed-shape object, entry ids are namespaced per side, and "the peer" is
- * singular in whoami, in the wait cursor and in the idle brake. N parties is a
- * rewrite of that core, not a bigger number here — so the field is accepted and
- * validated rather than quietly ignored, and the refusal says why.
+ * A `trust` room connects exactly two parties, and that is a PROPERTY OF THE
+ * PRODUCT rather than a limitation of the code (S#281).
+ *
+ * It used to be both. Sides were `"a" | "b"` throughout the registry, so the
+ * refusal here could honestly say "N parties is a rewrite of that core". Solo
+ * mode did that rewrite: seats are now `a`..`f` and `otherSeats()` returns a
+ * list. What did NOT change is what a trust room MEANS -- two companies who do
+ * not share an employer, keeping a record neither can rewrite. A third company
+ * in that room is a different product with unanswered semantics (does an answer
+ * close a question for everyone? who does a contract bind?), so this refusal
+ * stays and now points at the thing that DOES seat more.
  */
 const SUPPORTED_SLOTS = 2;
 
@@ -152,13 +168,30 @@ export async function POST(req: Request) {
     return bad("Body must be JSON.");
   }
   if (typeof body !== "object" || body === null) return bad("Body must be a JSON object.");
-  const { topic, you, them, slots } = body as Record<string, unknown>;
+  const { topic, you, them, slots, kind, seats } = body as Record<string, unknown>;
 
-  if (slots !== undefined && slots !== SUPPORTED_SLOTS) {
+  if (kind !== undefined && kind !== "trust" && kind !== "solo") {
+    return bad('`kind` must be "trust" (two companies) or "solo" (your own models).', "kind");
+  }
+  const isSolo = kind === "solo";
+
+  if (!isSolo && slots !== undefined && slots !== SUPPORTED_SLOTS) {
     return bad(
-      `This bridge connects exactly ${SUPPORTED_SLOTS} parties. More than two is a change to the room model, not a setting — every side is "a" or "b" throughout the registry.`,
+      `A trust room connects exactly ${SUPPORTED_SLOTS} parties — it is a record between two companies, and a third one changes what the record MEANS, not just how many seats it has. For several of your OWN models in one room, send kind: "solo" with a seats array.`,
       "slots",
     );
+  }
+
+  if (isSolo) {
+    if (!Array.isArray(seats)) {
+      return bad('A solo room needs a `seats` array of labels, e.g. ["Claude", "Gemini", "GPT"].', "seats");
+    }
+    if (seats.length < MIN_SEATS || seats.length > MAX_SOLO_SEATS) {
+      return bad(
+        `A room needs between ${MIN_SEATS} and ${MAX_SOLO_SEATS} seats; got ${seats.length}. One seat is a notepad, not a bridge.`,
+        "seats",
+      );
+    }
   }
 
   // VALIDATE BEFORE CHARGING, and this ordering was a measured fix rather than
@@ -174,7 +207,14 @@ export async function POST(req: Request) {
   // risk double-escaping the containment markers, and one canonical cleaning
   // pass is easier to reason about than an idempotence argument.
   try {
-    sanitiseRoomMetadata({ topic, ownerLabel: you, peerLabel: them });
+    if (isSolo) {
+      // Same free validation for the same measured reason as below: a typo in
+      // seat four must not burn one of the day's rooms.
+      sanitiseRoomText(topic, "topic", MAX_TOPIC);
+      (seats as unknown[]).forEach((l, i) => sanitiseRoomText(l, `seats[${i}]`, MAX_LABEL));
+    } else {
+      sanitiseRoomMetadata({ topic, ownerLabel: you, peerLabel: them });
+    }
   } catch (e) {
     if (e instanceof RoomTextRejected) return bad(e.why, e.field);
     throw e;
@@ -223,6 +263,50 @@ export async function POST(req: Request) {
     );
   }
 
+  // ── SOLO: one operator, several of their own models. No owner/peer, no
+  // invitation, every seat joined on arrival. `DECISIONS.md` 2026-08-23. ──
+  if (isSolo) {
+    let made;
+    try {
+      made = await createSoloRoom(store, {
+        topic: topic as string,
+        seatLabels: seats as string[],
+        now,
+      });
+    } catch (e) {
+      if (e instanceof RoomTextRejected) return bad(e.why, e.field);
+      throw e;
+    }
+    const viewerToken = await issueToken(store, made.room, "a", now, undefined, "viewer");
+    // No unclaimed-TTL shortening here: there is nobody to wait for, so the
+    // room is claimed the moment it exists and gets the normal idle life.
+    await writeAudit(store, {
+      ts: now.toISOString(),
+      tokenId: null,
+      roomId: made.room.id,
+      side: null,
+      tool: "mint",
+      status: "ok",
+    });
+    return Response.json(
+      {
+        room: {
+          id: made.room.id,
+          topic: made.room.topic,
+          createdAt: made.room.createdAt,
+          kind: "solo",
+        },
+        slots: made.tokens,
+        viewerToken,
+        note:
+          "Every seat is yours. Give each token to one model. Nothing here is " +
+          "wrapped in untrusted-partner markers, because there is no other " +
+          "company in this room.",
+      },
+      { status: 201 },
+    );
+  }
+
   let created;
   try {
     created = await createRoom(store, {
@@ -264,8 +348,8 @@ export async function POST(req: Request) {
     {
       room: { id: room.id, topic: room.topic, createdAt: room.createdAt },
       slots: [
-        { side: "a", label: room.sides.a.label, code: room.sides.a.code, token: ownerToken },
-        { side: "b", label: room.sides.b.label, code: room.sides.b.code, token: peerToken },
+        { side: "a", label: seat(room, "a").label, code: seat(room, "a").code, token: ownerToken },
+        { side: "b", label: seat(room, "b").label, code: seat(room, "b").code, token: peerToken },
       ],
       viewerToken,
       endpoint: new URL("/api/mcp", req.url).toString(),

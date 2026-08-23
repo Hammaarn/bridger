@@ -453,6 +453,12 @@ const handler = createMcpHandler(
           "Produce a short-lived /j/<code> link you can send to your partner, instead of pasting a live bearer token into a chat message. The link mints exactly one credential and then returns that same one to anyone who fetches it for a few minutes, so a link preview or a retry cannot destroy the invitation. Minting again REPLACES the previous unredeemed link for that seat. The result is a PATH — join it to the server you are connected to. Requires a participant token; a viewer cannot invite.",
         inputSchema: z.object({
           side: z
+            // Deliberately NOT widened to the full seat vocabulary at S#281.
+            // `invite` is the trust-room ceremony of handing a credential to a
+            // stranger; a solo room has no stranger, and its seats are all
+            // minted at once. Widening this for symmetry would advertise an
+            // invitation flow that means nothing in the room type it would be
+            // reachable from.
             .enum(["a", "b"])
             .optional()
             .describe("Which seat the link is for. Defaults to the other side — the partner you are inviting."),

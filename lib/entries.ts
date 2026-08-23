@@ -47,7 +47,7 @@ import {
 } from "./store";
 import type { RoomRecord, SideId, TokenRecord } from "./room-registry";
 import { entryHash, type ChainedEntry } from "./chain";
-import { otherSide, resetIdleStreak } from "./room-registry";
+import { otherSide, otherSeats, resetIdleStreak, seat, SEAT_IDS } from "./room-registry";
 import { scanForSecrets, secretRefusal } from "./secrets";
 import { openQuestionIds, wasReopened } from "./question-state";
 
@@ -186,12 +186,22 @@ export function parseEntry(raw: unknown): Entry | null {
   const e = obj as Partial<Entry>;
   if (typeof e.id !== "string" || typeof e.seq !== "number") return null;
   if (!ENTRY_TYPES.includes(e.type as EntryType)) return null;
-  if (e.side !== "a" && e.side !== "b") return null;
+  // ANY seat in the vocabulary (S#281). This line used to read
+  // `e.side !== "a" && e.side !== "b"`, and while seats were widened everywhere
+  // else it silently DROPPED every entry from seat c onward -- the write
+  // succeeded and returned a seq, the read came back empty, and nothing
+  // anywhere said a row had been discarded. Absence and rejection rendered
+  // identically, one more time.
+  //
+  // Still a whitelist, not a string check: a corrupted `side` must fail closed
+  // rather than name a seat the room does not have.
+  const side = SEAT_IDS.find((id) => id === e.side);
+  if (!side) return null;
   return {
     id: e.id,
     seq: e.seq,
     type: e.type as EntryType,
-    side: e.side,
+    side,
     code: typeof e.code === "string" ? e.code : "XXX",
     author: typeof e.author === "string" ? e.author : "",
     ts: typeof e.ts === "string" ? e.ts : "",
@@ -259,7 +269,7 @@ export async function appendEntry(
   // into five handlers is a check that drifts.
   await resetIdleStreak(store, token.id);
 
-  const code = room.sides[token.side].code;
+  const code = seat(room, token.side).code;
   const seq = await store.incr(SEQ_KEY(room.id));
   const n = await store.incr(COUNTER_KEY(room.id, code, TYPE_LETTER[input.type]));
   // Light the fuse on first write, renew it rarely. These two counters had no
@@ -274,7 +284,7 @@ export async function appendEntry(
     type: input.type,
     side: token.side,
     code,
-    author: room.sides[token.side].label,
+    author: seat(room, token.side).label,
     ts: now.toISOString(),
     title: input.title,
     body: input.body,
@@ -461,7 +471,12 @@ export async function getStatus(
   ]);
 
   const peerSide = otherSide(token.side);
-  const unread = entries.filter((e) => e.side === peerSide && e.seq > cursor).length;
+  // Every seat that is not yours -- in a trust room that is exactly `peerSide`
+  // and nothing changes, in a solo room it is the rest of the table. Counting
+  // only `peerSide` would have made seat C's messages permanently unread for
+  // seat A, which is indistinguishable from a quiet room.
+  const others = new Set(otherSeats(room, token.side));
+  const unread = entries.filter((e) => others.has(e.side) && e.seq > cursor).length;
   const latestSeq = entries.length ? entries[entries.length - 1].seq : 0;
 
   return {
@@ -469,21 +484,21 @@ export async function getStatus(
     topic: room.topic,
     you: {
       side: token.side,
-      label: room.sides[token.side].label,
-      code: room.sides[token.side].code,
-      agent: room.sides[token.side].agent ?? null,
+      label: seat(room, token.side).label,
+      code: seat(room, token.side).code,
+      agent: seat(room, token.side).agent ?? null,
       role: token.role,
       canWrite: token.role !== "viewer",
     },
     peer: {
       side: peerSide,
-      label: room.sides[peerSide].label,
-      code: room.sides[peerSide].code,
+      label: seat(room, peerSide).label,
+      code: seat(room, peerSide).code,
       // Self-declared by THEM, unverified by us. Carried so a reader can tell
       // two identically-named parties apart, never as a claim about who they
       // actually are.
-      agent: room.sides[peerSide].agent ?? null,
-      joined: room.sides[peerSide].joinedAt !== null,
+      agent: seat(room, peerSide).agent ?? null,
+      joined: seat(room, peerSide).joinedAt !== null,
     },
     unread,
     cursor,
@@ -546,7 +561,7 @@ export async function setContract(
   const previous = await getContract(store, room.id);
   const contract: Contract = {
     body,
-    updatedBy: room.sides[token.side].label,
+    updatedBy: seat(room, token.side).label,
     updatedAt: now.toISOString(),
   };
   await store.set(CONTRACT_KEY(room.id), JSON.stringify(contract));
