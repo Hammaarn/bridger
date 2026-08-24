@@ -784,9 +784,9 @@ input.bx-bad {
   width: 100%;
   max-width: var(--measure);
   margin: 0 auto;
-  padding: 64px 24px 88px;
+  padding: 52px 24px 56px;
   display: grid;
-  gap: 44px;
+  gap: 32px;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   align-items: start;
 }
@@ -2486,7 +2486,7 @@ input.bx-folder-name:focus {
   width: 100%;
   max-width: var(--measure);
   margin: 0 auto;
-  padding: 8px 24px 88px;
+  padding: 8px 24px 56px;
 }
 
 /* The cursor-wake field. Same width/height note as `.bg-sheet`: a <canvas> is a
@@ -2523,8 +2523,8 @@ input.bx-folder-name:focus {
 /* The heading keeps a reading measure of its own even though the grid below
    it is wide -- prose set to 1240px is unreadable. */
 .bx-demo-head {
-  max-width: 620px;
-  margin-bottom: 22px;
+  max-width: 772px;
+  margin-bottom: 16px;
 }
 
 .bx-demo-head h2 {
@@ -2783,15 +2783,37 @@ input.bx-folder-name:focus {
    that settles it, and the property that does NOT favour us is in the same
    list rather than in a footnote. */
 
+/* THE TWO HEADERS SIT ON GROUND, NOT ON THE FIELD.
+   The claims and the steps are in cards now; their headings were still prose
+   set straight on moving glyphs. A soft radial in the surface colour paints
+   BEHIND the element's own content and above the canvas, so the type gets a
+   ground without the block gaining a hard edge -- the same technique `.hero`
+   already uses to protect its headline, one level in. Negative margins keep the
+   text aligned to the grid while the wash extends past it. */
+.bx-demo-head,
+.bx-verify > header {
+  position: relative;
+  padding: 14px 26px 16px;
+  margin-left: -26px;
+  margin-right: -26px;
+  border-radius: 18px;
+  background: radial-gradient(
+    118% 130% at 26% 50%,
+    var(--ink-900) 0%,
+    color-mix(in oklab, var(--ink-900) 82%, transparent) 52%,
+    transparent 100%
+  );
+}
+
 .bx-verify {
-  margin-top: 34px;
-  padding-top: 28px;
+  margin-top: 26px;
+  padding-top: 22px;
   border-top: 1px solid var(--line);
 }
 
 .bx-verify > header {
-  max-width: 620px;
-  margin-bottom: 18px;
+  max-width: 700px;
+  margin-bottom: 14px;
 }
 
 .bx-verify h2 {
@@ -2806,33 +2828,90 @@ input.bx-folder-name:focus {
   line-height: 1.6;
 }
 
-/* Two columns, and the split is the argument: LEFT is the property, RIGHT is
-   the command that settles it, aligned down the page so the second column reads
-   as one list of things you can run. The prose keeps its own measure -- set to
-   the full 1240px it is unreadable. */
+/* THESE CLAIMS SAT DIRECTLY ON THE GLYPH FIELD, AND THEY WERE UNREADABLE.
+   Erik, S#282, with a capture: *"the text itself with the instructions needs to
+   be on a background thats more readable"*. The steps above always had cards
+   and always read fine; this block had a hairline rule and nothing else, so
+   seven claims and their commands were set on moving noise.
+
+   The row layout was also the tallest thing on the page: one claim per full-
+   width row, a 500px prose column and a command floating in the right half,
+   ~700px of height to say seven short things. His brother's note -- *"avoid
+   scrolling as much as possible, information should be neatly compacted and
+   width utilization should be a focus"* -- lands on exactly this block.
+
+   So each claim becomes a CARD in an auto-fitting grid: three across at full
+   measure, two on a laptop, one on a phone, and the field now reads BETWEEN the
+   cards rather than through the text. Same move `.gate-body` already makes with
+   its two panels, which is why it looks like the page rather than like a patch. */
 .bx-checks {
   list-style: none;
   margin: 0;
   padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(370px, 1fr));
+  gap: 10px;
 }
 
 .bx-checks > li {
-  display: grid;
-  /* The left column is sized to the PROSE (~62ch), not to half the page --
-     splitting 1240px down the middle left a 120px trench between a claim and
-     the command that settles it, which is the pairing the block exists to
-     make. */
-  grid-template-columns: minmax(0, 500px) minmax(0, 1fr);
-  column-gap: 28px;
-  row-gap: 4px;
-  padding: 11px 0;
-  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 15px 16px 16px;
+  background: var(--ink-800);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  min-width: 0;
 }
 
-/* The wrapper exists only to keep the claim and its command together in the
-   markup; the grid above is what actually places them. */
+/* `display: contents` so the h3, the command and the paragraph are all direct
+   flex children of the card -- the wrapper only exists to pair a claim with its
+   command in the markup. Ordering is set below because the DOM order is
+   claim/command/detail and the card wants claim/detail/command. */
 .bx-check-head {
   display: contents;
+}
+
+/* DESCENDANT SELECTORS, NOT CHILD, AND THAT WAS A REAL BUG.
+   `.bx-check-head` is `display: contents`, so its h3 and command become flex
+   children of the CARD for layout -- but `display: contents` changes box
+   generation, NOT selector matching. Their DOM parent is still the wrapper, so
+   `li > .bx-cmd` matched nothing and the ordering silently did not apply: the
+   cards rendered claim/command/detail while the CSS said claim/detail/command,
+   and the rules read as if they were working. */
+.bx-checks > li h3 {
+  order: 0;
+}
+
+.bx-checks > li p {
+  order: 1;
+}
+
+/* `margin-top: auto` pins every command to the bottom of its card, so they line
+   up across a row however uneven the prose above them is. */
+.bx-checks > li .bx-cmd,
+.bx-checks > li .bx-check-nocmd {
+  order: 2;
+  margin-top: auto;
+}
+
+/* A COMMAND THAT SCROLLS SILENTLY IS WORSE THAN ONE THAT WRAPS.
+   `.bx-cmd code` is `white-space: pre` with `overflow-x: auto`, which was right
+   when a command had 700px of full-width row. In a 370px card it renders as
+   `npm ls --omit=dev --depth` -- a command that is WRONG rather than clipped,
+   with no visible affordance saying there is more. Inside these cards it wraps
+   instead: two lines is honest, a truncated flag is not. */
+.bx-checks .bx-cmd code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow-x: visible;
+}
+
+/* The claim that counts against us keeps the full width at the end of the grid.
+   It is the one nobody else on the page would print, so it is not going in a
+   third of a row where it reads as one item among six. */
+.bx-checks > .bx-against {
+  grid-column: 1 / -1;
 }
 
 .bx-checks h3 {
