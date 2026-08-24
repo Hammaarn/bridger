@@ -729,6 +729,82 @@ input.bx-bad {
   text-wrap: balance;
 }
 
+/* THE PRIMARY ACTION, AND THE ONE PLACE THE PRODUCT'S IDEA HAPPENS ON DEMAND.
+   Erik's brother, S#282: the button *"should be more visually appealing and
+   recognizable, it should make the users eyes draw to it because thats the
+   whole thing with this site"*. Erik found the mechanism at
+   uiverse.io/adamgiebl/curly-wombat-58 (MIT): a thin diagonal bar that rotates
+   upright and floods the button on hover. The technique is borrowed, the code
+   is ours -- the same convention the glitch field already follows.
+
+   TWO DELIBERATE DEPARTURES FROM THE ORIGINAL.
+
+   Theirs is TRANSPARENT at rest with a 4px outline, which is a quieter button
+   than the one we already had -- the opposite of the note. So the rest state
+   stays filled and loud, and the whole animation budget is spent on the hover.
+
+   And the flood is `--side-a -> --side-b`: the two parties' own hues, the same
+   pair the dot field spreads between. So the primary action is literally two
+   sides meeting, which is the product. It is NOT `--seal` -- colour on this
+   page means provenance, and a button is not a citation.
+
+   The label is dark on light in both states and in both themes, because the
+   rest fill and the flood are both light values from the same token set, so
+   there is no colour flash to time and nothing to fail contrast mid-transition. */
+.hero-actions .bx-primary {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  min-height: 54px;
+  padding: 0 34px;
+  font-size: 16px;
+}
+
+.hero-actions .bx-primary > span {
+  position: relative;
+  z-index: 1;
+}
+
+.hero-actions .bx-primary::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 9%;
+  height: 460%;
+  transform: translate(-50%, -50%) rotate(-58deg);
+  background: linear-gradient(180deg, var(--side-a), var(--side-b));
+  opacity: 0.34;
+  transition:
+    transform 420ms var(--ease-out),
+    width 420ms var(--ease-out),
+    opacity 260ms var(--ease);
+}
+
+/* At -90deg the bar's 460% height becomes its horizontal reach and the width
+   becomes its vertical one, so 100% width covers the button completely. */
+.hero-actions .bx-primary:hover::before,
+.hero-actions .bx-primary:focus-visible::before {
+  transform: translate(-50%, -50%) rotate(-90deg);
+  width: 100%;
+  opacity: 1;
+}
+
+/* Reduced motion keeps the seam and drops the sweep. Snapping a full flood on
+   with no transition is worse than not animating at all. */
+@media (prefers-reduced-motion: reduce) {
+  .hero-actions .bx-primary::before {
+    transition: opacity 160ms linear;
+  }
+
+  .hero-actions .bx-primary:hover::before,
+  .hero-actions .bx-primary:focus-visible::before {
+    transform: translate(-50%, -50%) rotate(-58deg);
+    width: 9%;
+    opacity: 0.62;
+  }
+}
+
 .hero-actions {
   display: flex;
   flex-wrap: wrap;
