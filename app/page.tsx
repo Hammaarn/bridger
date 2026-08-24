@@ -896,8 +896,13 @@ function Gate({
             side-by-side buttons made the primary action argue with a link.
           */}
           <div className="hero-actions">
+            {/*
+              The label is wrapped because the sweep is a pseudo-element and a
+              bare text node cannot be lifted above it. See `.hero-actions
+              .bx-primary` in globals.css for what the sweep means.
+            */}
             <button type="button" className="bx-primary" onClick={onCreate}>
-              Open a new room
+              <span>Open a new room</span>
             </button>
           </div>
         </div>
