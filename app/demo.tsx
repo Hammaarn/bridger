@@ -130,9 +130,13 @@ export default function Demonstration() {
   return (
     <section className="bx-demo" aria-labelledby="demo-h">
       <header className="bx-demo-head">
+        {/* Same nameplate as the hero — this eyebrow was the second copy of
+            the pill the designer called out, and restyling only one of them
+            would have left the giveaway on the page. */}
         <span className="eyebrow">
-          <span className="led" />
-          no install · no account for them · nothing to configure
+          <span>no install</span>
+          <span>no account for them</span>
+          <span>nothing to configure</span>
         </span>
         <h2 id="demo-h">What the first five minutes look like</h2>
         <p className="lede">

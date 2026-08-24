@@ -545,13 +545,19 @@ input.bx-bad {
   flex-direction: column;
 }
 
+/* THE WORD AND THE TYPE NO LONGER SHARE A BAND.
+   Erik's brother, S#282: the BRIDGER forming out of the noise is the best thing
+   here and the copy is parked on top of it. `wordY` puts the word at 30%; this
+   heavy top padding pushes the centred content block down past it, so the two
+   occupy different air. The bottom padding shrinks to match -- the block used to
+   be lifted by a 210px bottom pad, which is precisely what put it over the word. */
 .hero {
   position: relative;
   isolation: isolate;
-  min-height: min(88vh, 740px);
+  min-height: min(90vh, 780px);
   display: grid;
   place-items: center;
-  padding: 64px 24px 210px;
+  padding: 290px 24px 86px;
   overflow: hidden;
   border-bottom: 1px solid var(--line);
 }
@@ -571,7 +577,7 @@ input.bx-bad {
   inset: 0;
   z-index: 1;
   background:
-    radial-gradient(46% 30% at 50% 32%, var(--ink-900) 0%, color-mix(in oklab, var(--ink-900) 72%, transparent) 62%, transparent 100%),
+    radial-gradient(52% 34% at 50% 63%, var(--ink-900) 0%, color-mix(in oklab, var(--ink-900) 74%, transparent) 60%, transparent 100%),
     linear-gradient(to bottom, var(--ink-900) 0%, transparent 22%, transparent 88%, var(--ink-900) 100%);
   pointer-events: none;
 }
@@ -584,28 +590,48 @@ input.bx-bad {
   text-align: center;
 }
 
+/* THE NAMEPLATE. A spec line off a piece of equipment: no capsule, no glowing
+   dot, hairline rules doing the separating. See the note in `page.tsx` for why
+   the pill went. */
 .eyebrow {
   display: inline-flex;
   align-items: center;
-  gap: 9px;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0;
   font-family: var(--font-mono-stack);
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 500;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: var(--text-dim);
-  border: 1px solid var(--line);
-  border-radius: 100px;
-  padding: 6px 14px;
-  margin-bottom: 26px;
+  color: var(--text-faint);
+  margin-bottom: 30px;
 }
 
-.eyebrow .led {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--seal);
-  box-shadow: 0 0 8px var(--seal);
+.eyebrow > span {
+  padding: 0 13px;
+  border-left: 1px solid var(--line-strong);
+  line-height: 1.2;
+}
+
+/* The demo's nameplate has no stamp, so its first fact IS the first child and
+   would otherwise open on a rule with nothing to its left. In the hero the
+   stamp is a <b>, so the first <span> is the SECOND child and keeps its
+   divider -- which is the separation the stamp wants. One selector, both. */
+.eyebrow > span:first-child {
+  border-left: 0;
+  padding-left: 0;
+}
+
+/* `alpha` is a STAMP, not a badge: square corners, filled, no glow. The page
+   states its own maturity, so the word should read as struck rather than lit. */
+.eyebrow .stage {
+  padding: 3px 8px;
+  border-radius: 2px;
+  background: var(--text);
+  color: var(--ink-900);
+  font-weight: 600;
+  letter-spacing: 0.2em;
 }
 
 .hero h1 {
@@ -622,11 +648,17 @@ input.bx-bad {
    machines, set in the face this product uses for machine-readable things. */
 .hero .lede {
   font-family: var(--font-mono-stack);
-  font-size: clamp(12.5px, 1.6vw, 14.5px);
-  line-height: 1.75;
-  letter-spacing: -0.01em;
-  color: var(--text-dim);
-  max-width: 52ch;
+  /* WAS clamp(12.5, 1.6vw, 14.5) AT --text-dim, AND IT FAILED ON A REAL SCREEN.
+     The designer marked this exact line unreadable. Mono at 12.5px, dimmed, over
+     a moving field is three legibility costs stacked on the one sentence that
+     says what the product IS. The face stays -- it is semantic here, a statement
+     about machines set in the machine face -- but the size, the weight of colour
+     and the tracking all move to full strength. */
+  font-size: clamp(14px, 1.55vw, 16.5px);
+  line-height: 1.7;
+  letter-spacing: 0.005em;
+  color: var(--text);
+  max-width: 54ch;
   margin: 0 auto 34px;
   text-wrap: balance;
 }
@@ -946,18 +978,6 @@ input.bx-bad {
 
 /* The two closing actions on the minted screen: one that does the whole thing,
    one for someone who does not want a link yet. */
-/* The stage, said out loud. Small and unshouty on purpose: this is a fact a
-   visitor is owed, not a badge asking to be admired. */
-.eyebrow .stage {
-  padding: 2px 7px;
-  border: 1px solid var(--line-strong);
-  border-radius: 999px;
-  color: var(--spark-solid, #f0c49c);
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  font-size: 10px;
-}
 
 .bx-close-actions {
   display: flex;

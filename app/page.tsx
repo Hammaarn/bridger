@@ -840,7 +840,14 @@ function Gate({
   return (
     <main className="gate" data-booting={booting ? "" : undefined}>
       <section className="hero">
-        <LetterGlitch className="bg-hero" word="BRIDGER" intensity={0.92} />
+        {/*
+          `wordY` 0.30, not the centre it was hardcoded at. The designer's note
+          was that the word forming out of the noise is the best thing on the
+          page and the type sits on top of it. Both moved: the word up to 30% of
+          the hero, the content block down (see `.hero` padding), so the one
+          moment this field exists for happens in clear air.
+        */}
+        <LetterGlitch className="bg-hero" word="BRIDGER" intensity={0.92} wordY={0.3} />
         <Nav over />
         <div className="hero-inner">
           {/*
@@ -852,10 +859,27 @@ function Gate({
             gateways for, one level up. The visitor should not have to be in the
             conversation to learn the stage.
           */}
+          {/*
+            NOT A PILL. Erik's brother, a UI/UX designer, S#282: the outlined
+            capsule with a glowing dot is *"a dead AI giveaway"*, and he is
+            right — it is the same shape this project already catalogued as the
+            AI-landing-page signature in its own product notes.
+
+            The replacement is a NAMEPLATE: no container, no dot, hairline rules
+            between the facts, `alpha` set as a square-cornered stamp. The vibe
+            this page is built for is INSTRUMENT, and equipment carries a spec
+            line, not a marketing capsule.
+
+            IT ALSO RETIRES A COLOUR VIOLATION FOR FREE. The dot was `--seal`,
+            which is reserved for provenance — a status LED is not a citation.
+            One of the three incidental `--seal` uses on Erik's open list goes
+            away by deleting the element that carried it.
+          */}
           <span className="eyebrow">
-            <span className="led" />
             <b className="stage">alpha</b>
-            append-only · two parties · no model called
+            <span>append-only</span>
+            <span>two parties</span>
+            <span>no model called</span>
           </span>
           <h1>Where your AI and theirs work it out.</h1>
           <p className="lede">

@@ -194,6 +194,20 @@ export interface LetterGlitchProps {
    * cap binds, which it does at 13 rows: raising it there changes nothing.
    */
   wordWidth?: number;
+  /**
+   * Where the word sits vertically, 0..1 of the field. Default 0.5 — dead
+   * centre, which is where it was hardcoded.
+   *
+   * Erik's brother, a UI/UX designer, S#282: he likes the word forming out of
+   * the noise, and *"that should be moved upwards a little bit while the text
+   * covering the nice background design should move down"*. He is describing a
+   * collision: the hero's headline is centred too, so the one moment the field
+   * is supposed to earn — noise resolving into BRIDGER — happens underneath the
+   * type, and the vignette that protects the type darkens the word as well.
+   * Separating them vertically is the whole fix, and it needs a knob here
+   * because the word's position was not a parameter at all.
+   */
+  wordY?: number;
 }
 
 export default function LetterGlitch({
@@ -206,6 +220,7 @@ export default function LetterGlitch({
   pointer = false,
   cellH = CELL_H,
   wordWidth = 0.62,
+  wordY = 0.5,
 }: LetterGlitchProps) {
   const ref = useRef<HTMLCanvasElement | null>(null);
   const burst = useRef(0);
@@ -349,7 +364,7 @@ export default function LetterGlitch({
       oc.textBaseline = "middle";
       oc.fillStyle = "#fff";
       oc.setTransform(kx, 0, 0, 1, 0, 0);
-      oc.fillText(word, cols / 2 / kx, rows / 2);
+      oc.fillText(word, cols / 2 / kx, rows * wordY);
       oc.setTransform(1, 0, 0, 1, 0, 0);
 
       const d = oc.getImageData(0, 0, cols, rows).data;
@@ -872,7 +887,7 @@ export default function LetterGlitch({
         window.removeEventListener("pointerdown", onPointerDown);
       }
     };
-  }, [word, glitchMs, intensity, showWord, pointer, cellH, wordWidth]);
+  }, [word, glitchMs, intensity, showWord, pointer, cellH, wordWidth, wordY]);
 
   return <canvas ref={ref} className={className} aria-hidden="true" />;
 }
