@@ -165,6 +165,8 @@ console.log("  " + "operation".padEnd(32) + "cmds".padStart(6) + "sent".padStart
 console.log("  " + "-".repeat(60));
 for (const r of results) {
   console.log("  " + r.label.padEnd(32) + String(r.calls).padStart(6) + kb(r.sent).padStart(11) + kb(r.recv).padStart(11));
+  const mix = Object.entries(r.byOp).sort((a, b) => b[1] - a[1]).map(([k, v]) => v + "x" + k).join("  ");
+  if (r.calls > 2) console.log("    " + mix);
 }
 
 console.log("\n  STORAGE — one room, 1,000 entries with 400-byte bodies");
