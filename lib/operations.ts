@@ -70,6 +70,7 @@ import {
   MAX_EMPTY_WAIT_STREAK,
   MAX_IDLE_STREAK,
   WASTE_BUDGET_BYTES,
+  SEQ_KEY,
   type Store,
   PLAN_COUNTER_KEY,
 } from "./store";
@@ -475,8 +476,25 @@ export async function opRead(
   args: { since?: number; types?: EntryType[]; ids?: string[]; limit?: number; markRead?: boolean },
 ) {
   const trail = await noteOp(ctx.store, ctx.token.id, "r");
+  /**
+   * ONE EXTRA COMMAND TO SAVE UP TO 750 KB. (S#281 Upstash audit)
+   *
+   * Reading the seq counter first lets `readEntries` fetch only the tail past
+   * the caller's cursor instead of the whole room. That is a deliberate trade
+   * of the cheap ceiling for the expensive one: commands are 500k/month and a
+   * room read was ONE of them, while bandwidth is 10 GB/month and the same read
+   * was 750 KB on a 1,000-entry room.
+   *
+   * Only when a cursor was given. A caller asking for everything gets the
+   * unbounded read it asked for, and pays nothing extra for the counter.
+   */
+  const latestSeq =
+    args.since !== undefined
+      ? Number((await ctx.store.get(SEQ_KEY(ctx.room.id))) ?? 0)
+      : undefined;
   const entries = await readEntries(ctx.store, ctx.room.id, {
     sinceSeq: args.since,
+    latestSeq,
     types: args.types,
     ids: args.ids,
     limit: args.limit,
