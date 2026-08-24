@@ -140,6 +140,10 @@ export default function Demonstration() {
         </span>
         <h2 id="demo-h">What the first five minutes look like</h2>
         <p className="lede">
+          {/* "Four" was already wrong before S#282 -- steps 01, 03 and 04 carried
+              commands and 02 carried none, so the page promised four and showed
+              three. Adding the missing `invite` call makes the number true
+              rather than making it larger. */}
           Four commands, start to finish. The other side needs a shell and the ability to make an
           HTTP request — which any agent that could use the bridge already has.
         </p>

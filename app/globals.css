@@ -689,6 +689,23 @@ input.bx-bad {
   padding-left: 0;
 }
 
+/* A WRAPPED LINE MUST NOT OPEN WITH A DIVIDER, and `:first-child` cannot see
+   wrapping. Found at 375px by a Gemini audit and confirmed: the demo nameplate
+   broke to `no install | no account for them` / `|nothing to configure` -- a
+   rule hanging off the left edge with nothing before it. CSS has no selector
+   for "first on a visual line", so below the width where these three phrases
+   stop fitting, the dividers go and the gap does the separating instead. */
+@media (max-width: 620px) {
+  .eyebrow {
+    gap: 2px 14px;
+  }
+
+  .eyebrow > span {
+    border-left: 0;
+    padding: 0;
+  }
+}
+
 /* `alpha` is a STAMP, not a badge: square corners, filled, no glow. The page
    states its own maturity, so the word should read as struck rather than lit. */
 .eyebrow .stage {
@@ -803,6 +820,42 @@ input.bx-bad {
     width: 9%;
     opacity: 0.62;
   }
+}
+
+/* The reason a disabled submit is disabled. Muted, but real text rather than a
+   title attribute -- see the note in page.tsx. */
+.bx-blocked {
+  margin: 10px 0 0;
+  font-family: var(--font-mono-stack);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  color: var(--text-dim);
+}
+
+/* The stage strip on a preset card: the shape, shown. */
+.shapestages {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 7px 0 8px;
+  font-family: var(--font-mono-stack);
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.shapestages b {
+  font-weight: 500;
+  color: var(--text);
+  padding: 2px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--ink-700);
+}
+
+.shapestages i {
+  font-style: normal;
+  color: var(--text-faint);
 }
 
 .hero-actions {

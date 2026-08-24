@@ -55,6 +55,18 @@
 export type RoomPhaseId = "plan" | "build";
 
 export interface RoomShape {
+  /**
+   * The stages, in order — what the preset actually IS.
+   *
+   * Erik, S#282, after a Gemini audit: the presets *"don't actually reveal
+   * first glance what and how they are shaped"*. Both cards described a
+   * FEELING ("start writing straight away") and neither showed the thing that
+   * differs, which is the stage list. A shape rendered as its stages cannot be
+   * misread as infrastructure, which is exactly how the auditor misread it.
+   */
+  readonly stages: readonly string[];
+  /** What the room will actually DO to the two agents in this shape. */
+  readonly effect: string;
   id: string;
   phase: RoomPhaseId;
   name: string;
@@ -68,6 +80,8 @@ export const ROOM_SHAPES: readonly RoomShape[] = [
     phase: "build",
     name: "Open record",
     blurb: "Start writing straight away. No stages, no prompting — just the shared record.",
+    stages: ["record"],
+    effect: "Neither side is prompted. Ask, answer and decide in any order.",
   },
   {
     id: "plan-first",
@@ -75,6 +89,9 @@ export const ROOM_SHAPES: readonly RoomShape[] = [
     name: "Plan first",
     blurb:
       "Both sides list what they can see and agree who owns each item, then the room moves to the work.",
+    stages: ["plan", "build"],
+    effect:
+      "While planning, both AIs are told to fill the board, claim owners and agree each item. The board takes the full width until you move on.",
   },
 ] as const;
 
