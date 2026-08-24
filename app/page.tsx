@@ -1552,27 +1552,86 @@ It names the commit it is running and answers without a token.`;
         <h1>{minted.room.topic}</h1>
         <p className="sub">
           room <code>{minted.room.id}</code> —{" "}
-          {isSolo ? "one connector per model, all yours" : "hand one connector to each side"}
+          {isSolo ? "one connector per model, all yours" : "keep yours, send theirs"}
         </p>
 
+        {/*
+          WHAT THIS BLOCK HAD TO FIX, and it was not styling.
+          Erik, S#282, looking at a real minted screen: a novice cannot tell
+          what any of these are for, and "Read-Only room token is exactly the
+          same as the models tokens". He is right on both counts, and the second
+          is the sharper one -- all three are `br_live_...`, identical in shape,
+          each under an identical `copy token` button. The ONLY thing separating
+          a write credential from a watch pass was a small grey word.
+
+          The role is not a privilege bug: `canWrite` is `role !== "viewer"` in
+          room-registry.ts, and a viewer is refused server-side. The bug is that
+          nothing on this screen tells you WHICH ONE YOU ARE HOLDING, so the way
+          to hand out the wrong one is simply to copy the wrong box.
+
+          So every card now leads with its JOB -- who it is for and what it does
+          -- before it shows a single character of the credential.
+        */}
+        <div className="bx-tokens-intro">
+          <h2>{isSolo ? `${minted.slots.length} connectors, all yours` : "Two connectors and a watch pass"}</h2>
+          <p className="fine">
+            A connector is the only thing an AI needs to reach this room — no account, no
+            install, no repository access. One connector is one seat, and it can write to the
+            record as that seat.
+          </p>
+        </div>
+
         <div className="bx-tokens">
-          {minted.slots.map((s) => (
-            <div key={s.side} className={`bx-token ${s.side === "a" ? "sideA" : "sideB"}`}>
-              <div className="bx-token-head">
-                <strong>{s.label}</strong>
-                <code>{s.code}</code>
+          {minted.slots.map((s) => {
+            // side "a" is `ownerToken` and side "b" is `peerToken`
+            // (app/api/rooms/route.ts:371-374), which are exactly the "Your
+            // side" and "Their side" fields the create form asked for. The
+            // screen has always known which one you keep; it never said so.
+            const mine = s.side === "a";
+            return (
+              <div key={s.side} className={`bx-token ${s.side === "a" ? "sideA" : "sideB"}`}>
+                <div className="bx-token-head">
+                  <strong>{s.label}</strong>
+                  <code className="bx-token-code">{s.code}</code>
+                  <span className={`bx-token-role ${isSolo ? "" : mine ? "mine" : "theirs"}`}>
+                    {isSolo ? "writes" : mine ? "yours" : "theirs"}
+                  </span>
+                </div>
+                <p className="bx-token-job">
+                  {isSolo ? (
+                    <>
+                      Paste into <strong>{s.label}</strong>. Anything it writes is signed{" "}
+                      <code>{s.code}</code> in the record.
+                    </>
+                  ) : mine ? (
+                    <>
+                      <strong>Keep this one.</strong> Paste it into your own AI — it reads the room
+                      and writes as <strong>{s.label}</strong>.
+                    </>
+                  ) : (
+                    <>
+                      <strong>This is theirs, not yours.</strong> Send the invite link below
+                      instead where you can — a link expires, a pasted token does not.
+                    </>
+                  )}
+                </p>
+                <code className="bx-token-val">{s.token}</code>
+                <CopyButton value={s.token}>copy connector</CopyButton>
               </div>
-              <code className="bx-token-val">{s.token}</code>
-              <CopyButton value={s.token}>copy token</CopyButton>
-            </div>
-          ))}
+            );
+          })}
           <div className="bx-token viewer">
             <div className="bx-token-head">
-              <strong>This browser</strong>
-              <code>read-only</code>
+              <strong>Watch in this browser</strong>
+              <span className="bx-token-role ro">reads only</span>
             </div>
+            <p className="bx-token-job">
+              <strong>Not a connector — do not send it to anyone as one.</strong> This tab is
+              already using it. It can read the record and nothing else: every write is refused,
+              and it draws on its own budget rather than the room&rsquo;s.
+            </p>
             <code className="bx-token-val">{minted.viewerToken}</code>
-            <CopyButton value={minted.viewerToken}>copy token</CopyButton>
+            <CopyButton value={minted.viewerToken}>copy watch pass</CopyButton>
           </div>
         </div>
 
@@ -1614,7 +1673,7 @@ It names the commit it is running and answers without a token.`;
               onClick={makeInvite}
               disabled={inviteBusy}
             >
-              {inviteBusy ? "minting…" : invite ? "new link" : "generate invite link"}
+              {inviteBusy ? "Minting…" : invite ? "New link" : "Generate invite link"}
             </button>
           </div>
 

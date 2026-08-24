@@ -1106,10 +1106,96 @@ input.bx-bad {
   border-left-color: var(--side-b);
 }
 
+/* THE WATCH PASS MUST NOT LOOK LIKE A CONNECTOR.
+   It used to differ by one grey word while carrying an identical `br_live_`
+   string under an identical button, which is how you hand out the wrong one.
+   Now it has no side hue at all -- the two connectors own the palette, this
+   one is deliberately colourless -- and it is dashed on every edge, which in
+   this system already reads as "derived, not handed over". */
 .bx-token.viewer {
+  border-color: var(--line-strong);
   border-left-color: var(--text-faint);
   border-style: dashed;
-  border-left-style: solid;
+  border-left-style: dashed;
+  background: color-mix(in oklab, var(--ink-800) 55%, transparent);
+}
+
+.bx-tokens-intro {
+  margin: 22px 0 12px;
+}
+
+.bx-tokens-intro h2 {
+  font-family: var(--font-mono-stack);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin: 0 0 7px;
+}
+
+/* The seat code stays -- it is the prefix every entry this seat writes will
+   carry -- but it stops competing with the label for the same weight. */
+.bx-token-code {
+  font-family: var(--font-mono-stack);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+}
+
+/* THE ROLE BADGE. Never `--seal`: colour on this page means provenance, and
+   "who owns this credential" is not provenance. The side hues already carry
+   exactly this meaning on the card's left border, so the badge reuses them
+   rather than introducing a third signal. */
+.bx-token-role {
+  margin-left: auto;
+  font-family: var(--font-mono-stack);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.bx-token-role.mine {
+  color: var(--side-a);
+  border-color: color-mix(in oklab, var(--side-a) 45%, transparent);
+  background: color-mix(in oklab, var(--side-a) 12%, transparent);
+}
+
+.bx-token-role.theirs {
+  color: var(--side-b);
+  border-color: color-mix(in oklab, var(--side-b) 45%, transparent);
+  background: color-mix(in oklab, var(--side-b) 12%, transparent);
+}
+
+.bx-token-role.ro {
+  border-style: dashed;
+  color: var(--text-faint);
+}
+
+/* The job line: what this credential is for, before any of its characters. */
+.bx-token-job {
+  margin: 0 0 11px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-dim);
+  max-width: 62ch;
+}
+
+.bx-token-job strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.bx-token-job code {
+  font-family: var(--font-mono-stack);
+  font-size: 11.5px;
+  color: var(--text-dim);
 }
 
 .bx-token-head {
@@ -2315,6 +2401,36 @@ input.bx-folder-name:focus {
   max-width: var(--measure);
   margin: 0 auto;
   padding: 8px 24px 88px;
+}
+
+/* The cursor-wake field. Same width/height note as `.bg-sheet`: a <canvas> is a
+   replaced element, so `inset: 0` alone leaves it at its intrinsic 300x150. */
+.bg-demo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+  /* Fades out at the edges so the band has no hard boundary against the
+     sections above and below, which do not carry a field. */
+  mask-image: linear-gradient(to bottom, transparent, #000 12%, #000 88%, transparent);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 12%, #000 88%, transparent);
+}
+
+/* The field's own box. Only the heading and the steps sit on it — the verify
+   block below is plain paragraphs with no card, and text directly on a churning
+   glyph field is unreadable. */
+.bx-demo-field {
+  position: relative;
+}
+
+/* Everything that is not the field sits above it — the same rule `.sheet` makes
+   for `.bg-sheet`, and for the same reason: without it the steps render behind
+   their own background and the accordion is unclickable. */
+.bx-demo-field > *:not(.bg-demo) {
+  position: relative;
+  z-index: 1;
 }
 
 /* The heading keeps a reading measure of its own even though the grid below

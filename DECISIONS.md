@@ -5,6 +5,100 @@ Append-only, newest first. **DECISIONS wins on direction** — where this file a
 
 ---
 
+## 2026-08-24 -- S#282 -- THE ROOM SHAPE IS "STREAM PLUS GAUGE", AND THE MINTED SCREEN NAMES WHAT EACH CREDENTIAL IS FOR
+
+**Source:** Erik, S#282, three directions put to him as rendered mockups:
+*"Roll with B, that s good"* -- then, looking at a real minted screen:
+*"This page needs to be easier for users to understand, a dummy should be able
+to instantly know what the tokens are meant for, also Read-Only room token is
+exactly the same as the models tokens"*, plus the capital G, plus a hover
+effect adapted from React Bits' `Cursor Wave`.
+
+### DIRECTION B -- CHOSEN, AND IT SHRANK TWICE UNDER READING
+
+Three room compositions were drawn: **A The Console** (rail + stream + drawer),
+**B The Instrument** (stream + a standing gauge), **C The Split Ledger** (two
+columns either side of the hash-chain spine). B is gaveled.
+
+**What the pitch got wrong, found by reading the room code rather than the
+mockup.** Four of the five proposed build items were already shipped:
+
+- the **card layer** -- `page.tsx` already puts the type verb, entry id, answer
+  ref and reopened badge on every bubble, and `Provenance` already renders BOTH
+  `checkedAgainst` and `basis` with the span badge and the permalink (S#280).
+- the **repeated mark** -- `AgentMark` exists and renders per turn.
+- the **composer hint** -- DOES NOT APPLY. The room view is read-only by design;
+  agents write through MCP/RPC. There is no composer to hint on. The honest
+  translation of that pattern is the `guidance` field, which is protocol, not UI.
+
+**And the mockup hid a cost:** as drawn, B's gauge REPLACED the rails, which
+would have deleted the evidence index -- the one panel that answers what the
+room's agreement is built on. The corrected shape keeps every panel and stands
+the gauge up on its own edge, because the collapsed rail stubs already carry
+counts on a 34px strip and are a proto-gauge.
+
+**So B's remaining work is: promote the right stub into a permanent gauge, keep
+the rails expandable, default to collapsed.** The chain head is NOT on the
+client (verified) -- that row needs the room API to carry it, or it waits.
+
+### THE MINTED SCREEN -- THE ROLE IS FINE, THE SCREEN WAS NOT
+
+Erik's report was that the read-only token is "exactly the same as the models
+tokens". **Checked before acting: it is not a privilege bug.** `TokenRole` is
+`participant | viewer | answerer`, `canWrite` is `role !== "viewer"`
+(`lib/room-registry.ts`), and a viewer is refused server-side with its own rate
+ceiling.
+
+**The defect is that nothing on the screen told you which one you were holding.**
+All three rendered as an identical `br_live_...` string under an identical
+`copy token` button, separated by one small grey word. The way to hand out the
+wrong credential was to copy the wrong box.
+
+**Shipped:** every card now leads with its JOB before showing a character of the
+credential -- `yours` / `theirs` / `reads only`, a sentence saying who it is for
+and what it can do, and distinct verbs (`copy connector` vs `copy watch pass`).
+The watch pass loses its side hue entirely and is dashed on every edge. Side "a"
+is `ownerToken` and side "b" is `peerToken` (`app/api/rooms/route.ts:371-374`) --
+exactly the "Your side"/"Their side" the create form asked for, so the screen
+always knew which one you keep and simply never said it.
+
+**STILL OPEN, and it is Erik's:** all three are still literally `br_live_...`.
+A self-describing prefix (`br_view_...`) would make the watch pass legible
+wherever it travels -- a chat log, a config file, a screenshot -- rather than
+only on this screen. That touches minted credentials and the auth path, so it is
+a decision, not a tidy-up.
+
+### THE CURSOR WAKE -- REACT BITS MINED, NOT DEPENDED ON
+
+This also answers the open React Bits decision: **ideas, never the dependency.**
+`/api/about` instructs every partner to run
+`node -p "Object.keys(require('./package.json').dependencies)"` and expect SEVEN
+entries. A motion library added to decorate a landing page would make the trust
+page's own verification instruction false.
+
+Erik's adaptation is the right one -- glitched glyphs rather than coloured
+shapes -- and it reuses the field the page already runs. Implemented as a SPARK
+per cell the pointer crosses, so it inherits the dirty-cell repaint the whole
+component is built around; a continuous influence field would have been the
+version that repaints ~10k glyphs a frame.
+
+**Verified with a negative control, because a dead effect and a subtle one
+photograph identically:** mean luminance at the cursor rose 3.9 -> 38.5 while a
+control box elsewhere in the same field moved -0.14. Local, not global.
+
+**And the first version was wrong in a way the measurement could not see.** It
+covered the whole `.bx-demo` section, putting a churning glyph field behind the
+"Don't trust this page" checks -- plain paragraphs with no card, so the text sat
+ON the noise. Caught by looking at the capture. The field is now scoped to the
+heading and the steps, which carry their own solid cards.
+
+**Also:** "generate invite link" -> "Generate invite link". Not a preference --
+the other primary button on that same screen already read "Generate link & open
+the room".
+
+---
+---
+
 ## 2026-08-24 -- S#281g -- C3b: THE LISTENER, AND THE CHEAPEST QUESTION IN THE PRODUCT
 
 **Source:** Erik, S#281: *"proceed with the C3b, we want to avoid as much usage
