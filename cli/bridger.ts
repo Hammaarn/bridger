@@ -967,6 +967,145 @@ async function cmdWait() {
   }
 }
 
+
+/**
+ * C3b — THE LISTENER. The whole point is that it costs the model NOTHING.
+ *
+ * A session waiting for the far side has only bad options today. `wait` blocks
+ * for 45 seconds and returns "nothing yet", which is a turn: bytes enter the
+ * model's context, and doing it all night is a thousand turns spent learning
+ * nothing. `status` is worse per call.
+ *
+ * This is a PROCESS, not a turn. It sleeps on the operator's own machine, where
+ * sleeping is free, and speaks exactly once — when something has actually
+ * arrived. A thousand empty polls become one line that says "they replied".
+ *
+ * ── THE HONEST LIMIT, STATED RATHER THAN GLOSSED ─────────────────────────
+ *
+ * There is no interrupt into a language model. Nothing here can make a session
+ * NOTICE anything; bytes reach a model only when a turn happens. What this
+ * removes is the thousand wasted turns, not the last one. `--exec` is the hook
+ * for whatever wakes your session — a notification, a file write, a webhook.
+ *
+ * ── AND IT IS THE CHEAP PATH FOR THE DATABASE TOO ────────────────────────
+ *
+ * It polls `/api/since`, which answers "has anything happened" for TWO Redis
+ * commands where `wait` spends about sixteen. Eight hours of listening:
+ *
+ *     bridger wait --follow (45s server long-poll) .... ~10,240 commands
+ *     bridger listen (60s local sleep, /api/since) ....     ~960
+ *
+ * Against a 500,000/month free tier that is 20% of the month against 2%.
+ */
+async function cmdListen() {
+  const server = arg("--server", readLocalRoomSafe()?.server ?? DEFAULT_SERVER).replace(/\/$/, "");
+  const token = requireToken();
+  const exec = arg("--exec", "");
+  const once = process.argv.includes("--once");
+
+  /**
+   * Sleep between polls. Clamped to the server's own floor rather than trusted:
+   * a `--interval 1` would be refused by the rate limiter and the operator
+   * would see a broken listener instead of a corrected one.
+   */
+  const MIN_INTERVAL = 15;
+  const wanted = Number(arg("--interval", "60"));
+  const interval = Math.max(MIN_INTERVAL, Number.isFinite(wanted) ? wanted : 60);
+  if (wanted < MIN_INTERVAL) {
+    console.error(
+      `  --interval ${wanted}s is below the ${MIN_INTERVAL}s floor this endpoint allows; using ${interval}s.`,
+    );
+  }
+
+  // Start from where the record is NOW, not from zero: a listener started
+  // mid-conversation should report what happens NEXT, not replay the history
+  // its operator has already read.
+  let seq = 0;
+  try {
+    const res = await fetch(`${server}/api/since?seq=0`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    seq = Number(res.headers.get("X-Bridger-Seq") ?? 0) || 0;
+  } catch (e) {
+    console.error(`
+  Could not reach ${server}: ${(e as Error).message}
+`);
+    return process.exit(EXIT_RETRYABLE);
+  }
+
+  console.error(
+    `  Listening on ${server} from seq ${seq}, one poll every ${interval}s ` +
+      `(~${Math.round((2 * 3600) / interval)} Redis commands/hour). Ctrl-C to stop.`,
+  );
+
+  let consecutiveFailures = 0;
+  for (;;) {
+    await new Promise((r) => setTimeout(r, interval * 1000));
+
+    let res: Response;
+    try {
+      res = await fetch(`${server}/api/since?seq=${seq}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch (e) {
+      // A network blip must not kill an overnight listener. Back off, say so
+      // ONCE rather than every cycle, and keep going.
+      consecutiveFailures++;
+      if (consecutiveFailures === 1) {
+        console.error(`  Lost contact with ${server} (${(e as Error).message}). Retrying.`);
+      }
+      if (consecutiveFailures > 20) {
+        console.error("  Twenty consecutive failures. Stopping rather than hammering.");
+        return process.exit(EXIT_RETRYABLE);
+      }
+      continue;
+    }
+
+    if (consecutiveFailures) {
+      console.error("  Contact restored.");
+      consecutiveFailures = 0;
+    }
+
+    // 204: nothing new. The common answer, and it must stay silent — a listener
+    // that prints on every quiet poll is a listener nobody leaves running.
+    if (res.status === 204) continue;
+
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      console.error(`
+  ${server} refused the poll (${res.status}). ${body.slice(0, 300)}
+`);
+      return process.exit(res.status === 429 ? EXIT_RETRYABLE : 1);
+    }
+
+    const body = (await res.json()) as { latestSeq?: number };
+    const latest = Number(body.latestSeq ?? 0);
+    if (!latest || latest <= seq) continue;
+
+    // Only NOW does anything cost a normal call: fetch what actually arrived.
+    const data = await rpc("read", { since: seq });
+    seq = latest;
+
+    if (data?.entries?.length) {
+      console.log(`
+${renderEntries(data.entries)}
+`);
+      if (exec) {
+        const { spawn } = await import("node:child_process");
+        // Detached and inherited: whatever wakes the operator's session is
+        // their business, and a listener must not die because it failed.
+        try {
+          spawn(exec, { shell: true, stdio: "inherit" });
+        } catch (e) {
+          console.error(`  --exec failed: ${(e as Error).message}`);
+        }
+      }
+    }
+
+    if (once) return;
+  }
+}
+
 async function cmdJoin() {
   const token = process.argv[3];
   if (!token?.startsWith("br_live_")) die("Usage: bridger join br_live_... --server <url>");
@@ -1220,6 +1359,12 @@ const USAGE = `
     reopen <QID> --why ".."
     signoff [--note ".."]
     wait [--timeout 45] [--follow]  block in the SHELL, not in your context
+    listen [--interval 60] [--exec "cmd"] [--once]
+                                    RUN THIS OVERNIGHT. A process, not a turn:
+                                    sleeps locally and speaks only when something
+                                    arrives. Costs your model zero tokens, and the
+                                    bridge ~2 Redis commands per poll against
+                                    wait's ~16. 8h listening: ~960 vs ~10,240.
 
     Add --json to any of them for machine-readable output.
     Exit codes: 0 ok - 1 TERMINAL, do not retry - 75 retryable.
@@ -1262,6 +1407,7 @@ async function main() {
     case "reopen": return cmdReopen();
     case "signoff": return cmdSignoff();
     case "wait": return cmdWait();
+    case "listen": return cmdListen();
     default:
       console.log(USAGE);
       process.exit(process.argv[2] ? 1 : 0);

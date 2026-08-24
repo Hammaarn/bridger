@@ -656,6 +656,29 @@ export interface AuthContext {
   presentedToken: string | null;
   now: Date;
   /**
+   * Override the per-minute ceiling. Absent takes the role's own.
+   *
+   * Exists for `/api/since`, which is held to a much TIGHTER limit than the
+   * interactive routes — it is for patient listeners, and saying so in the
+   * limit is more honest than allowing an interactive rate on a route whose
+   * whole argument is that its caller can wait.
+   */
+  rateCeiling?: number;
+  /**
+   * Skip the bookkeeping that exists to advise a looping AGENT.
+   *
+   * Drops the daily counters, the room-daily counter, the op trail and the idle
+   * streak — roughly four Redis commands per call — leaving the kill switch,
+   * the token/room reads (cached) and the per-minute limiter. That is what
+   * makes a poll cost two commands instead of six, and at ten thousand polls a
+   * night the difference is the free tier.
+   *
+   * ONLY for a route that does no work worth advising on. A `minimal` write
+   * would be a hole: the trail and the streak are how a runaway gets told to
+   * stop, and the daily cap is how it gets stopped.
+   */
+  minimal?: boolean;
+  /**
    * Whether this call spends budget.
    *
    * A request passes through authorisation TWICE — once in the outer budget
@@ -754,10 +777,24 @@ export async function authorize(store: Store | null, ctx: AuthContext): Promise<
       // the loop this limit exists to stop cannot happen on it. See
       // `VIEWER_RATE_LIMIT_PER_MINUTE` for the incident that found this.
       const ceiling =
-        token.role === "viewer" ? VIEWER_RATE_LIMIT_PER_MINUTE : RATE_LIMIT_PER_MINUTE;
+        ctx.rateCeiling ??
+        (token.role === "viewer" ? VIEWER_RATE_LIMIT_PER_MINUTE : RATE_LIMIT_PER_MINUTE);
       if (perMinute > ceiling) return { ok: false, reason: "rate-limited" };
 
       const day = utcDay(ctx.now);
+      /**
+       * THE MINIMAL PATH STOPS HERE, and everything below is what it skips.
+       *
+       * The per-minute limiter above has already run, so a runaway is bounded.
+       * What follows -- the daily counters, the room aggregate, the op trail
+       * and the idle streak -- is bookkeeping that exists to ADVISE a looping
+       * agent and to protect a caller's model quota. A listening daemon has
+       * neither problem: it is not looping by mistake, and it burns no tokens
+       * at all. Charging it four extra Redis commands to record that is the
+       * cost this route was built to remove. See `app/api/since/route.ts`.
+       */
+      if (ctx.minimal) return { ok: true, token, room };
+
       const dayKey = USAGE_KEY(token.id, day);
       const perDay = await store.incr(dayKey);
       // 48h so a counter always outlives its own UTC day whenever it started;

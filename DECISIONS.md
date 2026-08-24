@@ -5,6 +5,92 @@ Append-only, newest first. **DECISIONS wins on direction** — where this file a
 
 ---
 
+## 2026-08-24 -- S#281g -- C3b: THE LISTENER, AND THE CHEAPEST QUESTION IN THE PRODUCT
+
+**Source:** Erik, S#281: *"proceed with the C3b, we want to avoid as much usage
+of the Redis commands as possible so we don't run out of the free usage limits.
+That will block everything in an instant, we need to spare the commands we have
+as much as possible."*
+
+**Shipped:** `GET /api/since` (two Redis commands) and `bridger listen` (a
+process, not a turn).
+
+### THE CORRECTION THAT DECIDED THE DESIGN
+
+S#281b recorded that *"a daemon that sleeps locally and short-polls is WORSE for
+us than one holding a long `wait`"*, from an arithmetic comparing 30-second
+client polls (~6,720 commands per night) against 300-second server blocks
+(~4,608).
+
+**That was true for the interval it happened to test and false as a general
+claim.** The crossover sits near 45-50 seconds, because a local sleep costs
+ZERO commands while server-side blocking spends one every few seconds. Past that
+interval, sleeping wins -- and with a purpose-built endpoint it wins by 10x.
+
+Eight hours of one side listening, measured against the constants:
+
+| approach | Redis commands |
+|---|---|
+| `wait --follow`, 45s server long-poll (today) | **10,240** |
+| server long-poll at 300s, if `maxDuration` were raised | 4,608 |
+| local sleep 60s, hitting `/api/rpc` | 2,880 |
+| **local sleep 60s, hitting `/api/since`** | **960** |
+
+Against a confirmed 500,000/month free tier, that is one room's overnight
+listener costing **2% of the month instead of 20%**.
+
+### WHAT MAKES THE ROUTE CHEAP IS WHAT IT REFUSES TO DO
+
+A poll is authorised and answered in **two commands**, measured end to end and
+pinned by a test rather than described: one rate-limit `incr` (the kill switch,
+token and room are all cached since S#281) plus one `GET` of the seq counter.
+
+It skips the audit row, the op trail, the idle streak, the room-activity tally
+and the daily counters -- roughly four commands. Each omission is safe for the
+same reason: **that bookkeeping exists to advise a looping AGENT and to protect
+a caller's model quota, and a daemon has neither problem.** It is not looping by
+mistake, and it burns no tokens at all, which is the entire point of C3b.
+
+**A quiet poll returns 204 with an empty body.** It is the common answer by a
+wide margin, so it is the one that must cost the least -- in commands, in bytes,
+and in the operator's attention.
+
+### HOW A RUNAWAY IS STILL BOUNDED, since the daily cap is gone
+
+By a much TIGHTER per-minute ceiling: **4/minute**, against 20 on the
+interactive routes. Saying so in the limit is more honest than allowing an
+interactive rate on a route whose whole argument is that its caller can wait.
+Verified live: the third poll inside a minute is refused with 429.
+
+That is a deliberate trade of one bound for another, and it is only sound
+because the per-minute limiter is enforced BEFORE the minimal path
+short-circuits.
+
+### THE HONEST LIMIT, STATED RATHER THAN GLOSSED
+
+**There is no interrupt into a language model.** Nothing here makes a session
+NOTICE anything; bytes reach a model only when a turn happens. What C3b removes
+is the thousand wasted turns, not the last one. `--exec` is the hook for
+whatever wakes the operator's session -- a notification, a file write, a
+webhook -- and choosing that is theirs.
+
+### LANGUAGE: TypeScript, and Python remains open
+
+Built into the existing `cli/bridger.ts` because it ships with the tool the
+partner already installs, adds **zero dependencies**, and reuses the auth,
+rendering and exit-code conventions the CLI already has. A standalone Python
+version is a reasonable thing to want later -- it would be maybe eighty lines
+against `/api/since` -- but it would be a second thing to keep in sync for no
+capability the first one lacks.
+
+**Verified by running it**, not inferred: the daemon started from the CURRENT
+seq (a listener joining mid-conversation reports what happens next, not the
+history its operator already read), slept locally, woke when the far side wrote,
+rendered the entry with containment markers intact, and printed nothing at all
+on the quiet polls in between.
+
+---
+
 ## 2026-08-23 -- S#281b -- THE FREE TIER IS CONFIRMED, AND THE OVERNIGHT LISTENER IS THE ONLY THING THAT THREATENS IT
 
 **Source:** Erik, S#281: *"we are using the free tier on Upstash for this

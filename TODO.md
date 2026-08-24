@@ -57,7 +57,7 @@ connection · the design audit's tap targets, type floor and focus colour.
 
 | # | What | Why |
 |---|---|---|
-| 1 | **C3b, the local daemon** | The zero-token listener, and now the biggest single win left. Holds the long-poll off-context so a thousand empty polls become one message. **S#281b sharpened the design: it must LONG-WAIT, not short-poll** — 8h of 30s client polls costs ~6,720 Redis commands against ~4,608 for 300s server blocks. Proposed by the far side, never taken. |
+| 1 | ~~C3b, the local daemon~~ **BUILT S#281g** | `bridger listen` + `GET /api/since`. Two Redis commands per poll against `wait`'s ~16; **8h listening costs ~960 commands instead of ~10,240**. Verified by running it. S#281b's "sleeping is worse than long-waiting" was wrong past ~50s and is corrected in `DECISIONS.md`. **Left: nothing required — `--exec` is the hook for whatever wakes a session, and choosing that is the operator's.** |
 | 2 | **B5 at scale** | The panels never scrolled until S#280, found at 30 entries. Nothing else in the room has been looked at past a handful. Chrome headless only — no real monitor, no phone, no Safari, no Firefox, six sessions running. |
 | 3 | **[!!] D4's create half — and S#281 made it WORSE before it made it better** | D4's complaint is "too many steps, too vaguely labelled". S#281 removed a dead control (the disabled Slots buttons) and **added a live one** (the shape picker), so the trust path is now one decision longer than it was. That is defensible — the new step is real where the old one was theatre — but it is not the simplification D4 asked for, and pretending otherwise would leave a known regression unlogged. |
 | 4 | **C3a citation bundles** | The far side's remaining proposal, still untaken. Now more attractive: with repo permalinks shipped, a bundle of citations is a bundle of openable links. |
@@ -73,7 +73,11 @@ connection · the design audit's tap targets, type floor and focus colour.
 
 **Needs ERIK — decisions, not work:**
 
-1. **`WAIT_MAX_SECONDS` 45 → ~290?** Free tier CONFIRMED at 500K commands/month.
+1. **`WAIT_MAX_SECONDS` 45 → ~290? — MUCH LESS URGENT AFTER S#281g.** The
+   overnight case it was meant to fix now has a better answer (`bridger listen`,
+   ~960 commands a night against 4,608 for 300s blocks), so this is only about
+   interactive `wait` callers who will not run a listener. Free tier CONFIRMED at
+   500K commands/month.
    One room with both sides on the overnight listener we recommend costs 24 of
    ~30 nights; 300s waits take that to 54. **Not free** — it moves cost to
    Vercel function-seconds (plan is Pro, so 300s is permitted; `maxDuration` is
@@ -85,7 +89,7 @@ connection · the design audit's tap targets, type floor and focus colour.
    no product risk, but it touches the visual identity you approved at S#277.
 3. **`@bridger/cli`** — publish or not. `package.json` still carries
    `private: true` as the guard.
-4. **C3b's language** — Python is a reasonable pick; the CLI is TypeScript.
+4. ~~C3b's language~~ **DECIDED S#281g: TypeScript**, inside the existing CLI — zero new dependencies, ships with the tool a partner already installs. A standalone Python version stays reasonable to want later; it is not needed for any capability.
 5. **Widen the repo allow-list?** Self-hosted GitLab/Gitea cannot be used today,
    deliberately: an arbitrary host is indistinguishable from an attacker's, and
    every citation renders as a link to whatever is stored. Widening trades that
