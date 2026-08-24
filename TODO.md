@@ -56,12 +56,109 @@ banners that said a partner question was unanswered.
 
 | # | What | Why |
 |---|---|---|
+| **U1** | **[!!] MINIMISE UPSTASH USAGE OVERALL — Erik's, and the biggest open lever** | S#281 fixed the two paths that were bleeding; this is the deliberate pass over everything else. A post still costs **10 commands, four of them `expire`s refreshing a 30-day TTL**. The largest unknown is whether Upstash bills an `EVAL`/pipeline as one command or as its contents — if one, the whole write path collapses. **Full breakdown, ranked, with what needs verifying first: section U1 below.** |
 | 10 | **[!!] Verify the citation permalink RENDERS** | The one thing built in S#281 and never seen. The class ships in the built client bundle and `/api/export` carries `checkedUrl`, but agent-browser hung repeatedly and the anchor was never observed drawn. One look settles it. |
 | 11 | **`status` reads every entry in the room** | 74.6 KB on a 100-entry room, because `unread` is computed across the whole list. The incremental-read fix applies; it is bigger surgery because `totalEntries` and the open-question derivation both want the full set. |
 | 12 | **B5 at scale** | The panels never scrolled until S#280, found at 30 entries. Nothing else in the room has been looked at past a handful. Chrome headless only — no real monitor, no phone, no Safari, no Firefox. |
 | 13 | **D4's create half — and S#281 made it longer, not shorter** | D4 asks for FEWER steps. S#281 removed a dead control (the disabled Slots buttons) and added two live ones (room kind, room shape), so the trust path is now two decisions longer. Defensible — the new steps are real where the old one was theatre — but it is not what D4 asked for, and it is logged rather than counted as progress. |
 | 14 | **C3a citation bundles** | The far side's remaining proposal. More attractive now: with permalinks shipped, a bundle of citations is a bundle of openable links. |
 | 15 | **F4 housekeeping** | Room `d437fff5b423` still needs a fresh invite code. |
+
+---
+
+## U1. MINIMISE UPSTASH USAGE OVERALL — Erik, S#281, and he is right that there is more
+
+> **Erik:** *"look into how we can minimize the overall usage of Upstash for our
+> product, I am very certain that there are some clever and smart solutions we
+> can use to reduce the overall usage."*
+
+S#281 cut the two paths that were obviously bleeding — the idle wait (51 → 16
+commands) and the incremental read (749.6 KB → 0.8 KB). **Neither was a clever
+solution; both were a path doing something silly.** This item is the deliberate
+pass over everything else, and the baseline is measured rather than guessed:
+
+```
+node scripts/upstash-cost.mjs
+```
+
+| operation | commands | breakdown |
+|---|---|---|
+| post one entry | **10** | 4×expire · 2×incr · 1×set · 1×lrange · 1×rpush · 1×ltrim |
+| `writeAudit` one row | **3** | 1×lpush · 1×get · 1×setex |
+| status | 2 | + 74.6 KB on a 100-entry room |
+| `/api/since` poll | 2 | the floor, already |
+| incremental read | 1 | |
+
+### A. KNOWN WINS — no verification needed, just work
+
+**A1. `touchRoom` spends FOUR `expire`s on every write to refresh a 30-day TTL.**
+That is 40% of the cost of a post, and it is refreshing a deadline a month away.
+Refreshing it once an hour would be indistinguishable in behaviour. Same shape
+as the audit `LTRIM` fix at S#281 — amortise it, do not remove it. **Write path
+10 → ~6 commands.**
+
+**A2. `writeAudit` costs 3 commands per call, and it is a LOG.** One `lpush`
+plus the room-activity read-modify-write. The tally could be an `incr` on a
+counter rather than a JSON round-trip, or be amortised the same way. **~2
+commands saved on every logged call.**
+
+**A3. `status` still reads every entry** (74.6 KB / 100 entries) because
+`unread` is computed across the whole list. `llen` gives `totalEntries` for one
+command, and the incremental read gives the rest. Already filed as item 11.
+
+### B. NEEDS VERIFICATION FIRST — and this is the big one
+
+**B1. HOW DOES UPSTASH BILL `EVAL` AND `pipeline`?** The SDK exposes `eval`,
+`evalsha`, `pipeline` and `multiExec` — checked in
+`node_modules/@upstash/redis`, not assumed. The question is whether a pipeline
+of ten counts as **ten commands or one**, and whether an `EVAL` performing ten
+operations counts as **one or ten**.
+
+**If EVAL bills as one, the entire write path collapses to 1-2 commands** and
+this is the largest single lever available anywhere in the product. If it bills
+per inner operation, it buys latency and nothing else.
+
+**Do not build on it until it is measured against a real database** — one script
+that runs a known pipeline and reads the console's command counter before and
+after. Asserting the favourable answer without checking is exactly the failure
+this project keeps catching, and here it would mean rewriting the hot path on a
+guess.
+
+### C. STRUCTURAL — bigger, and each needs a decision
+
+**C1. Fold the room's three keys into one hash.** `ROOM_KEY`, `CONTRACT_KEY` and
+`PLAN_KEY` are three separate `get`s that are almost always wanted together
+(`/api/export` fetches all three). One `HGETALL` is one command. Costs: every
+writer must switch to `HSET`, and the parse paths change.
+
+**C2. Compress entry bodies.** Bodies are capped at 20,000 characters and are
+plain text, which gzips to roughly a third. This is the only idea here that
+attacks **storage and bandwidth at once**, and bandwidth is the ceiling that
+binds first. Costs: CPU on read and write, and the stored record stops being
+human-readable in the Upstash console — which matters, because *"read the server
+that is asking you to trust it"* is the product's argument.
+
+**C3. An in-process seq cache with a 2-3 second TTL.** Concurrent pollers on one
+warm serverless instance currently each spend their own `get`. Same pattern as
+the kill-switch cache at S#281, same asymmetric-safety reasoning required.
+
+**C4. Does the audit log belong in Redis at all?** It is an append-only log
+costing commands on the hot path, in a store metered by command. Vercel Blob or
+a log drain may be a better home. This is a "what is this store FOR" question,
+not a micro-optimisation.
+
+### THE RULE THIS ITEM MUST NOT BREAK
+
+**Any change that makes a path cheaper for the caller must state what it costs
+the database, and vice versa.** Two of S#281's savings were only safe because
+the ordering was right: the poll backoff landed BEFORE the waste-budget raise,
+and the incremental read spends one extra command to save 750 KB. A saving on
+one metered value that quietly costs another is not a saving.
+
+**And measure before and after, on the real paths.** Every number in this item
+came from `scripts/upstash-cost.mjs` instrumenting the actual store interface.
+None of it came from reading the code and reasoning about it — which is how the
+bandwidth ceiling went unnoticed through an entire session of Redis work.
 
 ---
 
