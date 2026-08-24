@@ -459,6 +459,35 @@ because `bridger pull` writes the room's typed, cited, chained record to disk.
 has `Verified By: 4 agents` and no `valid-until`, which is the rot above with a
 confidence badge on it.
 
+### THE SPLIT: A PYTHON ARM CAPTURES, JUDGEMENT REFRAMES
+
+> Erik, S#282 close: *"Perhaps we can set up the capturing of the failure modes
+> with Python automations?"*
+
+Right instinct, and it settles part of the fork above. The two halves are not
+the same kind of work:
+
+**DETERMINISTIC, and a script should own it** -- detecting the failure/fix pair
+(a command that failed and then succeeded), extracting and NORMALISING the error
+signature, hashing it for dedupe, stamping the version window from the lockfile,
+appending the raw instance. None of that needs a model, and a model would do it
+worse and at cost.
+
+**JUDGEMENT, and a script cannot own it** -- the reframing. Turning one instance
+into the broader note that transfers is exactly the step Erik specified, and it
+is not a transformation of the text; it is a claim about which parts were
+incidental. That is the half a model or a human does.
+
+**This is the toolkit's own `arms` pattern** (`mcp-skills-server/TOOLKIT.md`):
+the script does the mechanical floor at ~0 tokens, judgement stays with the
+mind. It also lands on `deterministic-first-ai-as-augmentation` -- build the
+zero-AI version first, AI only at the edge.
+
+**So the buildable v1 is a capture script with an empty `general:` field**, and
+the registry is honest about which entries have been reframed and which are
+still raw instances. An unreframed entry is not a failure of the system; a raw
+instance silently PRESENTED as general is.
+
 ### THE FALSIFIABLE TEST, before tier 2 or 3 is discussed again
 
 **Does a failure mode captured in one codebase help in another more often than
