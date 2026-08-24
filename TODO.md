@@ -57,6 +57,11 @@ not bought through Vercel. Nothing in the repo has been repointed, deliberately:
 aiming docs at a host that does not serve is invariant 15 failing in the other
 direction.
 
+**The name is GAVELED** (`DECISIONS.md` 2026-08-25, S#282c). It was chosen for
+the destination rather than the current state -- a nexus is a HUB, which two
+parties in one room is not, and many rooms with accumulated knowledge is.
+Revisit only if the product gets big; $10 against $100+/yr settles it until then.
+
 **What Erik does:** add the domain in Vercel (or `vercel domains add
 bridger.nexus`), then set the DNS records the registrar side needs.
 
@@ -370,6 +375,21 @@ GitHub", on the page whose job is to be trusted.
 - Room `d437fff5b423` (Bridger x Antigravity) holds a contract and three seeded
   questions and is waiting on a fresh invite code — the S#277 one expired
   unredeemed. `npm run bridger -- invite --side b --ttl-minutes 60 --token-days 7`.
+
+## A9. TWO DIRECTIONS FROM S#282, parked with reasoning
+
+Full argument in `DECISIONS.md` 2026-08-25 (S#282c). Both Erik's.
+
+- **The Assist channel** — AIs assisting each other across a boundary. The
+  mechanism already exists (`answerer` = a two-tool ping+answer token). What is
+  unsettled is whether an ASYMMETRIC exchange still wants a hash-chained joint
+  record. Settle that before building; if it does not, this is F5's mistake in
+  a new costume.
+- **The KB Bank** — rooms collected into downloadable knowledge bases. Blocked
+  on a consent model harder than `purge`'s, because publishing cannot be undone.
+  **The free first step is `bridger pull`**, which already writes a room's typed,
+  cited, chained record to disk for the parties who own it. Shape that before
+  anything aggregates across rooms.
 
 ## A7. Parked, with reasoning — see the lanes further down
 

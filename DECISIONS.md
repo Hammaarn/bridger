@@ -5,6 +5,69 @@ Append-only, newest first. **DECISIONS wins on direction** — where this file a
 
 ---
 
+## 2026-08-25 -- S#282c -- THE NAME IS SETTLED, AND IT WAS NAMED FOR THE DESTINATION
+
+**Source:** Erik, S#282, after I argued against the domain and he answered.
+
+### GAVELED: `bridger.nexus`
+
+I put the case against it -- that `.nexus` is a maximalist word against a product
+whose credibility comes from understatement, that a novelty gTLD nudges the wrong
+instinct in a reader who has just been handed a bearer token by a stranger, and
+that "bridger" and "nexus" say the same thing twice.
+
+**Two of those are answered and one of them exposed a flaw in how I argued it.**
+
+1. **I recommended `.dev`/`.tools` without ever pricing them.** They are $100+/yr
+   against $10. On a pre-revenue alpha that is not a close call, and making a
+   recommendation while never checking the one constraint that binds is the same
+   error this session made twice on the page: reasoning about something I could
+   have measured.
+2. **The redundancy argument was wrong because I was naming the product as it is,
+   and Erik is naming it for where it goes.** A nexus is a HUB of connections.
+   Two parties in one room is not a hub; many rooms, accumulated knowledge and
+   cross-boundary assistance is. **A name for a destination ages better than a
+   name for a state** -- and if the destination arrives, "nexus" becomes the
+   accurate half rather than the echo.
+
+**Revisit only if the product gets big** -- Erik's own framing, and the right
+trigger. Not before.
+
+### TWO DIRECTIONS THAT CAME WITH IT, recorded so they are not re-derived
+
+Both are Erik's, both are PARKED with reasoning rather than promoted.
+
+**1. THE ASSIST CHANNEL -- closer than it looks, because the mechanism exists.**
+`bridger answerer --side b` already mints a two-tool token (ping + answer,
+nothing else, ~318 tokens of standing schema against ~1,800). That is already an
+AI whose whole presence in a room is to answer another AI.
+
+What is missing is not machinery, it is the RELATIONSHIP. The record today
+assumes two parties integrating SYMMETRICALLY; assist is ASYMMETRIC -- one asks,
+one knows. **The question to settle before building: does an asymmetric exchange
+still want a hash-chained joint record?** If yes, this is small and it fits the
+existing two-ness cleanly (asker/answerer is exactly what the role encodes). If
+no, it is a second product wearing Bridger's transport, and that is the F5
+mistake in a new costume.
+
+**2. THE KB BANK -- the bigger one, and the risk is the product's own foundation.**
+Room-based knowledge bases that Bridger collects into a bank users can download.
+
+**A room's content belongs to TWO COMPANIES.** Collecting rooms into anything
+downloadable crosses precisely the boundary `checkedAgainst` and the containment
+markers exist to protect. It is the two-consent problem `purge` already solved,
+and HARDER: publishing cannot be undone where deleting can. Quieter issue: most
+room content is intensely specific ("does `/orders` return cents or a decimal
+string"), so the genuinely reusable layer is thinner than it looks.
+
+**The version that is nearly free today, and the honest first step:** `bridger
+pull` ALREADY writes a room's full record into a `bridger/` folder -- typed,
+cited, chained. "A room is a downloadable knowledge base" is mostly true already
+and simply under-shaped. It needs no consent model at all, because it only ever
+hands each party what they already own. Do that before anything that aggregates
+across rooms.
+
+
 ## 2026-08-25 -- S#282b -- THE DOMAIN, THE AUDIT, AND LIGHT MODE PUT TO ERIK
 
 **Source:** Erik, S#282: *"I just bought a domain for Bridger! Now its going to
