@@ -131,40 +131,42 @@ export default function Demonstration() {
   return (
     <section className="bx-demo" aria-labelledby="demo-h">
       {/*
-        THE CURSOR WAKE lives here and nowhere else on this page.
+        THE CURSOR WAKE AND THE CLICK RIPPLE — this module, and nowhere else.
 
         Erik, S#282, pointing at React Bits' `Cursor Wave`: the section should
         answer the mouse. The adaptation is his — glitched glyphs rather than
         coloured shapes — so this is the field the page already runs, given a
         reason to notice where you are.
 
-        WHY THIS BAND AND NOT THE HERO. The hero already moves on its own and
+        WHY THIS MODULE AND NOT THE HERO. The hero already moves on its own and
         already carries the word; a second motion source there competes with the
         thing it is meant to frame. This band was flat, it is the part of the
         page a reader lingers on, and a step-by-step list is exactly where a
         cursor travels — the effect fires where the pointer already is.
 
-        INTENSITY IS DELIBERATELY BELOW THE HERO'S. `globals.css` opens with
-        "a record you cannot read is not a record", and this band is the one
-        with instructions in it. The field has to stay under the text rather
-        than argue with it, so the wake is the only part that is bright and it
-        exists only where the pointer is.
-      */}
-      {/*
-        SCOPED TO THE STEPS, and the first version was not — it covered the
-        whole section, which put a churning glyph field directly behind the
-        `Don't trust this page` checks. Those are plain paragraphs with no card
-        of their own, so the text sat ON the field and became hard to read.
-        Caught by looking at a capture; the measurement said the effect worked
-        and was silent about what it had ruined. The steps keep their own solid
-        cards, so the field reads as a ground there rather than as competition.
+        AND GETTING THE EXTENT RIGHT TOOK TWO WRONG VERSIONS.
+
+        v1 covered the section at intensity 0.3 and put a churning, LEGIBLE
+        glyph field behind the `Don't trust this page` checks -- plain
+        paragraphs with no card of their own, so the text sat on the noise.
+        v2 fixed that by shrinking the field to the heading and the steps, which
+        Erik immediately read as the bug it was: *"Seems the mouse hover was
+        only in 1 section of the whole module I was pointing at?"* -- a field
+        that stops halfway down a section looks broken, not deliberate.
+
+        Both versions were solving the wrong variable. The problem was never the
+        AREA, it was the IDLE BRIGHTNESS: at 0.3 the resting field reads as
+        letters you can almost make out, which competes with any prose over it.
+        Dropped to 0.14 it reads as texture, and the WAKE and the RIPPLE become
+        the only bright things -- which is the point, since those exist only
+        where the pointer is. Area restored, contrast moved instead.
       */}
       <div className="bx-demo-field">
         <LetterGlitch
           className="bg-demo"
           showWord={false}
           pointer
-          intensity={0.3}
+          intensity={0.14}
           glitchMs={150}
         />
       <header className="bx-demo-head">
@@ -228,7 +230,6 @@ export default function Demonstration() {
           );
         })}
       </ol>
-      </div>
 
       <p className="bx-demo-note">
         Prefer tools your client manages for you? There is an MCP server at{" "}
@@ -264,6 +265,7 @@ export default function Demonstration() {
             <p>{AGAINST.detail}</p>
           </li>
         </ul>
+      </div>
       </div>
     </section>
   );
