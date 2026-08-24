@@ -339,6 +339,14 @@ export async function appendEntry(
 // ── reading ──────────────────────────────────────────────────────
 
 export interface ReadOptions {
+  /**
+   * The room's current max seq, when the caller already knows it.
+   *
+   * Purely a BANDWIDTH hint: supplying it lets the read fetch only the tail
+   * instead of the whole room. Omitting it is always correct and always more
+   * expensive. See the fetch in `readEntries`.
+   */
+  latestSeq?: number;
   sinceSeq?: number;
   types?: EntryType[];
   ids?: string[];
@@ -359,9 +367,43 @@ export async function readEntries(
   roomId: string,
   opts: ReadOptions = {},
 ): Promise<Entry[]> {
-  const raw = await store.lrange(ENTRIES_KEY(roomId), 0, -1);
+  /**
+   * FETCH ONLY THE TAIL WHEN WE CAN. (S#281 Upstash audit)
+   *
+   * This used to be `lrange(key, 0, -1)` unconditionally, filtering `sinceSeq`
+   * in JavaScript afterwards. Measured: a read of a 1,000-entry room is ONE
+   * command and **750 KB** — so a listener catching up on a single new entry
+   * transferred the entire room to discard 999 of it.
+   *
+   * That inverts which ceiling binds. Upstash meters commands (500k/month) AND
+   * bandwidth (10 GB/month), and at 750 KB a read the bandwidth runs out after
+   * ~14,000 reads — 2.8% of the command budget. The audit that only ever
+   * counted commands could not see it.
+   *
+   * `seq` is monotonic and the list is append-only, so the last `latest -
+   * sinceSeq` elements are exactly the ones a caller is asking for. Trimming
+   * only ever removes from the FRONT, so if the window is wider than the list
+   * Redis clamps and we get everything — an over-fetch, never a wrong answer.
+   * That is why this is safe despite `SEQ_KEY`'s warning that seq is not an
+   * index: nothing here treats it as one, it only bounds a tail.
+   */
+  const want =
+    opts.sinceSeq !== undefined && opts.latestSeq !== undefined
+      ? opts.latestSeq - opts.sinceSeq
+      : null;
+
+  // Nothing newer than the caller's cursor: no list read at all. Zero commands,
+  // zero bytes, and by far the most common shape a listener produces.
+  if (want !== null && want <= 0) return [];
+
+  const raw =
+    want !== null
+      ? await store.lrange(ENTRIES_KEY(roomId), -want, -1)
+      : await store.lrange(ENTRIES_KEY(roomId), 0, -1);
   let entries = raw.map(parseEntry).filter((e): e is Entry => e !== null);
 
+  // Still filtered, because the bounded fetch is an OPTIMISATION and not the
+  // guarantee. If the window over-fetched, this is what makes the result exact.
   if (opts.sinceSeq !== undefined) entries = entries.filter((e) => e.seq > opts.sinceSeq!);
   if (opts.types?.length) entries = entries.filter((e) => opts.types!.includes(e.type));
   if (opts.ids?.length) {

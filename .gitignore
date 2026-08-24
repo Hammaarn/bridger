@@ -52,3 +52,4 @@ next-env.d.ts
 # Ready-to-paste client configs containing LIVE room tokens.
 .local/
 .vercel
+.upstash-cost-probe.mts

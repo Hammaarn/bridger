@@ -240,3 +240,100 @@ describe("[!!] the end-to-end command cost of one idle wait", () => {
     );
   });
 });
+
+describe("[!!] bandwidth: an incremental read fetches the tail, not the room", () => {
+  /**
+   * THE FINDING THIS PINS (S#281 Upstash audit). Upstash meters bandwidth
+   * (10 GB/month) as well as commands (500k/month), and only commands had ever
+   * been audited. A read of a 1,000-entry room is ONE command and ~750 KB — so
+   * bandwidth runs out after ~14,000 reads, at 2.8% of the command budget.
+   * Counting commands could not see it.
+   */
+  async function roomWith(n: number) {
+    const { createRoom, authorize, clearRegistryCache } = await import("../room-registry");
+    const { appendEntry } = await import("../entries");
+    clearRegistryCache();
+    const store = new FakeStore();
+    const made = await createRoom(store, {
+      topic: "bw", ownerLabel: "A", peerLabel: "B", now: T0,
+    });
+    const a = await authorize(store, { presentedToken: made.ownerToken, now: T0 });
+    assert.ok(a.ok);
+    for (let i = 0; i < n; i++) {
+      await appendEntry(store, made.room, a.token,
+        { type: "note", title: `e${i}`, body: "x".repeat(400) }, T0);
+    }
+    return { store, room: made.room };
+  }
+
+  /** Bytes the store handed back, which is what Upstash bills as egress. */
+  function bytesOf(rows: unknown[]): number {
+    return rows.reduce<number>(
+      (n, r) => n + Buffer.byteLength(typeof r === "string" ? r : JSON.stringify(r)),
+      0,
+    );
+  }
+
+  it("catching up on ONE entry does not transfer the whole room", async () => {
+    const { store, room } = await roomWith(200);
+    const { readEntries } = await import("../entries");
+
+    let pulled = 0;
+    const spy = new Proxy(store, {
+      get(t, p, r) {
+        const v = Reflect.get(t, p, r);
+        if (p !== "lrange") return typeof v === "function" ? v.bind(t) : v;
+        return async (...args: [string, number, number]) => {
+          const out = await (v as (...a: unknown[]) => Promise<unknown[]>).apply(t, args);
+          pulled += bytesOf(out);
+          return out;
+        };
+      },
+    });
+
+    const fresh = await readEntries(spy, room.id, { sinceSeq: 199, latestSeq: 200 });
+    assert.equal(fresh.length, 1, "control: exactly one entry is new");
+    assert.ok(pulled > 0, "the spy never fired — this test measured nothing");
+    assert.ok(
+      pulled < 3000,
+      `catching up on one entry pulled ${pulled} bytes; the whole room is ~150,000`,
+    );
+  });
+
+  it("[!!] a cursor at the head does no list read AT ALL", async () => {
+    const { store, room } = await roomWith(50);
+    const { readEntries } = await import("../entries");
+    let lranges = 0;
+    const spy = new Proxy(store, {
+      get(t, p, r) {
+        const v = Reflect.get(t, p, r);
+        if (p !== "lrange") return typeof v === "function" ? v.bind(t) : v;
+        return async (...a: unknown[]) => {
+          lranges++;
+          return (v as (...x: unknown[]) => Promise<unknown[]>).apply(t, a);
+        };
+      },
+    });
+    const out = await readEntries(spy, room.id, { sinceSeq: 50, latestSeq: 50 });
+    assert.deepEqual(out, []);
+    assert.equal(lranges, 0, "nothing new must cost zero commands and zero bytes");
+  });
+
+  it("the bounded fetch is still EXACT — over-fetching cannot leak old entries", async () => {
+    // The window is an optimisation, not the guarantee: the seq filter still
+    // runs, so a window wider than reality (after a trim, or a stale cursor)
+    // returns the right answer and merely costs more.
+    const { store, room } = await roomWith(30);
+    const { readEntries } = await import("../entries");
+    const bounded = await readEntries(store, room.id, { sinceSeq: 25, latestSeq: 30 });
+    const unbounded = await readEntries(store, room.id, { sinceSeq: 25 });
+    assert.deepEqual(
+      bounded.map((e) => e.id),
+      unbounded.map((e) => e.id),
+      "the bounded read must agree with the unbounded one, always",
+    );
+    // A deliberately absurd window: must still be exact, never duplicated.
+    const wide = await readEntries(store, room.id, { sinceSeq: 25, latestSeq: 9999 });
+    assert.deepEqual(wide.map((e) => e.id), unbounded.map((e) => e.id));
+  });
+});
