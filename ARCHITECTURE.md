@@ -413,15 +413,33 @@ its own explicit check, `bridger stop` would refuse every existing room while
 cheerfully minting new ones — the panic button failing open on the one path that
 creates work. Any future unauthenticated route has the same hole by default.
 
-### 31. Two-ness is the data model, not a setting
+### 31. Two-ness is a property of a TRUST room, not of Bridger — REVISED S#281
 
-`SideId = "a" | "b"`; `otherSide()` is a boolean flip; `sides` is a fixed-shape
-object; entry ids are namespaced per side (`JMS-Q-014`); "the peer" is singular
-in `whoami`, in the wait cursor and in the idle brake. N parties is a rewrite of
-the core plus new semantics that do not exist yet (does an answer close a
-question for *everyone*? does the brake trip per party or per room? who does a
-contract bind?). The slot picker shows 3 and 4 disabled **with the reason**
-rather than implying it is a bigger number away.
+**It used to be both, and the distinction is the whole of solo mode.**
+
+The original fact read: `SideId = "a" | "b"`, `otherSide()` is a boolean flip,
+`sides` is a fixed-shape object, "the peer" is singular in `whoami`, the wait
+cursor and the idle brake — so N parties is a rewrite of the core. All of that
+was accurate, and it made a real limitation of the CODE look like a statement
+about the product.
+
+S#281 did the rewrite. Seats are `a`..`f`, `otherSeats()` returns a list, and
+`sides` is a partial record. What did NOT change is what a `trust` room MEANS:
+two companies who do not share an employer, keeping a record neither can
+rewrite. A third COMPANY still brings semantics that do not exist (does an
+answer close a question for *everyone*? who does a contract bind? does the room
+need every party to sign off, or one?) — so `SUPPORTED_SLOTS = 2` stays, and its
+refusal now points at solo mode rather than claiming a rewrite is needed.
+
+**The create screen no longer shows disabled buttons with a reason.** It shows
+two room KINDS, because the choice is real now. A control that does nothing,
+twice, and then apologises was the honest version of a limitation; it is not the
+honest version of a choice.
+
+**And the containment follows the kind, not the seat count.** A `solo` room
+wraps nothing in untrusted-partner markers: one operator's own models are not
+another company, and a marker that fires where nobody needs protecting teaches
+the reader to skim past it in the room where it is load-bearing.
 
 ### 32. A quota REFUSAL burns a slot; a VALIDATION failure must not
 
