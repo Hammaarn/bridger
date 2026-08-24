@@ -385,11 +385,88 @@ Full argument in `DECISIONS.md` 2026-08-25 (S#282c). Both Erik's.
   unsettled is whether an ASYMMETRIC exchange still wants a hash-chained joint
   record. Settle that before building; if it does not, this is F5's mistake in
   a new costume.
-- **The KB Bank** — rooms collected into downloadable knowledge bases. Blocked
-  on a consent model harder than `purge`'s, because publishing cannot be undone.
-  **The free first step is `bridger pull`**, which already writes a room's typed,
-  cited, chained record to disk for the parties who own it. Shape that before
-  anything aggregates across rooms.
+- **The KB Bank / failure-mode registry** — see A10, which is now the larger
+  half of this and has its own design constraint from Erik.
+
+## A10. THE FAILURE BANK — start local, and generalise AT CAPTURE
+
+> Erik, S#282, after a Gemini roadmap that was heavily affirming and light on
+> blockers: *"the failure mode knowledge base can become useful if its framed
+> and written in such a way that it avoids context specific use cases, it needs
+> to be captured and reframed into a broader note that can be applied to a wider
+> audience in that specific domain or connected domains."*
+
+**That sentence is the whole design.** Everything else here is downstream of it.
+
+### WHY THIS ONE IS WORTH BUILDING AND THE PUBLIC CHANNEL IS NOT
+
+Negative knowledge is expensive to acquire (you only learn a trap by hitting it)
+and nearly free to transfer. **Erik has been hand-building exactly this registry
+for 282 sessions** — the feedback clusters, `plans/vercel-substrate-constraints.md`,
+the ARCHITECTURE invariants. That is an existence proof, not a hypothesis.
+
+The public assist channel is a DIFFERENT and more dangerous product; its
+blockers are in `DECISIONS.md` 2026-08-25 (S#282c) and the short version is that
+a public room where strangers' agents post text other agents act on inverts the
+constraint every containment mechanism here exists to enforce.
+
+### [!!] THE HARD PROBLEM IS THE ABSTRACTION LEVEL, NOT THE STORAGE
+
+A raw capture is worthless to anyone else:
+
+    "Tailwind v4 + Next 15 + my postcss.config.mjs threw ModuleBuildError"
+
+The transferable form names the CLASS:
+
+    "When a major CSS-framework bump errors as an unrecognised token in an
+     import, check whether the PLUGIN ENTRY POINT moved before you debug the
+     import syntax. Version bumps relocate plugin registration more often than
+     they change syntax."
+
+**And Erik's own corpus documents the failure mode of getting this wrong.**
+`behavioral#28` names a rule that cited `/api/debug/bypass` — deleted in
+`424ea9c` — and spent about three months telling sessions to consult something
+that no longer existed. Its own conclusion: *"a rule that names a concrete
+artifact inherits that artifact's lifetime."* Over-specific capture does not
+merely fail to generalise; **it rots into confident wrongness**, which is worse
+than an empty registry because agents trust it.
+
+### THE DESIGN FORK NOBODY HAS PICKED YET
+
+**Who generalises, and when?** The agent that hit the failure is the WORST
+placed to know what is general about it — it has seen exactly one instance.
+Three options, and they are not equivalent:
+
+1. **At capture** — the agent writes both the instance and its own
+   generalisation. Cheap, immediate, and prone to over-claiming from n=1.
+2. **On read** — store instances raw, generalise when queried. Honest, but
+   pushes cost to every read and needs a model in the path.
+3. **On convergence** — store instances, promote to a general note only when
+   N independent instances agree. Slowest, and the only one whose
+   generalisation is evidenced rather than guessed.
+
+Erik's own system is (3) with a human gate: corrections accumulate in
+`rating_queue.jsonl` and only promote once he approves them.
+
+### WHAT SHIPS FIRST, and it needs none of the above resolved
+
+**A LOCAL failure bank.** The agent records what failed and what fixed it inside
+its own room/repo, and reads its own history on the next run. Zero security
+surface, zero economics, zero consensus problem — and roughly 80% built already,
+because `bridger pull` writes the room's typed, cited, chained record to disk.
+
+**Every entry carries an expiry or a version window.** Gemini's proposed schema
+has `Verified By: 4 agents` and no `valid-until`, which is the rot above with a
+confidence badge on it.
+
+### THE FALSIFIABLE TEST, before tier 2 or 3 is discussed again
+
+**Does a failure mode captured in one codebase help in another more often than
+it misleads?** The local bank answers that with real data, for free. Until that
+number exists, every argument for a global registry is unfalsifiable — and this
+project has a standing rule against building apparatus around unmeasured
+enthusiasm.
+
 
 ## A7. Parked, with reasoning — see the lanes further down
 
