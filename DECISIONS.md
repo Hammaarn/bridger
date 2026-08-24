@@ -5,6 +5,54 @@ Append-only, newest first. **DECISIONS wins on direction** — where this file a
 
 ---
 
+## 2026-08-25 -- S#282b -- THE DOMAIN, THE AUDIT, AND LIGHT MODE PUT TO ERIK
+
+**Source:** Erik, S#282: *"I just bought a domain for Bridger! Now its going to
+be called bridger.nexus"*, plus a QA audit he commissioned from Gemini
+(Antigravity), plus five landing-page notes from his brother, a UI/UX designer.
+
+### THE DOMAIN IS BOUGHT AND DELIBERATELY NOT WIRED
+
+`bridger.nexus` does not resolve (NXDOMAIN) and is not in the Vercel account.
+**Nothing was repointed**, on purpose: aiming the docs at a host that does not
+answer is invariant 15 failing in the other direction, on the same day the
+session fixed an instance of it.
+
+**Settled now so the migration is not re-derived later:** the new domain is an
+ADD, never a replace. Partners hold tokens and join links against
+`bridger-nu.vercel.app` and the live Trigvanta room's history cites it, so that
+host keeps serving as an alias. The code cost is TWO constants
+(`lib/site-content.ts` `SERVER`, `cli/bridger.ts` `DEFAULT_SERVER`); the other
+24 occurrences are prose and fixtures. Join links need no work at all --
+`app/api/rpc/route.ts:341` builds them from `req.url`. The trust surfaces
+(`/api/about`, `VERIFY.md`, the landing page) move together or not at all: a
+page served from one host telling a partner to verify another is precisely the
+confusion this product exists to remove.
+
+### THE AUDIT'S FINDINGS WERE VERIFIED BEFORE THEY WERE ACTED ON
+
+Two of four survived. That ratio is the argument for the check, not against the
+auditor -- it found a 404 in the onboarding path that two sessions of our own
+reading had walked past.
+
+**Taken:** the demo's missing `invite` step (a 404 confirmed on production) and
+the presets showing their stages rather than describing a feeling.
+**Corrected and taken differently:** the disabled-button finding, which cited a
+WCAG clause that exempts disabled controls and measured a colour pair the page
+does not render -- but sat on top of a real breach of our own rule.
+**Not taken:** the modal findings, which describe a component that does not
+exist. Filed as a signal instead: a competent auditor believed it was a modal.
+
+### LIGHT MODE IS A DECISION, NOT A BUG
+
+It exists and passes contrast, and it is a token inversion rather than a design:
+the field's hot-cell calibration assumes a black ground, and the wake and the
+ripple work by ADDING light, which on cream removes contrast. Three options are
+on the board in `TODO.md` item 1 (commit to dark / design light properly / dark
+by default plus a toggle). Recommended: the toggle. Undecided, and the ROOM view
+-- most of the product -- has never been seen in light at all.
+
+
 ## 2026-08-24 -- S#282 -- THE ROOM SHAPE IS "STREAM PLUS GAUGE", AND THE MINTED SCREEN NAMES WHAT EACH CREDENTIAL IS FOR
 
 **Source:** Erik, S#282, three directions put to him as rendered mockups:

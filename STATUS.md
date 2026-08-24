@@ -1,6 +1,6 @@
 # STATUS — Bridger
 
-**True as of 2026-08-24, close of S#281.** `DECISIONS.md` wins on direction;
+**True as of 2026-08-25, close of S#282.** `DECISIONS.md` wins on direction;
 `ARCHITECTURE.md` wins on how it works; `TODO.md` is what is left; this file is
 what is *true right now*.
 
@@ -29,6 +29,60 @@ alpha and says so.
 | far-side text | wrapped in untrusted-partner markers | not wrapped — there is no other company |
 | what it is for | agreeing across a boundary of trust | Triplemind: your subscriptions, one room |
 | seats | exactly 2, and that is a property not a limit | 2–6 |
+
+---
+
+## S#282 -- THE PAGE GOT A DESIGNER AND AN AUDITOR, AND THE PROTOCOL DID NOT MOVE
+
+A design session plus an outside QA audit. Zero protocol changes, 403 tests
+throughout. Two outside readers, and each found a different CLASS of thing.
+
+**Erik's brother, a UI/UX designer, on the landing page.** Five notes, all five
+shipped. The one worth carrying: the BRIDGER forming out of the noise is the
+best thing on the page and the copy was parked on top of it -- and the word's
+position was **hardcoded at `rows / 2` and was not a parameter at all**, while
+the vignette protecting the type was darkening the word as well. Both problems
+were invisible from the stylesheet and obvious in one screenshot.
+
+**A Gemini audit found what neither of us could.** The landing demo could not be
+followed: step 02 said to send `/j/<code>` and the only `code` a reader held was
+the party slot code from step 01. Confirmed on production -- `/j/ACM` is a 404,
+and the mint response contains no join code AT ALL. **A missing step, not a
+mislabelled variable**, on the same page whose step 01 was rewritten in S#279 to
+satisfy the invariant it broke. And "four commands, start to finish" had always
+been false: three steps carried commands.
+
+**Two of its four findings did not survive checking, which is the point of
+checking.** The "modal" focus-trap and backdrop bugs describe a component that
+does not exist -- no `<dialog>`, no role, URL unchanged; it is a view swap. The
+contrast finding measured white-on-grey at 3.1:1 where the page renders
+dark-on-light at ~3.5:1, and cited a WCAG clause that exempts disabled controls.
+A real defect was underneath it, but it was OUR rule (a disabled button must say
+what is missing), not the one cited.
+
+### The lesson this session kept teaching, and it is the inverse of S#281's
+
+S#281 was *reading a rule is not reading what it produces*. S#282 is the same
+edge from the other side: **I twice reasoned about a region of the page instead
+of reading its DOM.** The cursor field was scoped to `.bx-demo`, then narrowed
+further, before Erik named the actual boundary -- `gate-body` + `bx-demo`, not
+the footer. Component ownership is not visual extent. Logged as a correction
+against `behavioral#36`, stamped `violated` rather than `challenged`: the rule
+(get a concrete referent instead of guessing) was right and I did not apply it.
+
+Three more of the same shape, all caught by looking rather than by thinking:
+a duplicate `.eyebrow .stage` rule 350 lines below the first, silently winning
+on cascade order; `display: contents` changing box generation but NOT selector
+matching, so an ordering rule matched nothing and read as if it worked; and a
+command chip rendering `npm ls --omit=dev --depth` -- a command that is WRONG
+rather than clipped, with no affordance saying there was more.
+
+### [!!] THE DOMAIN IS BOUGHT AND NOT LIVE
+
+`bridger.nexus`, bought mid-session. It does NOT resolve, and Vercel has never
+heard of it. Nothing in the repo has been repointed deliberately. Read TODO
+item 0 before touching a single reference -- and note that the old host must
+keep serving, because partners hold links against it.
 
 ---
 

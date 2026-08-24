@@ -1,11 +1,12 @@
 # TODO — Bridger
 
-## START HERE — rewritten at the close of S#281 (2026-08-24)
+## START HERE — rewritten at the close of S#282 (2026-08-25)
 
 **Three commands before you believe anything in this file:**
 
 ```bash
 curl -s https://bridger-nu.vercel.app/api/about    # the commit that ACTUALLY answered
+#  bridger.nexus is bought but NOT LIVE -- see item 0 below
 curl -s https://bridger-nu.vercel.app/api/health   # killSwitch on|off
 git -C . log --oneline -5                          # what shipped last
 ```
@@ -15,30 +16,77 @@ git -C . log --oneline -5                          # what shipped last
 
 **403 tests, tsc 0, build 0, tree clean, master in sync.**
 
+**S#282 was a DESIGN session plus an outside audit.** The protocol did not move.
+Everything below that was true about behaviour before it is still true.
+
 ---
 
-## CLOSED IN S#281 — do not re-open these
+## CLOSED IN S#282 — do not re-open these
 
-Solo mode (backend, both transports, create form, seat marks, per-seat colour) ·
-C3b the listener (`bridger listen` + `/api/since`) · repo permalinks · F2 room
-shapes, named · the Redis reduction (51 → 16 commands per idle wait) · the
-bandwidth fix (749 KB → 0.8 KB incremental reads) · the Upstash audit across all
-four metered values · F4's `wire()` self-wrap · the GitHub → Vercel connection ·
-the design audit's tap targets, type floor and focus colour · four stale `[!!]`
-banners that said a partner question was unanswered.
+**From Erik's brother (UI/UX designer), all five of his landing-page notes:**
+the eyebrow pill (a "dead AI giveaway" — now a nameplate, and it took a
+duplicate `.eyebrow .stage` rule 350 lines below the first, winning on cascade
+order, to make it stick) · the word forming under the type (new `wordY` prop —
+it was hardcoded at `rows / 2` and was not a parameter at all) · the unreadable
+lede (mono at 12.5px, dimmed, over a moving field — now 16.5px at `--text`) ·
+the weak primary action (a sweep adapted from uiverse.io/adamgiebl, MIT, flooding
+`--side-a -> --side-b` because the CTA is where the two sides meet) · the spec
+line moved into the header field.
+
+**From Erik:** the cursor wake and click ripple across the whole reactive middle
+(`.gate-mid`, spanning `gate-body` + `bx-demo`, stopping at the footer) · the
+minted screen naming what each credential is FOR · the middle module's claims
+put on ground and compacted 717px -> 537px.
+
+**From the Gemini audit:** the demo's missing `invite` step · the presets showing
+their stages · the disabled submit saying what is missing · the 375px nameplate
+wrapping onto a dangling divider.
+
+**Also:** four QA rooms purged and independently verified gone; all four real
+rooms confirmed present.
 
 ---
 
 ## NEEDS ERIK — decisions, not work
 
+### [!!] 0. THE DOMAIN — `bridger.nexus`, bought S#282 and NOT LIVE YET
+
+Erik bought it mid-session. **It does not resolve** (NXDOMAIN) and Vercel has
+never heard of it — `vercel domains ls` lists only `judgemysite.org`, so it was
+not bought through Vercel. Nothing in the repo has been repointed, deliberately:
+aiming docs at a host that does not serve is invariant 15 failing in the other
+direction.
+
+**What Erik does:** add the domain in Vercel (or `vercel domains add
+bridger.nexus`), then set the DNS records the registrar side needs.
+
+**What happens then, and the size is small:** exactly TWO authoritative
+constants — `lib/site-content.ts:36` (`SERVER`) and `cli/bridger.ts:176`
+(`DEFAULT_SERVER`, already overridable via `BRIDGER_SERVER`). The other 24
+occurrences are prose and test fixtures.
+
+**[!!] KEEP `bridger-nu.vercel.app` SERVING.** Partners hold tokens and join
+links against it, and the live Trigvanta room's entire history cites it. The new
+domain is an ADD with the old one kept as an alias, never a replace.
+
+**Join links need no work:** `app/api/rpc/route.ts:341` builds `joinUrl` from
+`req.url`, so a link minted on the new host is already a new-host link.
+
+**The trust surfaces must move together or not at all** — `/api/about`,
+`VERIFY.md` and the landing page all tell a partner which host to check. A page
+served from `bridger.nexus` telling them to verify `bridger-nu.vercel.app` is
+the exact confusion this product exists to remove.
+
 | # | Decision | Why it is yours |
 |---|---|---|
-| 1 | **`--seal` is down from four jobs to three** | Focus moved off it at S#281. Still on it: provenance (correct), text selection, and three incidental uses — the copy-button "done" state, link hover, and the brand mark. Taking those three off restores *"colour means exactly one thing"*. Four small CSS changes, no product risk, but it touches the visual identity you approved at S#277. |
-| 2 | **`@bridger/cli`** | Publish or not. `package.json` still carries `private: true` as the guard. `bridger` on npm is a stranger's socket.io package, so `npx bridger` runs their code. |
-| 3 | **Widen the repo allow-list?** | Self-hosted GitLab/Gitea cannot be used for permalinks today, deliberately: an arbitrary host is indistinguishable from an attacker's, and every citation in a room renders as a link to whatever is stored. Widening trades that guarantee for reach. |
-| 4 | **Vendor logos: real marks or the letterforms?** | S#281 shipped a letterform plus a brand-adjacent hue rather than inlining Anthropic's, Google's and OpenAI's trademarks from our origin. One map in `lib/seats.ts` if you want the real artwork. |
-| 5 | **React Bits** | Adopt as a dependency, or mine for ideas? `/api/about` tells partners to run `node -p "…dependencies"` and expect **seven entries**, so adding framer-motion or GSAP makes the trust page's own verification instruction false. |
-| 6 | **`WAIT_MAX_SECONDS` 45 → ~290 — much less urgent now** | The overnight case it was meant to fix has a better answer (`bridger listen`). This is only about interactive `wait` callers who will not run a listener. |
+| 1 | **[!!] LIGHT MODE: commit, design, or toggle** | It EXISTS and passes contrast (card detail 6.28:1, title 17.77:1) but it is a token inversion, not a design. Everything this project's visual language does adds LIGHT TO DARKNESS — the field's "hot cells" calibration assumes black, and the wake and ripple work by brightening, which on cream *removes* contrast. **A** pin `color-scheme: dark` · **B** design light properly (field becomes ink-on-paper, wake/ripple darken, cards get a shadow language — a real session, and a second design forever) · **C** dark by default plus a toggle. I would take **C**. Untested in light: the ROOM view, which is most of the product. |
+| 2 | **`--seal` is down to TWO incidental jobs** | The eyebrow's glowing dot died with the pill. Still on it: `.brand svg` (the wordmark) and `.pulse.on .led` (the live indicator). Neither is provenance. |
+| 3 | **`br_view_` prefix for the watch pass** | All three credentials are still `br_live_…`, so nothing about the STRING says which one is read-only. The minted screen now says it; a chat log, a config file or a screenshot does not. Touches minted credentials and the auth path. |
+| 4 | **`@bridger/cli` publish or not** | `package.json` still carries `private: true`. `bridger` on npm is a stranger's socket.io package, so `npx bridger` runs their code. |
+| 5 | **Widen the repo allow-list?** | Self-hosted GitLab/Gitea cannot be used for permalinks today, deliberately. |
+| 6 | **Vendor logos: real marks or letterforms?** | One map in `lib/seats.ts` if you want the real artwork. |
+| 7 | **`WAIT_MAX_SECONDS` 45 -> ~290** | Much less urgent since `bridger listen` shipped. |
+| 8 | **Gemini's roadmap: presets, zero-param mint, phase escalation** | The presets proposal partly re-litigates **F2**, which you gaveled in S#281 as *"Open record" / "Plan first"* — it had no way to know. The zero-parameter mint is cheap but trades away the create form's deliberate friction: naming both sides is what makes the record say who is who. |
 
 ---
 
@@ -46,9 +94,9 @@ banners that said a partner question was unanswered.
 
 | # | What | Why |
 |---|---|---|
-| 7 | **F1 in a real room, and D3's live test** | The plan stage has never been touched by a far side, and its DEFAULT partner state is plan mode. Whether our tool annotations unblock that depends on Trigvanta's harness and is UNVERIFIED. |
-| 8 | **Repo permalinks, from the far side** | Shipped and proven on a server, but no partner has ever declared a repo. The whole point is a link THEY can open. |
-| 9 | **B1's adversarial half**, B2, B4 | Still owed from earlier sessions. |
+| 9 | **F1 in a real room, and D3's live test** | The plan stage has never been touched by a far side, and its DEFAULT partner state is plan mode. |
+| 10 | **Repo permalinks, from the far side** | Shipped and server-proven; no partner has ever declared a repo. |
+| 11 | **B1's adversarial half**, B2, B4 | Still owed. Room `0c7a12ba09d2` is open and side B's token is still unused. |
 
 ---
 
@@ -56,13 +104,17 @@ banners that said a partner question was unanswered.
 
 | # | What | Why |
 |---|---|---|
-| **U1** | **[!!] MINIMISE UPSTASH USAGE OVERALL — Erik's, and the biggest open lever** | S#281 fixed the two paths that were bleeding; this is the deliberate pass over everything else. A post still costs **10 commands, four of them `expire`s refreshing a 30-day TTL**. The largest unknown is whether Upstash bills an `EVAL`/pipeline as one command or as its contents — if one, the whole write path collapses. **Full breakdown, ranked, with what needs verifying first: section U1 below.** |
-| 10 | **[!!] Verify the citation permalink RENDERS** | The one thing built in S#281 and never seen. The class ships in the built client bundle and `/api/export` carries `checkedUrl`, but agent-browser hung repeatedly and the anchor was never observed drawn. One look settles it. |
-| 11 | **`status` reads every entry in the room** | 74.6 KB on a 100-entry room, because `unread` is computed across the whole list. The incremental-read fix applies; it is bigger surgery because `totalEntries` and the open-question derivation both want the full set. |
-| 12 | **B5 at scale** | The panels never scrolled until S#280, found at 30 entries. Nothing else in the room has been looked at past a handful. Chrome headless only — no real monitor, no phone, no Safari, no Firefox. |
-| 13 | **D4's create half — and S#281 made it longer, not shorter** | D4 asks for FEWER steps. S#281 removed a dead control (the disabled Slots buttons) and added two live ones (room kind, room shape), so the trust path is now two decisions longer. Defensible — the new steps are real where the old one was theatre — but it is not what D4 asked for, and it is logged rather than counted as progress. |
-| 14 | **C3a citation bundles** | The far side's remaining proposal. More attractive now: with permalinks shipped, a bundle of citations is a bundle of openable links. |
-| 15 | **F4 housekeeping** | Room `d437fff5b423` still needs a fresh invite code. |
+| **U1** | **[!!] MINIMISE UPSTASH USAGE OVERALL — Erik's, and still the biggest open lever** | A post costs **10 commands, four of them `expire`s refreshing a 30-day TTL**. Largest unknown: does Upstash bill an `EVAL`/pipeline as one command or as its contents? **Section U1 below has the ranked list and a measured baseline.** |
+| 12 | **[!!] Verify the citation permalink RENDERS** | Built S#281, still never seen in a browser. Carried a second session. |
+| 13 | **The agent mark never renders in a real room** | `AgentMark` returns `null` when `agent` is unset (`page.tsx:676`), and the live Trigvanta room has `agent: null` on BOTH seats. Built, and invisible everywhere it matters. |
+| 14 | **The stream + gauge room composition (direction B)** | Gaveled S#282. The card layer and the repeated mark turned out to be ALREADY BUILT; what is left is standing the collapsed rail stubs up into a permanent gauge, rails on demand. The chain head is NOT on the client — that row needs the room API to carry it. |
+| 15 | **`usage` still lists purged rooms** | Found S#282 during cleanup: the tally key survives `purge`, so the operator's room list stays misleading after a deletion. Arguably correct as a volume record, wrong as a room list. |
+| 16 | **The create flow reads as a modal and is not one** | Gemini's audit "found" a focus trap, backdrop-dismiss and scroll-lock bugs in a component that does not exist — no `<dialog>`, no role, URL unchanged. The finding is wrong and the SIGNAL is real: a competent auditor thought it was a modal. Make it read as a page, or make it one. |
+| 17 | **`status` reads every entry in the room** | 74.6 KB on a 100-entry room. |
+| 18 | **B5 at scale** | Chrome headless only — no real monitor, no phone, no Safari, no Firefox. |
+| 19 | **D4's create half** | S#282 added a stage strip and a blocked-reason line, which is more information but not fewer steps. |
+| 20 | **C3a citation bundles** | The far side's remaining proposal. |
+| 21 | **F4 housekeeping** | Room `d437fff5b423` still needs a fresh invite code. |
 
 ---
 
