@@ -2405,7 +2405,7 @@ input.bx-folder-name:focus {
 
 /* The cursor-wake field. Same width/height note as `.bg-sheet`: a <canvas> is a
    replaced element, so `inset: 0` alone leaves it at its intrinsic 300x150. */
-.bg-demo {
+.bg-mid {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -2420,17 +2420,16 @@ input.bx-folder-name:focus {
   -webkit-mask-image: linear-gradient(to bottom, transparent, #000 90px, #000 calc(100% - 90px), transparent);
 }
 
-/* The field's own box. Only the heading and the steps sit on it — the verify
-   block below is plain paragraphs with no card, and text directly on a churning
-   glyph field is unreadable. */
-.bx-demo-field {
+/* THE REACTIVE MIDDLE: the token form, the trust panel and the demonstration.
+   Stops above `.gate-foot`, which runs its own field at full strength. */
+.gate-mid {
   position: relative;
 }
 
 /* Everything that is not the field sits above it — the same rule `.sheet` makes
-   for `.bg-sheet`, and for the same reason: without it the steps render behind
-   their own background and the accordion is unclickable. */
-.bx-demo-field > *:not(.bg-demo) {
+   for `.bg-sheet`, and for the same reason: without it the content renders
+   behind its own background and the accordion is unclickable. */
+.gate-mid > *:not(.bg-mid) {
   position: relative;
   z-index: 1;
 }

@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 
-import LetterGlitch from "@/app/backgrounds/letter-glitch";
 import { AGAINST, CHECKS, STEPS } from "@/lib/site-content";
 
 /**
@@ -130,45 +129,6 @@ export default function Demonstration() {
 
   return (
     <section className="bx-demo" aria-labelledby="demo-h">
-      {/*
-        THE CURSOR WAKE AND THE CLICK RIPPLE — this module, and nowhere else.
-
-        Erik, S#282, pointing at React Bits' `Cursor Wave`: the section should
-        answer the mouse. The adaptation is his — glitched glyphs rather than
-        coloured shapes — so this is the field the page already runs, given a
-        reason to notice where you are.
-
-        WHY THIS MODULE AND NOT THE HERO. The hero already moves on its own and
-        already carries the word; a second motion source there competes with the
-        thing it is meant to frame. This band was flat, it is the part of the
-        page a reader lingers on, and a step-by-step list is exactly where a
-        cursor travels — the effect fires where the pointer already is.
-
-        AND GETTING THE EXTENT RIGHT TOOK TWO WRONG VERSIONS.
-
-        v1 covered the section at intensity 0.3 and put a churning, LEGIBLE
-        glyph field behind the `Don't trust this page` checks -- plain
-        paragraphs with no card of their own, so the text sat on the noise.
-        v2 fixed that by shrinking the field to the heading and the steps, which
-        Erik immediately read as the bug it was: *"Seems the mouse hover was
-        only in 1 section of the whole module I was pointing at?"* -- a field
-        that stops halfway down a section looks broken, not deliberate.
-
-        Both versions were solving the wrong variable. The problem was never the
-        AREA, it was the IDLE BRIGHTNESS: at 0.3 the resting field reads as
-        letters you can almost make out, which competes with any prose over it.
-        Dropped to 0.14 it reads as texture, and the WAKE and the RIPPLE become
-        the only bright things -- which is the point, since those exist only
-        where the pointer is. Area restored, contrast moved instead.
-      */}
-      <div className="bx-demo-field">
-        <LetterGlitch
-          className="bg-demo"
-          showWord={false}
-          pointer
-          intensity={0.14}
-          glitchMs={150}
-        />
       <header className="bx-demo-head">
         <span className="eyebrow">
           <span className="led" />
@@ -265,7 +225,6 @@ export default function Demonstration() {
             <p>{AGAINST.detail}</p>
           </li>
         </ul>
-      </div>
       </div>
     </section>
   );

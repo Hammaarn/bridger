@@ -876,6 +876,30 @@ function Gate({
       </section>
 
       <div className="gate-shell">
+        {/*
+          THE CURSOR WAKE AND THE CLICK RIPPLE — the whole middle of the page.
+
+          Erik, S#282, pointing at React Bits' `Cursor Wave`: this part of the
+          page should answer the mouse. The adaptation is his — glitched glyphs
+          rather than coloured shapes — so it is the field the page already runs,
+          given a reason to notice where you are.
+
+          THE EXTENT TOOK THREE GOES AND EACH WRONG ONE WAS SMALLER THAN THIS.
+          It was scoped first to the whole `.bx-demo` section, then narrowed to
+          just its heading and steps, before Erik named the actual boundary:
+          *"It should be under the div gate-body and the section bx-demo, it
+          should cover the whole middle gate-shell but not the footer."* Both of
+          my versions were reasoning about the demo module while the thing on
+          screen is the MIDDLE OF THE PAGE — the token form and the trust panel
+          are part of what a reader's cursor is moving over, and a field that
+          starts halfway down reads as broken rather than deliberate.
+
+          NOT THE FOOTER, and not the hero: both already run their own field at
+          full strength (`.bg-foot`, `.bg-hero`), and both carry the word. This
+          one is the quiet middle between them, so it is the one that reacts.
+        */}
+        <div className="gate-mid">
+          <LetterGlitch className="bg-mid" showWord={false} pointer intensity={0.14} glitchMs={150} />
         <div className="gate-body">
         <section className="panel">
           <h2>Already have a token?</h2>
@@ -961,6 +985,7 @@ function Gate({
         </div>
 
         <Demonstration />
+        </div>
 
         {/*
           The page closes on the same wave, mirrored (scaleY(-1) in CSS) and
