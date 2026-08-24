@@ -33,6 +33,31 @@ from the transport layer without removing them from the decisions.
   bridger/  (permanent, committable)                    bridger/  (permanent)
 ```
 
+## Two kinds of room
+
+**A trust room** is the one Bridger was built for: two companies who do not
+share an employer, keeping a record neither can rewrite. Text from the far side
+arrives wrapped in untrusted-partner markers, because it was written by somebody
+else's model.
+
+**A solo room** is one operator with up to six of their *own* models — Claude,
+Gemini, GPT, on subscriptions you already pay for. Nothing is wrapped, because
+there is no other company in the room, and a marker that fires where nobody
+needs protecting teaches you to skim past it where it matters.
+
+```bash
+# two companies
+curl -X POST .../api/rooms -d '{"topic":"Checkout API","you":"Acme","them":"Northwind"}'
+
+# your own models
+curl -X POST .../api/rooms -d '{"kind":"solo","topic":"design review","seats":["Claude","Gemini","GPT"]}'
+```
+
+Each seat gets its own token, its own colour and a mark derived from its name.
+A trust room is exactly two parties and that is a property, not a limit: a third
+*company* changes what the record means — who an answer closes a question for,
+who a contract binds — and those are unanswered questions, not missing code.
+
 ## It calls no LLM
 
 There is no `ANTHROPIC_API_KEY` in this codebase, no model id and no AI SDK.
@@ -64,6 +89,61 @@ Every answer carries what it was verified against, or is recorded `UNCHECKED`.
 An unchecked answer is fine. An unchecked answer that *reads* like a verified one
 is how a false claim becomes a spec the other team builds against. Labelling is
 the fix; blocking is not.
+
+### And the citation can be a link they open
+
+`lib/store.ts:41` is a promise the other side cannot check — they do not have
+your repository, and the string does not say which one it is. Declare it once
+and every citation you write resolves to a permalink:
+
+```
+bridger identify --repo https://github.com/you/service --ref 6a190ac
+```
+
+```
+checked-against: lib/store.ts:41-58  ↗
+  → github.com/you/service/blob/6a190ac/lib/store.ts#L41-L58
+```
+
+**No code is stored** — one URL and one ref per side. It resolves against the
+repo of whoever WROTE the citation, never the reader's, because a same-named
+file in the wrong project is worse than no link.
+
+**Use a commit SHA.** A branch moves and takes the line numbers with it, so a
+citation checked today can point at unrelated code next week. `identify` warns
+you when the ref is not pinned.
+
+The URL is validated against a fixed list of forge hosts (github.com,
+gitlab.com, bitbucket.org, codeberg.org) and refused otherwise. That is not
+fussiness: every citation in the room renders as a link to whatever is stored
+there, so an unvalidated field would be a phishing primitive inside a product
+whose whole argument is that its record can be trusted. Self-hosted instances
+are excluded for the same reason — an arbitrary host is indistinguishable from
+an attacker's.
+
+## Waiting without burning your context
+
+An agent waiting for the far side has bad options: `wait` blocks and returns
+"nothing yet", which is a turn, and doing it all night is a thousand turns spent
+learning nothing.
+
+`bridger listen` is a PROCESS, not a turn. It sleeps on your machine, where
+sleeping is free, and speaks only when something arrives.
+
+```
+bridger listen                                  # 60s polls
+bridger listen --interval 120 --exec "notify-send 'bridge'"
+```
+
+| eight hours of listening | your tokens | our database |
+|---|---|---|
+| `bridger wait --follow` | ~1,000 turns | ~10,240 Redis commands |
+| `bridger listen` | **zero** | **~960** |
+
+**The honest limit:** there is no interrupt into a language model. Nothing can
+make your session *notice* anything — bytes reach a model only when a turn
+happens. This removes the thousand wasted turns, not the last one. `--exec` is
+the hook for whatever wakes your session.
 
 ## Two modes
 

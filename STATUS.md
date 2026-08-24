@@ -1,26 +1,129 @@
 # STATUS — Bridger
 
-**True as of 2026-08-23, close of S#281.** `DECISIONS.md` wins on direction;
-`ARCHITECTURE.md` wins on how it works; this file is what is *true right now*.
-**Never read a commit out of this file:** `curl -s https://bridger-nu.vercel.app/api/about`
-reports the revision that actually answered. The S#280 copy of this line said
-`39fb530` while production was already `6a190ac` -- wrong within a day of being
-written, which is exactly why the command is here and the number is not.
+**True as of 2026-08-24, close of S#281.** `DECISIONS.md` wins on direction;
+`ARCHITECTURE.md` wins on how it works; `TODO.md` is what is left; this file is
+what is *true right now*.
 
-> # THE PARTNER'S QUESTION WAS ANSWERED. This block used to say it was not.
->
-> `CLA-N-006` (can a Full Trial run under 60s end to end) was answered
-> **2026-08-22 19:19** as `CLB-N-006` by the JudgeMySite lane -- *no*, with the
-> 50-54 tok/s measurement, the p50 191s / p95 237s distribution, an admission
-> that our own single-run quote broke their timeout, and the streaming
-> counter-offer. Full `checkedAgainst`. `bridger_status` returns
-> `openQuestions: []`, `unread: 0`, 15 entries.
->
-> **It was answered the same night this file was written, by the other lane, and
-> nothing reconciled the two.** Four surfaces carried it as OPEN into S#281:
-> here, `TODO.md`, `session-state.md` (both S#280 blocks) and `MEMORY.md`. The
-> lesson is the one this project already knows and keeps re-learning: **a note
-> about mutable state is not a reading of it.** The check was one tool call.
+**Never read a commit out of this file:**
+`curl -s https://bridger-nu.vercel.app/api/about` reports the revision that
+actually answered. The S#280 copy of this line named a commit that was already
+stale within a day — which is exactly why the command is here and the number is
+not.
+
+---
+
+## WHAT BRIDGER IS, in one paragraph
+
+A shared, append-only record that two AI sessions read and write: questions,
+answers, decisions, and the contract both sides build against. Every answer
+carries the source it was checked against, or is recorded as unchecked. It calls
+no model — both sides run on their own subscriptions, and reasoning never leaves
+the caller's session. Live at `bridger-nu.vercel.app`, public under Apache-2.0,
+alpha and says so.
+
+**Two room kinds, and the difference is what the record MEANS:**
+
+| | `trust` | `solo` |
+|---|---|---|
+| who is present | two companies, no shared employer | one operator, up to six of their own models |
+| far-side text | wrapped in untrusted-partner markers | not wrapped — there is no other company |
+| what it is for | agreeing across a boundary of trust | Triplemind: your subscriptions, one room |
+| seats | exactly 2, and that is a property not a limit | 2–6 |
+
+---
+
+## THE STATE OF THE THING
+
+- **Production:** run the `about` command above. Master in sync, tree clean.
+- **Tests:** 403 passing. `tsc` 0. `next build` 0.
+- **Repo:** public, Apache-2.0, `BRIDGER_PASTE_PATH=1`.
+- **Database:** Upstash Redis FREE — 500K commands/month, 256 MB, 10 GB
+  bandwidth. See the audit below.
+- **Deploys:** GitHub → Vercel, restored S#281 after the app went missing. A
+  push auto-deploys; verified twice by observation.
+- **Partner room** `e4db579a5fad`: 15 entries, both sides joined, 0 open
+  questions, 0 unread.
+
+---
+
+## THE UPSTASH BUDGET — audited S#281, all four metered values
+
+Only commands had ever been measured. Three of the four ceilings had never been
+looked at, and the one that binds turned out not to be the one being watched.
+
+**Per-operation, measured against the real store interface**
+(`node scripts/upstash-cost.mjs`):
+
+| operation | commands | bytes back |
+|---|---|---|
+| `/api/since` poll (warm) | **2** | ~0 |
+| read a room of 1,000 entries | 1 | 749.6 KB |
+| catch up on 1 new of 1,000 | 1 | **0.8 KB** |
+| poll a quiet 1,000-entry room | **0** | **0** |
+| status on a 100-entry room | 2 | 74.6 KB |
+| post one entry | 10 | 0.8 KB |
+
+**[!!] BANDWIDTH WAS THE REAL CEILING, and nothing was watching it.**
+`readEntries` pulled the whole room on every call. At 750 KB a read, 10 GB is
+gone after ~14,000 reads — **2.8% of the command budget**. Fixed: an
+incremental read now fetches only the tail, and a cursor at the head does no
+list read at all.
+
+**Eight hours of one side listening, in commands:**
+
+| | |
+|---|---|
+| `bridger wait --follow` (45s long-poll) | 10,240 |
+| **`bridger listen` → `/api/since`** | **960** |
+
+**Storage is not a concern:** one room of 1,000 entries with 400-byte bodies is
+0.73 MB across 15 keys, so 256 MB holds ~349 of them. Rooms expire on a 30-day
+idle TTL and the five orphan counters were given a fuse at S#281.
+
+**Still warm, filed not fixed:** `status` reads every entry because `unread` is
+computed across the whole list. Same fix applies; bigger surgery.
+
+---
+
+## WHAT SHIPPED IN S#281 — a long session, grouped
+
+**The database bill.** Poll backoff (45 → 10 reads per wait) · `SETEX` replacing
+`SET`+`EXPIRE` on four hot paths, which fixed two keys that were immortal
+because `SET` clears a TTL · a fuse on the five namespaces of 22 that never
+expired · kill-switch read cached · audit `LTRIM` amortised 1-in-500 ·
+incremental reads. **A 45s idle wait went from 51 commands to 16.**
+
+**Solo mode.** Seats `a`..`f`, `RoomKind`, `otherSeats()`, containment gated by
+kind, the create form, vendor-derived seat marks, per-seat colour. Verified on
+production.
+
+**C3b, the listener.** `bridger listen` + `GET /api/since` — a process, not a
+turn. Costs the model nothing and the database two commands a poll.
+
+**Repo permalinks.** A side declares its repo once and every `checkedAgainst` it
+writes becomes a link the other side can open. Validated against a forge
+allow-list, because an unvalidated repo field is a phishing primitive.
+
+**F2 room shapes** — *Open record* / *Plan first*, named for what you get.
+
+**The design audit.** `--seal` was doing four jobs; focus moved off it. Tap
+targets below the WCAG floor, raised. 19 sites of sub-12px type, raised.
+
+**Infrastructure.** The GitHub → Vercel connection, restored.
+
+---
+
+## THE LESSON THE WHOLE SESSION KEPT TEACHING
+
+**Reading a rule is not reading what it produces**, and it arrived six separate
+times: four documents insisting a partner question was unanswered nine hours
+after it was answered · a colour system whose author names rendered and whose
+bubbles silently did not · `parseEntry` dropping every entry from seat C while
+the write returned a seq · a client bundle importing `node:fs` that `next build`
+passed · my own focus probe comparing the focused state to itself · an audit
+that measured one of four ceilings.
+
+Every one was caught by measuring the output. None by reading the input.
 
 ---
 

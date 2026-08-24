@@ -1,6 +1,6 @@
 # TODO — Bridger
 
-## START HERE — rewritten at the close of S#281 (2026-08-23)
+## START HERE — rewritten at the close of S#281 (2026-08-24)
 
 **Three commands before you believe anything in this file:**
 
@@ -10,111 +10,77 @@ curl -s https://bridger-nu.vercel.app/api/health   # killSwitch on|off
 git -C . log --oneline -5                          # what shipped last
 ```
 
-**State at the close of S#281.** 360/360, tsc 0, next build 0. The bridge is
-RUNNING, the repo is PUBLIC under Apache-2.0, `BRIDGER_PASTE_PATH=1` is ON, and
-the partner room `e4db579a5fad` is open and healthy — **15 entries, 0 unread, 0
-open questions.**
+`STATUS.md` says what is TRUE now, including the full Upstash budget audit.
+`DECISIONS.md` wins on direction. This file is only what is LEFT.
 
-> **THE PARTNER'S QUESTION IS ANSWERED — and four files said otherwise.**
-> `CLA-N-006` was answered 2026-08-22 19:19 as `CLB-N-006` by the JudgeMySite
-> lane. It was answered *the same night* the S#280 alert was written, by the
-> other lane, and nothing reconciled them: this file, `STATUS.md`,
-> `session-state.md` and `MEMORY.md` all carried it into S#281 as OPEN. **A note
-> about mutable state is not a reading of it.** The check was one tool call.
+**403 tests, tsc 0, build 0, tree clean, master in sync.**
 
-### WHAT SHIPPED IN S#281 — the database bill
+---
 
-**Erik: *"priority should be to decrease the Redis command usage as much as
-possible. We want to have this tool for free as much as we can."***
+## CLOSED IN S#281 — do not re-open these
 
-**Measured end-to-end, not derived: a 45-second idle wait cost 51 Redis commands
-and now costs 16.** Two sides listening all day: 195,840 → 61,440. Days to burn a
-500,000/month free tier: **2.6 → 8.1**.
+Solo mode (backend, both transports, create form, seat marks, per-seat colour) ·
+C3b the listener (`bridger listen` + `/api/since`) · repo permalinks · F2 room
+shapes, named · the Redis reduction (51 → 16 commands per idle wait) · the
+bandwidth fix (749 KB → 0.8 KB incremental reads) · the Upstash audit across all
+four metered values · F4's `wire()` self-wrap · the GitHub → Vercel connection ·
+the design audit's tap targets, type floor and focus colour · four stale `[!!]`
+banners that said a partner question was unanswered.
 
-- **The poll backoff.** `waitForNew` polled a flat 1,000ms — 45 reads per 45s
-  wait — while our own waste budget discounted that same call 90% because it is
-  cheap *for the caller*. Two budgets pointing opposite ways, one instrumented.
-  Now 500ms (faster than before for a live exchange) growing 1.6× to an 8s cap.
-- **Three real bugs nobody had filed:** `SET` clears a TTL, so `set` +
-  conditional `expire` left `noteOp` and `bumpWaste` immortal — and a waste
-  counter that never resets refuses an honest caller forever · five of 22 key
-  namespaces never expired at all, leaving ~19 orphans per dead room · the budget
-  string advertised "13 hours" against a real default of 5.2.
-- **A2/C5 ruled:** budget 12,000 → 18,000, shipped *behind* the backoff so the
-  raise costs fewer commands than the old value did.
-- **A8 ruled:** mint refusal keeps `429` + `Retry-After`, drops `terminal: true`.
+---
 
-Pinned in `lib/__tests__/redis-cost.test.ts`, ablation-proven.
+## NEEDS ERIK — decisions, not work
 
-### WHERE TO GO NEXT — rewritten at the close of S#281
+| # | Decision | Why it is yours |
+|---|---|---|
+| 1 | **`--seal` is down from four jobs to three** | Focus moved off it at S#281. Still on it: provenance (correct), text selection, and three incidental uses — the copy-button "done" state, link hover, and the brand mark. Taking those three off restores *"colour means exactly one thing"*. Four small CSS changes, no product risk, but it touches the visual identity you approved at S#277. |
+| 2 | **`@bridger/cli`** | Publish or not. `package.json` still carries `private: true` as the guard. `bridger` on npm is a stranger's socket.io package, so `npx bridger` runs their code. |
+| 3 | **Widen the repo allow-list?** | Self-hosted GitLab/Gitea cannot be used for permalinks today, deliberately: an arbitrary host is indistinguishable from an attacker's, and every citation in a room renders as a link to whatever is stored. Widening trades that guarantee for reach. |
+| 4 | **Vendor logos: real marks or the letterforms?** | S#281 shipped a letterform plus a brand-adjacent hue rather than inlining Anthropic's, Google's and OpenAI's trademarks from our origin. One map in `lib/seats.ts` if you want the real artwork. |
+| 5 | **React Bits** | Adopt as a dependency, or mine for ideas? `/api/about` tells partners to run `node -p "…dependencies"` and expect **seven entries**, so adding framer-motion or GSAP makes the trust page's own verification instruction false. |
+| 6 | **`WAIT_MAX_SECONDS` 45 → ~290 — much less urgent now** | The overnight case it was meant to fix has a better answer (`bridger listen`). This is only about interactive `wait` callers who will not run a listener. |
 
-**CLOSED THIS SESSION, so nobody re-opens them:** solo mode (backend, both
-transports, create form, seat marks, per-seat colour) · F2 room shapes, named ·
-F4's `wire()` self-wrap · repo permalinks · the Redis reduction · the Vercel git
-connection · the design audit's tap targets, type floor and focus colour.
+---
 
-**Claude can do solo:**
+## NEEDS A PARTNER — nothing here can be finished alone
 
 | # | What | Why |
 |---|---|---|
-| 1 | ~~C3b, the local daemon~~ **BUILT S#281g** | `bridger listen` + `GET /api/since`. Two Redis commands per poll against `wait`'s ~16; **8h listening costs ~960 commands instead of ~10,240**. Verified by running it. S#281b's "sleeping is worse than long-waiting" was wrong past ~50s and is corrected in `DECISIONS.md`. **Left: nothing required — `--exec` is the hook for whatever wakes a session, and choosing that is the operator's.** |
-| 2 | **B5 at scale** | The panels never scrolled until S#280, found at 30 entries. Nothing else in the room has been looked at past a handful. Chrome headless only — no real monitor, no phone, no Safari, no Firefox, six sessions running. |
-| 3 | **[!!] D4's create half — and S#281 made it WORSE before it made it better** | D4's complaint is "too many steps, too vaguely labelled". S#281 removed a dead control (the disabled Slots buttons) and **added a live one** (the shape picker), so the trust path is now one decision longer than it was. That is defensible — the new step is real where the old one was theatre — but it is not the simplification D4 asked for, and pretending otherwise would leave a known regression unlogged. |
-| 4 | **C3a citation bundles** | The far side's remaining proposal, still untaken. Now more attractive: with repo permalinks shipped, a bundle of citations is a bundle of openable links. |
-| 5 | **F4 housekeeping** | Room `d437fff5b423` still needs a fresh invite code. |
+| 7 | **F1 in a real room, and D3's live test** | The plan stage has never been touched by a far side, and its DEFAULT partner state is plan mode. Whether our tool annotations unblock that depends on Trigvanta's harness and is UNVERIFIED. |
+| 8 | **Repo permalinks, from the far side** | Shipped and proven on a server, but no partner has ever declared a repo. The whole point is a link THEY can open. |
+| 9 | **B1's adversarial half**, B2, B4 | Still owed from earlier sessions. |
 
-**Needs a PARTNER:**
+---
+
+## CLAUDE CAN DO SOLO
 
 | # | What | Why |
 |---|---|---|
-| 6 | **F1 in a real room, and D3's live test** | The plan stage has never been touched by a far side, and its DEFAULT partner state is plan mode. Whether our tool annotations unblock that depends on Trigvanta's harness and is UNVERIFIED. |
-| 7 | **The repo permalinks, from the far side** | Shipped and proven on a server, but no partner has ever declared a repo. The whole point is a link THEY can open. |
-| 8 | **B1's adversarial half**, B2, B4 | Still owed from earlier sessions. |
+| 10 | **[!!] Verify the citation permalink RENDERS** | The one thing built in S#281 and never seen. The class ships in the built client bundle and `/api/export` carries `checkedUrl`, but agent-browser hung repeatedly and the anchor was never observed drawn. One look settles it. |
+| 11 | **`status` reads every entry in the room** | 74.6 KB on a 100-entry room, because `unread` is computed across the whole list. The incremental-read fix applies; it is bigger surgery because `totalEntries` and the open-question derivation both want the full set. |
+| 12 | **B5 at scale** | The panels never scrolled until S#280, found at 30 entries. Nothing else in the room has been looked at past a handful. Chrome headless only — no real monitor, no phone, no Safari, no Firefox. |
+| 13 | **D4's create half — and S#281 made it longer, not shorter** | D4 asks for FEWER steps. S#281 removed a dead control (the disabled Slots buttons) and added two live ones (room kind, room shape), so the trust path is now two decisions longer. Defensible — the new steps are real where the old one was theatre — but it is not what D4 asked for, and it is logged rather than counted as progress. |
+| 14 | **C3a citation bundles** | The far side's remaining proposal. More attractive now: with permalinks shipped, a bundle of citations is a bundle of openable links. |
+| 15 | **F4 housekeeping** | Room `d437fff5b423` still needs a fresh invite code. |
 
-**Needs ERIK — decisions, not work:**
+---
 
-1. **`WAIT_MAX_SECONDS` 45 → ~290? — MUCH LESS URGENT AFTER S#281g.** The
-   overnight case it was meant to fix now has a better answer (`bridger listen`,
-   ~960 commands a night against 4,608 for 300s blocks), so this is only about
-   interactive `wait` callers who will not run a listener. Free tier CONFIRMED at
-   500K commands/month.
-   One room with both sides on the overnight listener we recommend costs 24 of
-   ~30 nights; 300s waits take that to 54. **Not free** — it moves cost to
-   Vercel function-seconds (plan is Pro, so 300s is permitted; `maxDuration` is
-   60 today). Trade one budget for the other, or leave it.
-2. **`--seal` is down from four jobs to three.** Focus moved off it at S#281.
-   Still on it: provenance (correct), text selection, and three incidental uses
-   — the copy-button "done" state, link hover, and the brand mark. Taking those
-   three off restores "colour means exactly one thing". Four small CSS changes,
-   no product risk, but it touches the visual identity you approved at S#277.
-3. **`@bridger/cli`** — publish or not. `package.json` still carries
-   `private: true` as the guard.
-4. ~~C3b's language~~ **DECIDED S#281g: TypeScript**, inside the existing CLI — zero new dependencies, ships with the tool a partner already installs. A standalone Python version stays reasonable to want later; it is not needed for any capability.
-5. **Widen the repo allow-list?** Self-hosted GitLab/Gitea cannot be used today,
-   deliberately: an arbitrary host is indistinguishable from an attacker's, and
-   every citation renders as a link to whatever is stored. Widening trades that
-   guarantee for reach.
-6. **Vendor logos: real marks or keep the letterforms?** S#281 shipped a
-   letterform plus a brand-adjacent hue rather than inlining Anthropic's,
-   Google's and OpenAI's actual trademarks from our origin. One map in
-   `lib/seats.ts` if you want the real artwork.
-7. **React Bits** — adopt as a dependency, or mine for ideas? Note that
-   `/api/about` tells partners to run `node -p "…dependencies"` and expect
-   **seven entries**, so adding framer-motion or GSAP makes the trust page's own
-   verification instruction false.
+## STANDING CONSTRAINTS — read before proposing anything
 
-**UNVERIFIED, and it is one look:** the citation permalink RENDERING in a
-browser. The class ships in the built client bundle and the data reaches the
-page (`/api/export` carries `checkedUrl`), but agent-browser hung repeatedly and
-the anchor was never seen drawn. Open a room with a declared repo and it is
-settled either way.
+- **We are a communication bridge.** No repos, no codebases, no large blobs.
+  The composer plans stages and guidance, never artifacts. (Erik, S#281.)
+- **Any change that makes a path cheaper for the CALLER must state what it costs
+  the DATABASE.** They have pointed in opposite directions before: a blocked
+  wait is discounted 90% for the caller and was our most expensive call.
+- **Upstash meters four things.** Commands, storage, bandwidth, databases.
+  Auditing one of them is how S#281 nearly missed that bandwidth binds at 2.8%
+  of the command budget. `node scripts/upstash-cost.mjs` measures all of it.
+- **Never read a commit out of prose.** `curl -s /api/about`.
 
 > **DIRECTION (Erik, S#275): zero install, zero setup — "just a bridge to a room
 > where users' AIs can communicate in a safe environment."** The name is
 > **gaveled as Bridger** (S#280), the licence is **Apache-2.0** (S#280), pricing
-> is deferred. **New standing constraint (S#281): we are a communication bridge —
-> no repos, no codebases, no large blobs. Stay lightweight.** And: any change
-> that makes a path cheaper for the caller must state what it costs the database.
+> is deferred behind a funnel.
 ---
 
 ## WHERE WE ARE — S#277 (2026-08-20)
