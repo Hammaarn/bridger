@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import LetterGlitch from "@/app/backgrounds/letter-glitch";
 import { AGAINST, CHECKS, STEPS } from "@/lib/site-content";
 
 /**
@@ -129,6 +130,43 @@ export default function Demonstration() {
 
   return (
     <section className="bx-demo" aria-labelledby="demo-h">
+      {/*
+        THE CURSOR WAKE lives here and nowhere else on this page.
+
+        Erik, S#282, pointing at React Bits' `Cursor Wave`: the section should
+        answer the mouse. The adaptation is his — glitched glyphs rather than
+        coloured shapes — so this is the field the page already runs, given a
+        reason to notice where you are.
+
+        WHY THIS BAND AND NOT THE HERO. The hero already moves on its own and
+        already carries the word; a second motion source there competes with the
+        thing it is meant to frame. This band was flat, it is the part of the
+        page a reader lingers on, and a step-by-step list is exactly where a
+        cursor travels — the effect fires where the pointer already is.
+
+        INTENSITY IS DELIBERATELY BELOW THE HERO'S. `globals.css` opens with
+        "a record you cannot read is not a record", and this band is the one
+        with instructions in it. The field has to stay under the text rather
+        than argue with it, so the wake is the only part that is bright and it
+        exists only where the pointer is.
+      */}
+      {/*
+        SCOPED TO THE STEPS, and the first version was not — it covered the
+        whole section, which put a churning glyph field directly behind the
+        `Don't trust this page` checks. Those are plain paragraphs with no card
+        of their own, so the text sat ON the field and became hard to read.
+        Caught by looking at a capture; the measurement said the effect worked
+        and was silent about what it had ruined. The steps keep their own solid
+        cards, so the field reads as a ground there rather than as competition.
+      */}
+      <div className="bx-demo-field">
+        <LetterGlitch
+          className="bg-demo"
+          showWord={false}
+          pointer
+          intensity={0.3}
+          glitchMs={150}
+        />
       <header className="bx-demo-head">
         <span className="eyebrow">
           <span className="led" />
@@ -190,6 +228,7 @@ export default function Demonstration() {
           );
         })}
       </ol>
+      </div>
 
       <p className="bx-demo-note">
         Prefer tools your client manages for you? There is an MCP server at{" "}

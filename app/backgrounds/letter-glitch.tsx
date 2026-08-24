@@ -50,6 +50,13 @@ const CYCLE_S = 16;
 const SPARK_R = 3;
 
 /**
+ * Ceiling on live cursor-wake sparks. At 900ms of decay a fast drag across a
+ * wide viewport crosses far more cells than that, and every live spark costs a
+ * bloom plus a dirty neighbourhood. 40 is roughly a screen-width of trail.
+ */
+const MAX_WAKE_SPARKS = 40;
+
+/**
  * THE SWEEP — a band of light travelling right to left across the field.
  *
  * It runs against the reading direction on purpose. Left-to-right rides along
@@ -131,6 +138,30 @@ export interface LetterGlitchProps {
   /** Set false for the thin strip, where a word would not fit. */
   showWord?: boolean;
   /**
+   * THE CURSOR WAKE — the field notices where you are.
+   *
+   * Erik, S#282, from React Bits' `Cursor Wave`: a grid of shapes that swell
+   * and colour inside an influence radius and decay back as the cursor leaves.
+   * His own adaptation, and it is the right one: *"we could make it with the
+   * glitched letters instead like we have in the background"* — so cells do not
+   * change SHAPE, they re-roll their GLYPH and light up, which is the move this
+   * field already makes on its own.
+   *
+   * BORROWED AS AN IDEA, NEVER AS A DEPENDENCY, and that is a product
+   * constraint rather than taste: `/api/about` tells every partner to run
+   * `node -p "Object.keys(require('./package.json').dependencies)"` and expect
+   * SEVEN entries. Adding a motion library to decorate a landing page would
+   * make the trust page's own verification instruction false.
+   *
+   * IT REUSES THE SPARK, deliberately. A spark is already a local bloom that
+   * decays, marks its neighbourhood dirty, and is drawn once rather than per
+   * touched cell. A cursor wake is a spark per cell the pointer crosses, so it
+   * inherits all of that — including the dirty-cell repaint this whole file is
+   * built around. Writing a second, continuous influence field would have been
+   * the version that repaints 10k glyphs a frame.
+   */
+  pointer?: boolean;
+  /**
    * Cell height in CSS px. The word is sampled at one mask pixel per cell, so
    * this is the VERTICAL RESOLUTION the letterforms get -- in a 260px band, 20
    * buys 13 rows and the counters of B, R, D and G close at that size.
@@ -150,6 +181,7 @@ export default function LetterGlitch({
   intensity = 0.9,
   ping = 0,
   showWord = true,
+  pointer = false,
   cellH = CELL_H,
   wordWidth = 0.62,
 }: LetterGlitchProps) {
@@ -675,6 +707,60 @@ export default function LetterGlitch({
     const onVis = () => (document.hidden ? stop() : start());
     document.addEventListener("visibilitychange", onVis);
 
+    /**
+     * THE WAKE. Listens on the WINDOW, not the canvas, because this canvas is a
+     * background: it sits behind the content with `pointer-events: none`, so a
+     * listener bound to it would never fire once there is a paragraph on top.
+     * Coordinates are mapped through the canvas rect instead, which also gives
+     * the containment test for free — a pointer outside the rect is ignored.
+     */
+    let lastCell = -1;
+    const onPointerMove = (e: PointerEvent) => {
+      if (reduced?.matches || !visible || document.hidden) return;
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      if (x < 0 || y < 0 || x > rect.width || y > rect.height) {
+        lastCell = -1;
+        return;
+      }
+      if (!cols || !rows) return;
+      const col = Math.min(cols - 1, Math.max(0, (x / CELL_W) | 0));
+      const row = Math.min(rows - 1, Math.max(0, (y / cellH) | 0));
+      const idx = row * cols + col;
+      // ONE SPARK PER CELL CROSSED, not one per event. A pointermove can fire
+      // several times inside a single 12px cell, and spawning on each would
+      // stack identical blooms at the same coordinate — brighter, not longer.
+      if (idx === lastCell) return;
+      lastCell = idx;
+
+      const t = performance.now();
+      sparks.push({ col, row, born: t });
+      // A fast drag across a wide viewport can outrun the 900ms decay. The cap
+      // bounds the per-frame bloom cost; oldest go first, so the tail of the
+      // wake is what is lost rather than the head under the cursor.
+      if (sparks.length > MAX_WAKE_SPARKS) sparks.splice(0, sparks.length - MAX_WAKE_SPARKS);
+
+      // The glitched half of Erik's brief: glyphs under the cursor re-roll, so
+      // the field visibly scrambles where you touch it. `locked` cells are the
+      // WORD and are never scrambled — the noise reacts, the agreement does not.
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          const c = col + dc;
+          const r = row + dr;
+          if (c < 0 || c >= cols || r < 0 || r >= rows) continue;
+          const cell = cells[r * cols + c];
+          if (cell.locked) continue;
+          cell.ch = GLYPHS[(Math.random() * GLYPHS.length) | 0];
+          cell.dirty = true;
+        }
+      }
+      // A background canvas may be parked because nothing else is animating it;
+      // the pointer is a reason to run.
+      start();
+    };
+    if (pointer) window.addEventListener("pointermove", onPointerMove, { passive: true });
+
     return () => {
       stop();
       ro.disconnect();
@@ -682,8 +768,9 @@ export default function LetterGlitch({
       document.removeEventListener("visibilitychange", onVis);
       reduced?.removeEventListener?.("change", onMotion);
       scheme?.removeEventListener?.("change", onScheme);
+      if (pointer) window.removeEventListener("pointermove", onPointerMove);
     };
-  }, [word, glitchMs, intensity, showWord, cellH, wordWidth]);
+  }, [word, glitchMs, intensity, showWord, pointer, cellH, wordWidth]);
 
   return <canvas ref={ref} className={className} aria-hidden="true" />;
 }
