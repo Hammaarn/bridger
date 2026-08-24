@@ -459,6 +459,48 @@ because `bridger pull` writes the room's typed, cited, chained record to disk.
 has `Verified By: 4 agents` and no `valid-until`, which is the rot above with a
 confidence badge on it.
 
+### [!!] IT SHOULD BE A TOOL IN THE ROOM — Erik, S#282 close
+
+> *"Perhaps it should be a tool provided inside the rooms? This can actually
+> expand way beyond that simple one I just mentioned."*
+
+**He is right, and the strongest reason is one the global version cannot buy.**
+
+**THE ROOM ALREADY SOLVES THE CONSENSUS PROBLEM.** Gemini's defence against
+poisoned entries was "2-3 independent agents confirm" — defeated by anyone who
+can run three bots, and not independent anyway when they are the same model
+family reading the same context. A failure captured INSIDE a room has **two
+identified parties who do not share an employer, writing into an append-only
+record neither can rewrite.** That is structural independence, not simulated.
+The verification a global registry has to invent, a room supplies for free.
+
+**AND IT MAKES THE KB A BYPRODUCT OF NORMAL USE** rather than a second product
+someone has to adopt. Failures are already born here — "we assumed `/orders`
+returned decimals, it returns cents, we lost a day" is exactly the kind of thing
+two integrating teams discover. As a tool it inherits the chain, `basis`,
+`checkedAgainst` and `/api/export` without any of them being rebuilt.
+
+**What is genuinely missing is a TYPE.** Negative knowledge is a distinct kind
+of claim — a trap rather than a fact — and today it can only be smuggled into a
+`post` or a `decide`. The entry types are the product's vocabulary; this is a
+missing word in it.
+
+**Three cautions, so this is not adopted on enthusiasm:**
+
+1. **A 14th MCP tool is not free.** Standing schema costs the far side tokens on
+   every turn whether used or not (~1,800 full surface vs ~318 answerer). The
+   flat transport carries no such cost, so the tool may want to be flat-first.
+2. **It must carry a RULE or it decays into ceremony.** `checkedAgainst` nearly
+   became decoration until `basis` refused an opinion carrying a citation. A
+   failure entry with no enforced discipline becomes a second `post`.
+3. **The generalisation problem does not go away** — it gets a better home. A
+   room-captured failure is still one instance until something reframes it.
+
+**Open question worth answering before building:** does a failure belong to the
+ROOM (visible to both, chained, exportable) or to the OPERATOR (private, local,
+cross-room)? The two answers build different things, and the local bank above
+assumes the second.
+
 ### THE SPLIT: A PYTHON ARM CAPTURES, JUDGEMENT REFRAMES
 
 > Erik, S#282 close: *"Perhaps we can set up the capturing of the failure modes
