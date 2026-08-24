@@ -57,6 +57,28 @@ const SPARK_R = 3;
 const MAX_WAKE_SPARKS = 40;
 
 /**
+ * THE CLICK RIPPLE — a ring that leaves the pointer and crosses the field.
+ *
+ * Erik, S#282: *"clicking doesn't add that ripple effect I was looking for"* —
+ * React Bits' `Cursor Wave` fires a radial burst on click, and the wake alone
+ * does not reproduce it. A spark is a blob at a point; this is an ANNULUS whose
+ * radius grows, which is a different shape and needs its own pass.
+ *
+ * IT IS DRAWN PARAMETRICALLY, NOT BY SCANNING. The obvious loop — walk every
+ * cell, keep the ones near the radius — is the full-grid repaint this whole
+ * file exists to avoid, and it would get worse as the ring grew. Instead each
+ * row in range solves the circle for its two x-spans directly, so the cost
+ * tracks the ring's CIRCUMFERENCE rather than the grid's area.
+ */
+const RIPPLE_LIFE = 1500;
+/** Cells per second. 46 crosses a typical band in about the ring's lifetime. */
+const RIPPLE_SPEED = 46;
+/** Half-thickness of the ring, in cells. Below ~2 it aliases into dashes. */
+const RIPPLE_W = 2.6;
+/** Concurrent rings. Clicking repeatedly should feel live, not unbounded. */
+const MAX_RIPPLES = 4;
+
+/**
  * THE SWEEP — a band of light travelling right to left across the field.
  *
  * It runs against the reading direction on purpose. Left-to-right rides along
@@ -214,6 +236,7 @@ export default function LetterGlitch({
     let visible = true;
     let lastGlitch = 0;
     let sparks: Spark[] = [];
+    let ripples: Spark[] = [];
     const touched = new Set<number>();
     let reveal = 0;
     /** Last quantised reveal, so the halo repaints on crossings only. */
@@ -621,6 +644,58 @@ export default function LetterGlitch({
       }
       touched.clear();
 
+      // ── the click ripples ───────────────────────────────────────────────
+      // After the spark clear above and before the repaint, so a ring writes
+      // into the same `spark` channel and is erased by the same `touched` pass.
+      ripples = ripples.filter((rp) => t - rp.born < RIPPLE_LIFE);
+      for (const rp of ripples) {
+        const age = (t - rp.born) / RIPPLE_LIFE;
+        const R = ((t - rp.born) / 1000) * RIPPLE_SPEED;
+        /*
+         * NEARLY LINEAR, and the quadratic it replaces was measurably wrong.
+         * A spark uses `(1-age)²` because it is a point that should die where
+         * it was born. A ring is supposed to CROSS the field, and squared decay
+         * meant it did not survive the trip: measured peak gain fell 20.9 at the
+         * click to 1.7 by 360px, which is a wavefront you cannot see leave.
+         * `^0.75` holds it up over the distance and still lands at zero.
+         */
+        const level = Math.pow(1 - age, 0.75);
+        const outer = R + RIPPLE_W;
+        const inner = R - RIPPLE_W;
+        const r0 = Math.max(0, Math.floor(rp.row - outer));
+        const r1 = Math.min(rows - 1, Math.ceil(rp.row + outer));
+        for (let r = r0; r <= r1; r++) {
+          const dy = r - rp.row;
+          const ho = outer * outer - dy * dy;
+          if (ho <= 0) continue;
+          const xo = Math.sqrt(ho);
+          const hi = inner > 0 ? inner * inner - dy * dy : -1;
+          const xi = hi > 0 ? Math.sqrt(hi) : -1;
+          // Two spans where the row crosses the annulus, or one while the row
+          // passes inside the hole entirely.
+          const spans: Array<[number, number]> =
+            xi >= 0 ? [[-xo, -xi], [xi, xo]] : [[-xo, xo]];
+          for (const [a, b] of spans) {
+            const c0 = Math.max(0, Math.ceil(rp.col + a));
+            const c1 = Math.min(cols - 1, Math.floor(rp.col + b));
+            for (let c = c0; c <= c1; c++) {
+              const d = Math.abs(Math.hypot(c - rp.col, dy) - R);
+              if (d > RIPPLE_W) continue;
+              const idx = r * cols + c;
+              const v = level * (1 - d / RIPPLE_W);
+              if (v <= 0.02) continue;
+              cells[idx].spark = Math.max(cells[idx].spark, v);
+              cells[idx].dirty = true;
+              touched.add(idx);
+              // The ring re-rolls what it passes through, so it reads as a wave
+              // moving THROUGH the glyphs rather than a light drawn over them.
+              // The word is never scrambled -- see the wake, same rule.
+              if (!cells[idx].locked && v > 0.5) cells[idx].ch = rnd();
+            }
+          }
+        }
+      }
+
       for (const s of sparks) {
         const age = (t - s.born) / LIFE;
         const level = (1 - age) * (1 - age);
@@ -759,7 +834,31 @@ export default function LetterGlitch({
       // the pointer is a reason to run.
       start();
     };
-    if (pointer) window.addEventListener("pointermove", onPointerMove, { passive: true });
+    /** A click anywhere over the field sends a ring out from that point. */
+    const onPointerDown = (e: PointerEvent) => {
+      if (reduced?.matches || !visible || document.hidden) return;
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      if (x < 0 || y < 0 || x > rect.width || y > rect.height) return;
+      if (!cols || !rows) return;
+      ripples.push({
+        col: Math.min(cols - 1, Math.max(0, (x / CELL_W) | 0)),
+        row: Math.min(rows - 1, Math.max(0, (y / cellH) | 0)),
+        born: performance.now(),
+      });
+      if (ripples.length > MAX_RIPPLES) ripples.splice(0, ripples.length - MAX_RIPPLES);
+      start();
+    };
+
+    if (pointer) {
+      window.addEventListener("pointermove", onPointerMove, { passive: true });
+      // `pointerdown`, not `click`: the ring should leave the cursor as the
+      // button goes down, which is when the gesture feels like it happened.
+      // Passive, and it never calls preventDefault -- the accordion buttons and
+      // copy controls under this field must keep working exactly as before.
+      window.addEventListener("pointerdown", onPointerDown, { passive: true });
+    }
 
     return () => {
       stop();
@@ -768,7 +867,10 @@ export default function LetterGlitch({
       document.removeEventListener("visibilitychange", onVis);
       reduced?.removeEventListener?.("change", onMotion);
       scheme?.removeEventListener?.("change", onScheme);
-      if (pointer) window.removeEventListener("pointermove", onPointerMove);
+      if (pointer) {
+        window.removeEventListener("pointermove", onPointerMove);
+        window.removeEventListener("pointerdown", onPointerDown);
+      }
     };
   }, [word, glitchMs, intensity, showWord, pointer, cellH, wordWidth]);
 

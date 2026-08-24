@@ -2412,10 +2412,12 @@ input.bx-folder-name:focus {
   height: 100%;
   z-index: 0;
   pointer-events: none;
-  /* Fades out at the edges so the band has no hard boundary against the
-     sections above and below, which do not carry a field. */
-  mask-image: linear-gradient(to bottom, transparent, #000 12%, #000 88%, transparent);
-  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 12%, #000 88%, transparent);
+  /* Fades out at the edges so the module has no hard boundary against the
+     sections above and below, which carry no field. In PX rather than %: the
+     module is tall and a percentage fade scaled with it, which is how the
+     field came to look like it stopped halfway down the section. */
+  mask-image: linear-gradient(to bottom, transparent, #000 90px, #000 calc(100% - 90px), transparent);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 90px, #000 calc(100% - 90px), transparent);
 }
 
 /* The field's own box. Only the heading and the steps sit on it — the verify
