@@ -71,10 +71,32 @@ export const STEPS: Step[] = [
   },
   {
     n: "02",
-    title: "Send one line to the other team",
+    title: "Mint a join link and send one line",
+    // S#282, found by a Gemini audit and CONFIRMED against production: this
+    // step used to show only the sentence to send, with `/j/<code>` in it --
+    // and the only `code` a reader had was the party slot code from step 01
+    // (`ACM`). `/j/ACM` returns 404, and the mint response contains no join
+    // code at all: it comes from a SEPARATE `invite` call that was nowhere on
+    // this page. So the demo had a missing step, not a mislabelled variable,
+    // and "four commands, start to finish" was false -- there were three.
+    //
+    // That is invariant 15 again ("instructions we hand a partner must be
+    // runnable as written"), on the same page where step 01 was rewritten to
+    // satisfy it in S#279. The fix moved the gap one step along instead of
+    // closing it.
     blurb:
-      "That is the entire handoff. No account for them, nothing to install, nothing to configure.",
-    lines: [`Join our integration bridge: ${SERVER}/j/<code>`],
+      "One call turns your room into a link. That is the entire handoff — no account for them, nothing to install, nothing to configure.",
+    lines: [
+      `$ curl -s ${SERVER}/api/rpc \\`,
+      '    -H "Authorization: Bearer br_live_…" \\',
+      `    -d '{"op":"invite","side":"b"}'`,
+    ],
+    returns: [
+      '{ "code": "7KMP-3QRV-9XZT", "joinPath": "/j/7KMP-3QRV-9XZT",',
+      '  "forLabel": "Northwind", "linkExpiresInMinutes": 30 }',
+      "",
+      `Join our integration bridge: ${SERVER}/j/7KMP-3QRV-9XZT`,
+    ],
   },
   {
     n: "03",

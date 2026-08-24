@@ -1172,6 +1172,26 @@ function Create({ onMinted, onCancel }: { onMinted: (m: Minted) => void; onCance
   const [error, setError] = useState<string | null>(null);
   const [badField, setBadField] = useState<string | null>(null);
   /**
+   * WHY THE BUTTON IS DEAD, as a sentence rather than as a colour.
+   *
+   * The submit used to inline the same boolean and say nothing about it, so an
+   * operator with one empty field got a greyed control and no reason. This
+   * names the FIRST missing thing, in the order the form asks for it, so the
+   * hint points at where they are rather than listing everything at once.
+   * Null means nothing is missing.
+   */
+  const blocker: string | null = !topic
+    ? "Name what this room is for."
+    : kind === "solo"
+      ? seats.filter((x) => x.trim()).length < 2
+        ? "Name at least two models."
+        : null
+      : !you
+        ? "Name your side."
+        : !them
+          ? "Name their side."
+          : null;
+  /**
    * A8. Where you stand, BEFORE you try.
    *
    * Erik's brother opened three rooms and the fourth was refused; the cap was
@@ -1358,7 +1378,18 @@ function Create({ onMinted, onCancel }: { onMinted: (m: Minted) => void; onCance
                   aria-pressed={shape === sh.id || isDefault}
                 >
                   <span className="kindcard-t">{sh.name}</span>
-                  <span className="kindcard-d">{sh.blurb}</span>
+                  {/* The stages, shown rather than described. This is the part
+                      that differs between the two presets, and it was the one
+                      part neither card displayed. */}
+                  <span className="shapestages" aria-label={`Stages: ${sh.stages.join(", then ")}`}>
+                    {sh.stages.map((st, i) => (
+                      <Fragment key={st}>
+                        {i > 0 && <i aria-hidden="true">→</i>}
+                        <b>{st}</b>
+                      </Fragment>
+                    ))}
+                  </span>
+                  <span className="kindcard-d">{sh.effect}</span>
                 </button>
               );
             })}
@@ -1405,17 +1436,23 @@ function Create({ onMinted, onCancel }: { onMinted: (m: Minted) => void; onCance
             </p>
           )}
 
+          {/*
+            A DISABLED BUTTON THAT SAYS WHAT IS MISSING.
+            Gemini's S#282 audit flagged this control for contrast and cited
+            WCAG AA -- which is wrong twice: it measured white-on-grey where the
+            page renders dark-on-light at ~3.5:1, and SC 1.4.3 exempts inactive
+            controls anyway. But there IS a defect here and it is our own,
+            stricter rule (shipping-quality#13): a disabled button must explain
+            itself, and this one carried no title, no hint, nothing. A reader
+            with an empty field saw a dead button and no reason.
+          */}
           <div className="bx-row">
             <button
               type="submit"
               className="bx-primary"
-              disabled={
-                busy ||
-                !topic ||
-                (kind === "solo"
-                  ? seats.filter((x) => x.trim()).length < 2
-                  : !you || !them)
-              }
+              title={blocker ?? undefined}
+              aria-describedby={blocker ? "why-blocked" : undefined}
+              disabled={Boolean(busy || blocker)}
             >
               {busy ? "Opening…" : kind === "solo" ? "Open the room" : "Open the room"}
             </button>
@@ -1423,6 +1460,13 @@ function Create({ onMinted, onCancel }: { onMinted: (m: Minted) => void; onCance
               back
             </button>
           </div>
+          {/* Visible, not only a tooltip: a title attribute is invisible on
+              touch and to anyone not hovering, which is most people. */}
+          {blocker && !busy && (
+            <p className="bx-blocked" id="why-blocked">
+              {blocker}
+            </p>
+          )}
         </form>
       </div>
     </main>
