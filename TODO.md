@@ -46,43 +46,64 @@ and now costs 16.** Two sides listening all day: 195,840 → 61,440. Days to bur
 
 Pinned in `lib/__tests__/redis-cost.test.ts`, ablation-proven.
 
-### WHERE TO GO NEXT
+### WHERE TO GO NEXT — rewritten at the close of S#281
 
-**Claude can do solo — and the top item no longer needs a partner:**
+**CLOSED THIS SESSION, so nobody re-opens them:** solo mode (backend, both
+transports, create form, seat marks, per-seat colour) · F2 room shapes, named ·
+F4's `wire()` self-wrap · repo permalinks · the Redis reduction · the Vercel git
+connection · the design audit's tap targets, type floor and focus colour.
+
+**Claude can do solo:**
 
 | # | What | Why |
 |---|---|---|
-| 1 | ~~SOLO MODE~~ **BUILT S#281 — the backend and both transports. UI half remains** | Seats `a`..`f`, `RoomKind`, `otherSeats()`, containment gated by kind. Verified on PRODUCTION: room `1e73e58e8afb`, three seats, seat C posted, seat A read it with zero markers. **What is left is the CREATE FORM** — the API takes `{kind:"solo", seats:[...]}` today, the web page does not offer it — plus vendor logos and per-seat colour. The viewer's types are widened so it cannot crash on a solo room, but it still lays out for two. |
-| 2 | **C3b, the local daemon** | The zero-token listener. Holds the long-poll off-context so fifty empty polls become one message. Proposed by the far side, never taken. |
-| 3 | **The colour picker** | Curated swatches, per side, stored on the room. Seal's hue excluded. |
-| 4 | **B5 at scale** | The panels never scrolled until S#280, found at 30 entries. Nothing else in the room has been looked at past a handful. Chrome headless only. |
-| 5 | **D4's create half** | The room reads as a dialogue; the create flow is still too many steps. |
-| 6 | ~~F4: `wire()` wraps your OWN text~~ **FIXED S#281** — it came out in the wash with solo containment; your own `post` no longer echoes back labelled as another company's. Room `d437fff5b423` still needs a fresh invite code. |
+| 1 | **C3b, the local daemon** | The zero-token listener, and now the biggest single win left. Holds the long-poll off-context so a thousand empty polls become one message. **S#281b sharpened the design: it must LONG-WAIT, not short-poll** — 8h of 30s client polls costs ~6,720 Redis commands against ~4,608 for 300s server blocks. Proposed by the far side, never taken. |
+| 2 | **B5 at scale** | The panels never scrolled until S#280, found at 30 entries. Nothing else in the room has been looked at past a handful. Chrome headless only — no real monitor, no phone, no Safari, no Firefox, six sessions running. |
+| 3 | **[!!] D4's create half — and S#281 made it WORSE before it made it better** | D4's complaint is "too many steps, too vaguely labelled". S#281 removed a dead control (the disabled Slots buttons) and **added a live one** (the shape picker), so the trust path is now one decision longer than it was. That is defensible — the new step is real where the old one was theatre — but it is not the simplification D4 asked for, and pretending otherwise would leave a known regression unlogged. |
+| 4 | **C3a citation bundles** | The far side's remaining proposal, still untaken. Now more attractive: with repo permalinks shipped, a bundle of citations is a bundle of openable links. |
+| 5 | **F4 housekeeping** | Room `d437fff5b423` still needs a fresh invite code. |
 
 **Needs a PARTNER:**
 
 | # | What | Why |
 |---|---|---|
-| 7 | **F1 in a real room, and D3's live test** | The plan stage has never been touched by a far side, and its DEFAULT partner state is plan mode. Whether our tool annotations unblock that depends on Trigvanta's harness and is UNVERIFIED. **The room composer (F2) is downstream of this** — a shape is a list of stages, and only one stage exists. |
+| 6 | **F1 in a real room, and D3's live test** | The plan stage has never been touched by a far side, and its DEFAULT partner state is plan mode. Whether our tool annotations unblock that depends on Trigvanta's harness and is UNVERIFIED. |
+| 7 | **The repo permalinks, from the far side** | Shipped and proven on a server, but no partner has ever declared a repo. The whole point is a link THEY can open. |
 | 8 | **B1's adversarial half**, B2, B4 | Still owed from earlier sessions. |
 
 **Needs ERIK — decisions, not work:**
 
-1. **`WAIT_MAX_SECONDS` 45 → ~290?** The free tier is CONFIRMED at 500K
-   commands/month, and one room with both sides running the overnight listener
-   we recommend costs 24 of ~30 nights. Longer blocks amortise the per-call
-   overhead: 300s waits take that to 54 nights. **It is not free** — it moves
-   cost to Vercel function-seconds (plan is Pro, so 300s is permitted;
-   `maxDuration` is 60 today). Trade one budget for the other, or leave it.
-2. **`--seal` (`#ffb86b`) still collides with `--side-b` (`#f0c49c`).** The
-   picker makes the default less load-bearing; it does not settle it, because
-   most people will not pick.
+1. **`WAIT_MAX_SECONDS` 45 → ~290?** Free tier CONFIRMED at 500K commands/month.
+   One room with both sides on the overnight listener we recommend costs 24 of
+   ~30 nights; 300s waits take that to 54. **Not free** — it moves cost to
+   Vercel function-seconds (plan is Pro, so 300s is permitted; `maxDuration` is
+   60 today). Trade one budget for the other, or leave it.
+2. **`--seal` is down from four jobs to three.** Focus moved off it at S#281.
+   Still on it: provenance (correct), text selection, and three incidental uses
+   — the copy-button "done" state, link hover, and the brand mark. Taking those
+   three off restores "colour means exactly one thing". Four small CSS changes,
+   no product risk, but it touches the visual identity you approved at S#277.
 3. **`@bridger/cli`** — publish or not. `package.json` still carries
    `private: true` as the guard.
-4. **F2's preset list** — cut or rename *Just talk* / *Plan then build* /
-   *Question and answer* and F2 is buildable.
-5. **Solo mode's language for C3b** — Python is a reasonable pick; the CLI is
-   TypeScript today.
+4. **C3b's language** — Python is a reasonable pick; the CLI is TypeScript.
+5. **Widen the repo allow-list?** Self-hosted GitLab/Gitea cannot be used today,
+   deliberately: an arbitrary host is indistinguishable from an attacker's, and
+   every citation renders as a link to whatever is stored. Widening trades that
+   guarantee for reach.
+6. **Vendor logos: real marks or keep the letterforms?** S#281 shipped a
+   letterform plus a brand-adjacent hue rather than inlining Anthropic's,
+   Google's and OpenAI's actual trademarks from our origin. One map in
+   `lib/seats.ts` if you want the real artwork.
+7. **React Bits** — adopt as a dependency, or mine for ideas? Note that
+   `/api/about` tells partners to run `node -p "…dependencies"` and expect
+   **seven entries**, so adding framer-motion or GSAP makes the trust page's own
+   verification instruction false.
+
+**UNVERIFIED, and it is one look:** the citation permalink RENDERING in a
+browser. The class ships in the built client bundle and the data reaches the
+page (`/api/export` carries `checkedUrl`), but agent-browser hung repeatedly and
+the anchor was never seen drawn. Open a room with a declared repo and it is
+settled either way.
 
 > **DIRECTION (Erik, S#275): zero install, zero setup — "just a bridge to a room
 > where users' AIs can communicate in a safe environment."** The name is
