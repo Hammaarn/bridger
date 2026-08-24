@@ -318,6 +318,72 @@ a:hover {
   padding: 18px 24px;
 }
 
+/* THE HEADER AS AN INSTRUMENT PLATE.
+   With a spec line in the middle, `space-between` is wrong: it distributes the
+   gaps rather than centring the middle item, so the facts drift with the width
+   of the links beside them. Three columns with a fixed centre pins them. */
+.nav-spec {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 20px;
+}
+
+.nav-spec .nav-links {
+  justify-self: end;
+}
+
+/* The same nameplate register as the section eyebrows: mono, tracked, hairline
+   rules doing the separating, no capsule anywhere. */
+.nav-facts {
+  display: inline-flex;
+  align-items: center;
+  justify-self: center;
+  font-family: var(--font-mono-stack);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.nav-facts > span {
+  padding: 0 13px;
+  border-left: 1px solid var(--line-strong);
+  line-height: 1.2;
+}
+
+.nav-facts > span:first-child {
+  border-left: 0;
+}
+
+/* Hidden rather than wrapped. Three facts folding under the brand is a worse
+   header than no facts, and the same sentence is a heading in the demo module
+   further down, so nothing is lost on a phone. */
+@media (max-width: 1000px) {
+  .nav-facts {
+    display: none;
+  }
+  .nav-spec {
+    display: flex;
+    justify-content: space-between;
+  }
+}
+
+/* In the header the stamp sits against the wordmark, so it drops to the size of
+   the type it qualifies rather than the size it had over a 4rem headline. */
+.brand .stage {
+  padding: 2px 6px;
+  border-radius: 2px;
+  background: var(--text);
+  color: var(--ink-900);
+  font-family: var(--font-mono-stack);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
 /* On the gate the nav sits INSIDE the hero so the wave runs behind it, rather
    than on a separate strip of flat colour above it. */
 .nav-over {
@@ -557,7 +623,7 @@ input.bx-bad {
   min-height: min(90vh, 780px);
   display: grid;
   place-items: center;
-  padding: 290px 24px 86px;
+  padding: 268px 24px 96px;
   overflow: hidden;
   border-bottom: 1px solid var(--line);
 }

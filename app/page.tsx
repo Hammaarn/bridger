@@ -785,9 +785,9 @@ function GitHubMark() {
  * The brand mark is one crest of the wire. The signature element and the logo
  * are the same object, which is the cheapest kind of coherence there is.
  */
-function Nav({ over = false }: { over?: boolean }) {
+function Nav({ over = false, spec = false }: { over?: boolean; spec?: boolean }) {
   return (
-    <nav className={`nav ${over ? "nav-over" : ""}`} aria-label="Bridger">
+    <nav className={`nav ${over ? "nav-over" : ""} ${spec ? "nav-spec" : ""}`} aria-label="Bridger">
       <a className="brand" href="/">
         {/*
           THE MARK IS THE FIELD, at mark scale.
@@ -808,7 +808,33 @@ function Nav({ over = false }: { over?: boolean }) {
           ))}
         </svg>
         Bridger
+        {/*
+          THE STAMP RIDES WITH THE NAME, not with the headline.
+          Erik, S#282, moving the nameplate into the header: a maturity stamp
+          belongs against the thing it qualifies, and that is the product name.
+          It also stops `alpha` floating alone over the hero once the facts move
+          up, which would have re-introduced exactly the badge we just removed.
+        */}
+        {spec && <b className="stage">alpha</b>}
       </a>
+      {/*
+        THE SPEC LINE, in the header field.
+        Erik, S#282: *"we should move up this single element so its in the
+        header above the Bridger forming in the background"*. It was sitting
+        directly over the word it was supposed to introduce; up here it reads as
+        what it is -- the plate on the front of the instrument -- and the hero is
+        left with headline, sentence, button and clear air.
+
+        Hidden on narrow viewports rather than wrapped: three facts folding onto
+        a second line under the brand is a worse header than no facts at all.
+      */}
+      {spec && (
+        <span className="nav-facts" aria-label="What Bridger is">
+          <span>append-only</span>
+          <span>two parties</span>
+          <span>no model called</span>
+        </span>
+      )}
       <div className="nav-links">
         <a href="/api/about">/api/about</a>
         <a
@@ -848,7 +874,7 @@ function Gate({
           moment this field exists for happens in clear air.
         */}
         <LetterGlitch className="bg-hero" word="BRIDGER" intensity={0.92} wordY={0.3} />
-        <Nav over />
+        <Nav over spec />
         <div className="hero-inner">
           {/*
             ALPHA IS ON THE PAGE BECAUSE ERIK SAYS IT IN THE ROOM.
@@ -859,28 +885,6 @@ function Gate({
             gateways for, one level up. The visitor should not have to be in the
             conversation to learn the stage.
           */}
-          {/*
-            NOT A PILL. Erik's brother, a UI/UX designer, S#282: the outlined
-            capsule with a glowing dot is *"a dead AI giveaway"*, and he is
-            right — it is the same shape this project already catalogued as the
-            AI-landing-page signature in its own product notes.
-
-            The replacement is a NAMEPLATE: no container, no dot, hairline rules
-            between the facts, `alpha` set as a square-cornered stamp. The vibe
-            this page is built for is INSTRUMENT, and equipment carries a spec
-            line, not a marketing capsule.
-
-            IT ALSO RETIRES A COLOUR VIOLATION FOR FREE. The dot was `--seal`,
-            which is reserved for provenance — a status LED is not a citation.
-            One of the three incidental `--seal` uses on Erik's open list goes
-            away by deleting the element that carried it.
-          */}
-          <span className="eyebrow">
-            <b className="stage">alpha</b>
-            <span>append-only</span>
-            <span>two parties</span>
-            <span>no model called</span>
-          </span>
           <h1>Where your AI and theirs work it out.</h1>
           <p className="lede">
             A shared record between two teams&rsquo; AI sessions. Questions, answers, decisions — and
