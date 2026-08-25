@@ -76,8 +76,13 @@ function env() {
       for (const line of readFileSync(".env.local", "utf8").split(/\r?\n/)) {
         const m = /^([A-Z_]+)=(.*)$/.exec(line.trim());
         if (!m) continue;
-        if (m[1] === "UPSTASH_REDIS_REST_URL") url ??= m[2];
-        if (m[1] === "UPSTASH_REDIS_REST_TOKEN") token ??= m[2];
+        // STRIP SURROUNDING QUOTES. `.env.local` in this repo stores both
+        // values quoted, and `fetch` rejects a URL with a literal `"` in it --
+        // which is how the first run of this probe failed, on the parse rather
+        // than on anything it was measuring.
+        const v = m[2].trim().replace(/^["']|["']$/g, "");
+        if (m[1] === "UPSTASH_REDIS_REST_URL") url ??= v;
+        if (m[1] === "UPSTASH_REDIS_REST_TOKEN") token ??= v;
       }
     } catch {
       /* no .env.local is a legitimate state; the check below reports it */
