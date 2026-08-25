@@ -31,12 +31,17 @@ import {
   COUNTER_KEY,
   CURSOR_KEY,
   ENTRIES_KEY,
+  PLAN_KEY,
+  PLAN_COUNTER_KEY,
   PURGE_KEY,
+  ROOM_ACTIVITY_KEY,
   ROOM_KEY,
   ROOM_TOKENS_KEY,
+  ROOM_USAGE_KEY,
   SEQ_KEY,
   TOKEN_KEY,
   coerceJson,
+  utcDay,
   type Store,
 } from "./store";
 import { seat, seatsFor, type RoomRecord, type SideId } from "./room-registry";
@@ -95,6 +100,26 @@ export async function executePurge(store: Store, room: RoomRecord): Promise<stri
   const keys: string[] = [
     ENTRIES_KEY(room.id),
     CONTRACT_KEY(room.id),
+    /**
+     * THE PLAN, and it was missing until S#283.
+     *
+     * `PLAN_KEY` arrived with the plan stage in S#280 and was never added to
+     * this list, so every purge since then left a document BOTH COMPANIES WROTE
+     * sitting on the server after both sides had consented to its deletion. Not
+     * bookkeeping -- content, of exactly the kind purge exists to remove, and it
+     * carried the room's own 30-day TTL so it outlived the room by up to a
+     * month. Found by walking the store after a purge rather than by reading
+     * this list, which is the only way it could have been found.
+     */
+    PLAN_KEY(room.id),
+    /**
+     * The tally. Carried in TODO as "usage still lists purged rooms": the
+     * operator's room list kept showing rooms that no longer exist, because the
+     * activity record outlived them. Defensible as a volume record, wrong as a
+     * room list -- and a purge that leaves a record of the room behind is not
+     * what the word promises to a partner who asked for deletion.
+     */
+    ROOM_ACTIVITY_KEY(room.id),
     SEQ_KEY(room.id),
     CURSOR_KEY(room.id, "a"),
     CURSOR_KEY(room.id, "b"),
@@ -102,13 +127,32 @@ export async function executePurge(store: Store, room: RoomRecord): Promise<stri
     PURGE_KEY(room.id, "b"),
   ];
 
-  // Per-side, per-type ID counters. Both codes x every entry-type letter.
+  // Per-side, per-type ID counters, and the per-side PLAN counter beside them.
   // Every seat the room actually has, not a hardcoded pair -- a solo room
   // has up to six and each carries its own counters (S#281).
   for (const side of seatsFor(room)) {
     for (const letter of ["Q", "A", "D", "N", "C", "R", "S"]) {
       keys.push(COUNTER_KEY(room.id, seat(room, side).code, letter));
     }
+    keys.push(PLAN_COUNTER_KEY(room.id, seat(room, side).code));
+  }
+
+  /**
+   * The per-room daily counters. Day-scoped, so there is no single key -- but
+   * bounded: each one is given a 48-hour fuse on its first increment
+   * (`room-registry.ts`, the `roomused` branch), so only the last few days can
+   * still exist. Three days back covers that with room to spare across a UTC
+   * boundary, and a `del` on a key that is not there costs one command and
+   * removes nothing.
+   *
+   * These would expire on their own within two days. They are deleted anyway,
+   * because "purged" should not mean "mostly purged, the rest by Thursday".
+   */
+  const day = new Date(room.createdAt).getTime();
+  const nowMs = Date.now();
+  for (let back = 0; back <= 3; back++) {
+    const d = new Date(Math.max(nowMs - back * 86_400_000, day));
+    keys.push(ROOM_USAGE_KEY(room.id, utcDay(d)));
   }
 
   // Every token minted for this room, then the set itself. Tokens LAST-but-one
