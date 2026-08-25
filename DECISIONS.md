@@ -5,6 +5,84 @@ Append-only, newest first. **DECISIONS wins on direction** — where this file a
 
 ---
 
+## 2026-08-25 -- S#283d -- NO FEATURE CREEP UNTIL THE PIPE IS SMOOTH. AND THE LEFT RAIL WAS AN UNIMPLEMENTED DECISION.
+
+**Source:** Erik, S#283, relaying his brother after a first real look at a room:
+*"What is all the stuff on the left? I can't understand what its purpose is at
+all."* Erik: *"honestly he's right, its too early for us to try and track
+messages and categorise them into different intentions... focus on making the
+tool easier to use... less steps to setup, less buttons and information you need
+to understand as a human operator. It needs to be fully AI native."* And on the
+failure knowledge base: *"don't feature creep until the communication works
+perfectly end to end and the setup and room creation process and invitation
+process is dumbed down and streamlined."*
+
+### GAVELED: A10 (THE FAILURE BANK) IS PARKED, AND SO IS EVERYTHING LIKE IT
+
+No new capability until three things are true: communication works end to end,
+room creation is streamlined, invitation is dumbed down. A10 was the most
+attractive idea on the board and that is exactly why it needed a gate rather
+than an argument. The design work in `TODO.md` A10 stands and is not lost; it
+is simply not next.
+
+### THE LEFT RAIL WAS NOT A DESIGN QUESTION -- IT WAS UNFINISHED WORK
+
+Checked before redesigning anything: **S#282 already decided this.** That entry
+ends *"B's remaining work is: promote the right stub into a permanent gauge,
+keep the rails expandable, DEFAULT TO COLLAPSED."*
+
+The default was never changed. `page.tsx` still read `{ left: true, right: true }`,
+so every first-time reader met both panels open. His complaint and our own
+gavel say the same thing, four days apart, and nobody had noticed the second
+half of the decision was never implemented.
+
+**Why the panel confuses at that moment, stated precisely, because it is not a
+bad panel.** The folders answer *"where is the decision among ninety entries"*.
+That is a question you only have once you HAVE a ninety-entry room -- and never
+on the screen where you are still working out what this thing is. It was built
+for the wrong moment, not built wrong. Closed is the honest default for a new
+reader; the strip keeps the counts, so the "collapsing must not hide a signal"
+contract still holds, and `localStorage` remembers a reader who opens it once.
+
+### [!!] A DISTINCTION THAT MUST NOT BE LOST IN "STOP CATEGORISING"
+
+*"Too early to categorise messages into different intentions"* is right about
+the **UI** and would be fatal applied to the **PROTOCOL**. They are different
+things and the words do not separate them:
+
+- **The UI categorisation** -- folders named Agreements / Decisions / Answered /
+  Open questions / Notes -- is a reading aid for a long room. Collapsible,
+  droppable, nothing depends on it.
+- **The ENTRY TYPES** -- question, answer, decision, note, contract, signoff --
+  are the product. `openQuestions` needs a question. `checkedAgainst` is a
+  property of an ANSWER. `basis` refuses an opinion carrying a citation. The
+  agreement gauge counts decisions. Remove the types and what is left is a chat
+  log with a hash chain, which is the thing every competitor already has.
+
+So: hide the folders freely. **Do not touch the types.** The types are the moat
+the same conversation just identified; the folders are furniture.
+
+### WHAT "FULLY AI NATIVE" MEANS HERE, since Erik delegated the how
+
+The room view renders the machine record for a human to browse. That is the
+category error underneath the left rail: **the record's primary reader is an AI,
+and the human's screen was built as a second reader of the same structure.**
+
+A human operator needs four facts, and none of them require an index:
+
+  1. is my partner connected
+  2. is anything waiting on me
+  3. what got decided
+  4. is it alive
+
+Everything else on that screen exists to help a human navigate 108 entries --
+which a human should never be doing, because their AI is already reading them.
+The direction is therefore: the browser answers operator-scale questions, the
+AI reads the record, and the two surfaces stop mirroring each other.
+
+Not built here. Recorded so the next room-view session starts from the
+principle rather than re-deriving it from a rail.
+
 ## 2026-08-25 -- S#283c -- ROOM CREATION AND INVITATION IS A NAMED LANE NOW
 
 **Source:** Erik, S#283, mid-test with his brother: *"we need to make the room

@@ -468,7 +468,20 @@ Full argument in `DECISIONS.md` 2026-08-25 (S#282c). Both Erik's.
 - **The KB Bank / failure-mode registry** — see A10, which is now the larger
   half of this and has its own design constraint from Erik.
 
-## A10. THE FAILURE BANK — start local, and generalise AT CAPTURE
+## A10. ~~THE FAILURE BANK~~ -- PARKED S#283 BEHIND A GATE, NOT AN ARGUMENT
+
+> **[!!] Erik, S#283:** *"don't feature creep until the communication works
+> perfectly end to end and the setup and room creation process and invitation
+> process is dumbed down and streamlined."*
+>
+> **The gate, and all three must be true before this reopens:** communication
+> works end to end · room creation is streamlined · invitation is dumbed down.
+>
+> This was the most attractive idea on the board, which is exactly why it got a
+> gate instead of a debate. Everything below stands as design work and is not
+> lost -- it is simply not next. `DECISIONS.md` 2026-08-25 (S#283d).
+
+## A10 (the design, for when the gate opens) — start local, and generalise AT CAPTURE
 
 > Erik, S#282, after a Gemini roadmap that was heavily affirming and light on
 > blockers: *"the failure mode knowledge base can become useful if its framed
