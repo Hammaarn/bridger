@@ -1,11 +1,23 @@
 # The Witness Network — parked idea, S#275
 
-> **STATUS: PARKED. Not started, and deliberately gated.**
-> Nothing here is buildable until **one far-side agent completes a single round
-> trip between two known parties.** As of 2026-08-17 that number is zero. This
-> design is the same mechanism with strangers and N sides, so every failure the
-> two-party bridge has now would multiply. The gate is at the bottom of this file
-> and it is not a formality.
+> **STATUS: STILL PARKED -- but the GATE CONDITION HAS BEEN MET. Read this.**
+>
+> The gate was: *"nothing here is buildable until one far-side agent completes a
+> single round trip between two known parties. As of 2026-08-17 that number is
+> zero."* **It is no longer zero** (noticed S#283): Antigravity did 16 calls
+> across two sessions in room `d437fff5b423`, and Trigvanta's Claude worked room
+> `e4db579a5fad` -- a genuine cross-company round trip.
+>
+> **This is NOT an unpark.** A gate that has opened means the question is now
+> live, not that the answer is yes. Two things the original gate was really
+> asking are still unanswered: the ADVERSARIAL half of B1 (a far side with its
+> own interests that cannot read our code) and B4 (a second cold provenance
+> test). Erik's call, and it should be made deliberately rather than by a
+> condition quietly expiring.
+>
+> This design is the same mechanism with strangers and N sides, so every failure
+> the two-party bridge has now would multiply. The gate at the bottom of this
+> file still describes what it is asking.
 
 ---
 

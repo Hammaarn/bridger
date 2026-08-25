@@ -14,10 +14,17 @@ git -C . log --oneline -5                          # what shipped last
 `STATUS.md` says what is TRUE now, including the full Upstash budget audit.
 `DECISIONS.md` wins on direction. This file is only what is LEFT.
 
-**403 tests, tsc 0, build 0, tree clean, master in sync.**
+**413 tests, tsc 0, tree clean.**
 
-**S#282 was a DESIGN session plus an outside audit.** The protocol did not move.
-Everything below that was true about behaviour before it is still true.
+**S#283 was an AUTONOMOUS pass over the solo list.** The write path got 38%
+cheaper, purge stopped leaving a document behind, and two "never seen" items
+were seen. What it did NOT do is anything a partner or Erik has to decide --
+that list is at the top of this file and it got shorter by two.
+
+**Three rows in this file were stale and are now marked:** A2 had already
+shipped in S#281, U1's A3 was a correctness bug wearing a performance fix, and
+F2's "Not started" predates the S#281 composer. Nothing had been secretly
+implemented beyond those -- every other open row was re-read against the code.
 
 ---
 
@@ -109,9 +116,9 @@ the exact confusion this product exists to remove.
 
 | # | What | Why |
 |---|---|---|
-| **U1** | **[!!] MINIMISE UPSTASH USAGE OVERALL — Erik's, and still the biggest open lever** | A post costs **10 commands, four of them `expire`s refreshing a 30-day TTL**. Largest unknown: does Upstash bill an `EVAL`/pipeline as one command or as its contents? **Section U1 below has the ranked list and a measured baseline.** |
-| 12 | **[!!] Verify the citation permalink RENDERS** | Built S#281, still never seen in a browser. Carried a second session. |
-| 13 | **The agent mark never renders in a real room** | `AgentMark` returns `null` when `agent` is unset (`page.tsx:676`), and the live Trigvanta room has `agent: null` on BOTH seats. Built, and invisible everywhere it matters. |
+| **U1** | **[~] MINIMISE UPSTASH USAGE — the A tier is DONE, one question is Erik's** | S#283: a post costs **6 commands, was 10**; a warm audit row costs **2, was 3**. Post + audit went 13 -> 8. Pipelines are settled and the answer is NO (Upstash bills per inner command). **EVAL is unresolved and needs the console — see U1.B1.** |
+| ~~12~~ | ~~Verify the citation permalink RENDERS~~ | **CLOSED S#283.** Driven end to end on a local file store and read out of the real DOM: `<a class="prov-link" href=".../blob/<sha>/lib/store.ts#L613" rel="noreferrer noopener" target="_blank">`, and the GitHub URL returns 200. |
+| ~~13~~ | ~~The agent mark never renders in a real room~~ | **The COMPONENT is proven S#283** -- rendered as `bx-agent sideA` "CL" on both the seat chip and the entry, once `identify` set `agent`. Nothing is broken. What is left is one call in a LIVE room, which is Erik's because a partner sees it. |
 | 14 | **The stream + gauge room composition (direction B)** | Gaveled S#282. The card layer and the repeated mark turned out to be ALREADY BUILT; what is left is standing the collapsed rail stubs up into a permanent gauge, rails on demand. The chain head is NOT on the client — that row needs the room API to carry it. |
 | 15 | **`usage` still lists purged rooms** | Found S#282 during cleanup: the tally key survives `purge`, so the operator's room list stays misleading after a deletion. Arguably correct as a volume record, wrong as a room list. |
 | 16 | **The create flow reads as a modal and is not one** | Gemini's audit "found" a focus trap, backdrop-dismiss and scroll-lock bugs in a component that does not exist — no `<dialog>`, no role, URL unchanged. The finding is wrong and the SIGNAL is real: a competent auditor thought it was a modal. Make it read as a page, or make it one. |
@@ -146,40 +153,65 @@ node scripts/upstash-cost.mjs
 | `/api/since` poll | 2 | the floor, already |
 | incremental read | 1 | |
 
-### A. KNOWN WINS — no verification needed, just work
+### A. KNOWN WINS — A1 and A2 SHIPPED S#283, A3 was WRONG
 
-**A1. `touchRoom` spends FOUR `expire`s on every write to refresh a 30-day TTL.**
-That is 40% of the cost of a post, and it is refreshing a deadline a month away.
-Refreshing it once an hour would be indistinguishable in behaviour. Same shape
-as the audit `LTRIM` fix at S#281 — amortise it, do not remove it. **Write path
-10 → ~6 commands.**
+**A1. ~~`touchRoom` spends FOUR `expire`s on every write.~~ DONE S#283.**
+Amortised to at most one refresh per room per hour per instance. An hour against
+thirty days is 0.14% of the fuse, so nothing observable changed. The first write
+in each window always refreshes, and a refresh that THREW is not recorded, so a
+failure does not buy an hour of silence. **Measured: post 10 -> 6 commands.**
+Ablation-proven, 3 tests.
 
-**A2. `writeAudit` costs 3 commands per call, and it is a LOG.** One `lpush`
-plus the room-activity read-modify-write. The tally could be an `incr` on a
-counter rather than a JSON round-trip, or be amortised the same way. **~2
-commands saved on every logged call.**
+**A2. ~~`writeAudit` costs 3 commands per call.~~ DONE S#283 -- 3 -> 2 warm.**
+The tally was a read-modify-write, and the read asked the database to repeat
+what we had just written. Now cached per instance. **Cold stays 3** -- the first
+call to a room still reads -- and `scripts/upstash-cost.mjs` reports BOTH rows,
+because one number would overstate or understate the bill depending on which.
+**The cost, stated rather than glossed:** `calls` can under-count across
+concurrent instances. That race already existed between the `get` and the
+`setex`; the cache widens the window from milliseconds to the instance's life.
+Acceptable only because nothing is gated on that number and no partner sees it.
 
-**A3. `status` still reads every entry** (74.6 KB / 100 entries) because
-`unread` is computed across the whole list. `llen` gives `totalEntries` for one
-command, and the incremental read gives the rest. Already filed as item 11.
+**A3. ~~`status` reads every entry, so use `llen`.~~ THIS IS WRONG -- do not
+build it.** Checked S#283: `unread` is NOT why the whole list is read.
+`openQuestions` and `signOffs` both scan the full history, and they must -- a
+question raised at seq 3 can still be open at seq 500. Swapping in `llen` plus
+an incremental read would silently drop every open question older than the
+cursor window. That is a correctness bug wearing a performance fix, and it would
+have looked like a clean win right up until a partner's question vanished.
+
+**What is actually available here, and it is C-tier not A-tier:** status needs
+`seq`/`side`/`type`/`id`/`title` and does NOT need `body` -- and bodies are the
+bulk of the 74.6 KB. Redis cannot project fields out of a list of JSON strings,
+so this means a second metadata index written on every append: one more command
+per write to save most of the bandwidth on every status. That trades one metered
+value for another and belongs with C1-C4, behind a decision.
 
 ### B. NEEDS VERIFICATION FIRST — and this is the big one
 
-**B1. HOW DOES UPSTASH BILL `EVAL` AND `pipeline`?** The SDK exposes `eval`,
-`evalsha`, `pipeline` and `multiExec` — checked in
-`node_modules/@upstash/redis`, not assumed. The question is whether a pipeline
-of ten counts as **ten commands or one**, and whether an `EVAL` performing ten
-operations counts as **one or ten**.
+**B1. HOW DOES UPSTASH BILL `EVAL` AND `pipeline`? -- HALF ANSWERED S#283.**
 
-**If EVAL bills as one, the entire write path collapses to 1-2 commands** and
-this is the largest single lever available anywhere in the product. If it bills
-per inner operation, it buys latency and nothing else.
+**PIPELINES: settled, and the answer is NO.** Upstash's own words: *"A pipeline
+collapses the round trips but keeps the command count: 7 SETBITs in one pipeline
+are still 7 billed commands."* So pipelining is a LATENCY tool here and never a
+cost one. Anything in this section that assumed otherwise is dead.
 
-**Do not build on it until it is measured against a real database** — one script
-that runs a known pipeline and reads the console's command counter before and
-after. Asserting the favourable answer without checking is exactly the failure
-this project keeps catching, and here it would mean rewriting the hot path on a
-guess.
+**EVAL: still unresolved, and not resolvable from this machine.** Nothing in
+Upstash's pricing page, pipeline docs or Lua-scripting post states how EVAL is
+metered. A web search returns a confident answer that dissolves on reading --
+the sentence it quotes is about ATOMICITY (*"the script invocation is still one
+serialized command"*, i.e. what other clients see), which says nothing about the
+bill. And it cannot be measured from inside: `INFO` reports REDIS's
+`total_commands_processed`, but the meter lives at Upstash's HTTP proxy, so a
+measurement built on `INFO` would produce a confident WRONG answer -- and be
+spent as evidence for rewriting the hot path.
+
+**`scripts/eval-billing-probe.mjs` does the half a script can do.** 100 EVALs of
+10 writes each, so the two possible answers are 100 and 1000 and no
+console-refresh noise can confuse them. It refuses to run without `--run`
+because it writes to the real database. **Erik: open the Upstash console, note
+today's command count, run it, read the delta.** ~5 minutes, and it decides
+whether the write path is worth rewriting at all.
 
 ### C. STRUCTURAL — bigger, and each needs a decision
 
@@ -326,10 +358,13 @@ choice are currently hidden.
 
 </details>
 
-## A2. `WASTE_BUDGET_BYTES` 12000 -> 18000 — one constant, Erik's call
+## A2. ~~`WASTE_BUDGET_BYTES` 12000 -> 18000~~ -- ALREADY SHIPPED, the row was stale
 
-Measured in S#276: the budget buys ~5.5 hours of continuous blocking against the
-~8 an overnight listener needs. Barely moves the spinner case. Open since S#276.
+**Closed S#283 by reading the code rather than this file.** `lib/store.ts` has
+`WASTE_BUDGET_BYTES = 18_000`, raised in `93b3e24` (S#281, the idle-wait work).
+This row carried "one constant, Erik's call, open since S#276" for two sessions
+after the change had landed. Noticed because a live `bridger_status` reports
+`wasteBudget: 18000` -- the running system disagreeing with the document.
 
 ## A3. ~~Publish the CLI, or stop implying it is published~~ — RESOLVED S#278
 
@@ -973,8 +1008,13 @@ way to make that worse.** So:
 - **stages never gate a write.** A room in `plan` that refuses a `decide` is
   hostile and would be worked around within a day.
 
-**Not started.** F1's semantics settle first: a shape is a list of stages, and
-until one stage is real there is nothing to make a list of.
+~~**Not started.**~~ **STALE -- corrected S#283.** This paragraph predates the
+S#281 room composer (`DECISIONS.md` 2026-08-23, *"presets AND a builder, in
+different places"*). `lib/room-shapes.ts` exists, `defaultShapeFor` is real, a
+live room reports `phase: "build"`, and S#282 fixed the presets' copy so they
+show their stages. The proposal above is kept for the candidate SHAPES, which
+are still Erik's to cut or rename -- but "not started" has not been true since
+S#281.
 
 ## F3. [~] THE WHITEBOARD -- the BOARD half shipped S#280 with F1
 

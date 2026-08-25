@@ -5,6 +5,124 @@ Append-only, newest first. **DECISIONS wins on direction** — where this file a
 
 ---
 
+## 2026-08-25 -- S#283 -- THE WRITE PATH IS 38% CHEAPER, AND THREE DOCUMENTED ITEMS WERE NOT TRUE
+
+**Source:** Erik, S#283: *"Proceed with all the stuff that can be done
+autonomously. The stuff that needs my calls and approvals can be listed after."*
+So: no decisions taken, nothing outward-facing, nothing a partner can see.
+
+### THE WRITE PATH: 13 COMMANDS -> 8, MEASURED BOTH TIMES
+
+`node scripts/upstash-cost.mjs`, before and after, on the real store interface.
+
+  post one entry     10 -> 6    the four TTL `expire`s, amortised to one hour
+  writeAudit (warm)   3 -> 2    the tally stopped re-reading what it wrote
+  writeAudit (cold)   3 -> 3    the first call to a room still reads
+
+Neither is clever, and that is the second time this has been the finding: both
+were a path doing something silly. `touchRoom` spent four commands per write
+pushing back a deadline THIRTY DAYS away, and the tally asked the database to
+repeat a value we had just written.
+
+**Both are amortisations, not removals**, and both fail in the safe direction.
+A TTL refresh that THREW is not recorded, so a failure does not buy an hour of
+silence. A tally write that threw DROPS its cache, so the next call cannot
+compound on a number the database never accepted.
+
+**What the tally cache costs, recorded because it is a real trade:** `calls` can
+under-count when two instances write to one room concurrently. That race already
+existed -- a `get` and a `setex` are two commands with a gap -- and the cache
+widens the window from milliseconds to the instance's life. Acceptable only
+here: nothing is gated on that number, no partner sees it, and the ledger, the
+chain, the seq counter and the daily caps are all exact and untouched.
+
+### PURGE WAS LEAVING A DOCUMENT BEHIND, AND IT IS THE ONE THAT MATTERS
+
+`executePurge` enumerates keys by hand -- correctly, because the Store interface
+has no SCAN and a purge that can glob is a purge that can over-delete. The cost
+of that design is that a namespace added later is silently not deleted, and
+three had been: the PLAN, the activity tally, and the per-room daily counter.
+
+**The plan is content two companies wrote.** `PLAN_KEY` arrived with the plan
+stage in S#280 and was never added to the list, so every purge since then left
+it on the server after BOTH SIDES had consented to deletion -- carrying the
+room's own 30-day TTL, outliving the room by up to a month. Purge's promise to a
+partner is deletion; it was keeping their plan.
+
+**It was found by walking the store after a purge, not by reading the list**,
+and that walk is now the test. "No key naming this room survives, whatever it
+is" fails on the next namespace somebody adds without touching `purge.ts`. A
+hand-maintained list became a checked one, which is the actual fix -- deleting
+three keys is just today's instance of it.
+
+### U1.B1: PIPELINES ARE SETTLED AND THE ANSWER IS NO. EVAL IS ERIK'S.
+
+Upstash bills a pipeline per inner command, in their own words: *"A pipeline
+collapses the round trips but keeps the command count: 7 SETBITs in one pipeline
+are still 7 billed commands."* **Pipelining is a latency tool here, never a cost
+one.** That kills a chunk of what U1 was hoping for.
+
+EVAL is not answerable from this machine, and the reason is worth keeping. A web
+search returns a confident "billed as one" whose supporting sentence is about
+ATOMICITY -- *"the script invocation is still one serialized command"*, which is
+what other clients see, not what the meter charges. Fetching the page confirmed
+it says nothing about billing at all. **The summary was a synthesis, not a
+reading**, and relaying it would have justified rewriting the hot path.
+
+It also cannot be measured from inside: `INFO` reports Redis's
+`total_commands_processed`, but the meter lives at Upstash's HTTP proxy. A
+measurement built on it would produce a confident WRONG answer, which is worse
+than none because it gets SPENT as evidence.
+
+So `scripts/eval-billing-probe.mjs` does the half a script can do -- 100 EVALs x
+10 writes, so the answers are 100 and 1000 and no console noise can confuse them
+-- and refuses to run without `--run`. The console read is Erik's, ~5 minutes.
+
+### THREE DOCUMENTED ITEMS WERE NOT TRUE, AND ONE GATE HAD QUIETLY OPENED
+
+- **A2** (`WASTE_BUDGET_BYTES` 12000 -> 18000, "Erik's call") shipped in
+  `93b3e24` at S#281. Carried as open for two sessions. Noticed because the LIVE
+  `bridger_status` reports `wasteBudget: 18000` -- the running system
+  disagreeing with the document.
+- **U1's A3** was not a stale row but a WRONG one: "use `llen`, `unread` is why
+  the whole list is read". `unread` is not why. `openQuestions` and `signOffs`
+  scan the full history and must -- a question raised at seq 3 can still be open
+  at seq 500. Building it would have silently dropped every open question older
+  than the cursor window: a correctness bug wearing a performance fix, which
+  would have looked like a clean win until a partner's question vanished.
+- **`plans/DECISIONS-FOR-ERIK-s272.md`** said "D3 is greenlit and still unbuilt
+  -- the only outstanding one" for ten sessions after `/api/whoami` shipped.
+- **`plans/witness-network.md`'s gate** was "not buildable until one far-side
+  agent completes a round trip; as of 2026-08-17 that number is zero". It is no
+  longer zero. **Marked as met, deliberately NOT unparked** -- a gate opening
+  makes the question live, not the answer yes, and the adversarial half of B1 is
+  still owed. Erik's call, made on purpose rather than by a condition expiring.
+
+### THE KILL-SWITCH COMMENT DESCRIBED THE OPPOSITE OF THE CODE
+
+It said a cached ON is trusted for its window and a cached OFF re-read.
+`killSwitchOn` has always done the reverse, and its own docstring said so -- so
+the two disagreed, in the one path whose job is to stop the bridge. Corrected,
+and pinned by two tests that did not exist: restarting is immediate (an ON is
+never reused), stopping is delayed by at most one window and no longer.
+
+### TWO "NEVER SEEN" ITEMS WERE SEEN
+
+Items 12 and 13 were both "built, never observed". Driven end to end on a LOCAL
+file store -- a room, a declared repo, a cited entry -- and read out of the real
+DOM rather than inferred from the JSX:
+
+    <a class="prov-link" target="_blank" rel="noreferrer noopener"
+       href=".../blob/cb03b5c.../lib/store.ts#L613">lib/store.ts:613</a>
+
+The GitHub URL returns 200. The agent mark renders as `bx-agent sideA` "CL" on
+both the seat chip and the entry. **So neither is broken.** Item 13's remaining
+half is one `identify` call in a live room, and that is Erik's, because a
+partner sees it.
+
+Nothing touched production, no live room was written to, and the local room and
+file store were deleted afterwards.
+
 ## 2026-08-25 -- S#282c -- THE NAME IS SETTLED, AND IT WAS NAMED FOR THE DESTINATION
 
 **Source:** Erik, S#282, after I argued against the domain and he answered.

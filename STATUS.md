@@ -1,6 +1,6 @@
 # STATUS — Bridger
 
-**True as of 2026-08-25, close of S#282.** `DECISIONS.md` wins on direction;
+**True as of 2026-08-25, close of S#283.** `DECISIONS.md` wins on direction;
 `ARCHITECTURE.md` wins on how it works; `TODO.md` is what is left; this file is
 what is *true right now*.
 
@@ -29,6 +29,43 @@ alpha and says so.
 | far-side text | wrapped in untrusted-partner markers | not wrapped — there is no other company |
 | what it is for | agreeing across a boundary of trust | Triplemind: your subscriptions, one room |
 | seats | exactly 2, and that is a property not a limit | 2–6 |
+
+---
+
+## S#283 -- AN AUTONOMOUS PASS: THE WRITE PATH, A PURGE HOLE, AND THREE STALE ROWS
+
+Erik: *"proceed with all the stuff that can be done autonomously."* No decisions
+taken, nothing outward-facing, no live room written to.
+
+**The write path is 38% cheaper and both numbers are measured**
+(`node scripts/upstash-cost.mjs`): a post went 10 -> 6 commands, a warm audit row
+3 -> 2, so one post plus its audit went 13 -> 8. Both are amortisations that fail
+in the safe direction -- a refresh that threw is not recorded, a tally write that
+threw drops its cache.
+
+**Purge was leaving the PLAN on the server.** `executePurge` enumerates keys by
+hand, and `PLAN_KEY` arrived in S#280 without being added -- so every purge since
+left a document both companies wrote, after both had consented to its deletion.
+Found by walking the store rather than reading the list, and that walk is now a
+test that fails on the next namespace anyone adds.
+
+**Three documented items were not true.** `WASTE_BUDGET_BYTES` had already
+shipped; U1's A3 was a correctness bug wearing a performance fix (`openQuestions`
+must scan full history, so `llen` would have dropped old open questions);
+`plans/DECISIONS-FOR-ERIK-s272.md` called `/api/whoami` unbuilt ten sessions
+after it shipped. The witness-network gate has also quietly been met -- marked,
+NOT unparked.
+
+**The citation permalink and the agent mark were both SEEN**, in a real DOM on a
+local file store, not inferred from the JSX. Neither is broken; item 13's
+remaining half is one `identify` call in a live room, which is Erik's.
+
+**U1.B1 is half answered.** Pipelines bill per inner command (Upstash's own
+words), so pipelining is a latency tool and never a cost one. EVAL is unresolved
+and not resolvable from here -- `scripts/eval-billing-probe.mjs` is staged for a
+5-minute console read.
+
+413 tests, tsc 0, tree clean.
 
 ---
 

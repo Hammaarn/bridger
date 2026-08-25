@@ -1,9 +1,15 @@
 # DECISIONS FOR ERIK — S#272
 
-> **ANSWERED 2026-08-13.** Erik's calls are recorded under each item. D2, D4, D6
-> and D8 were greenlit and are BUILT; **D3 is greenlit and still unbuilt** — the
-> only outstanding one. D5 and D9 were dropped, D7 shrank to four README lines.
-> Nothing is run-green; the deploy is still gated.
+> **ANSWERED 2026-08-13. BANNER CORRECTED S#283 -- D3 IS BUILT.**
+> Erik's calls are recorded under each item. D2, D3, D4, D6 and D8 were greenlit
+> and are BUILT; D5 and D9 were dropped, D7 shrank to four README lines.
+> **Nothing here is outstanding.**
+>
+> This banner said "D3 is greenlit and still unbuilt -- the only outstanding
+> one" for ten sessions after it shipped. `/api/whoami` was built in S#274:
+> `app/api/whoami/route.ts` and `lib/whoami.ts` both exist, with the shape
+> exactly as greenlit. The per-item note below was also never updated; it is
+> corrected in place.
 
 Each is a choice I could have guessed at and deliberately did not. Ordered by
 what blocks the most.
@@ -65,9 +71,10 @@ actually works, and I have never watched one use this.
 
 ## D3. `/api/whoami` — build it, and in which shape?
 
-> **ERIK: "Build it."** -> **NOT YET BUILT. The one greenlit item
-> outstanding.** The shape is settled (valid-token-only, opaque otherwise);
-> it is the last piece of the join story.
+> **ERIK: "Build it."** -> **BUILT S#274** (`app/api/whoami/route.ts`,
+> `lib/whoami.ts`), in the shape greenlit here: answers only for a valid token,
+> the standard opaque refusal for everything else. Marked outstanding until
+> S#283, which is ten sessions of this file pointing at work that was done.
 
 A partner who cannot connect gets the same opaque refusal as an attacker. That
 is deliberate and it is also why "it doesn't work" is undiagnosable from their
