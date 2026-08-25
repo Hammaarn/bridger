@@ -741,10 +741,21 @@ export async function authorize(store: Store | null, ctx: AuthContext): Promise<
 
   // Cached for KILL_SWITCH_CACHE_MS. This read ran on literally every call and
   // is almost always the same answer -- one command per request, forever, to
-  // learn "no" (S#281). The cache is short and FAILS TOWARDS STOPPING: a cached
-  // ON is trusted for its whole window, a cached OFF is re-read every few
-  // seconds, so the panic button's worst case is a few seconds of delay rather
-  // than a bridge that cannot be stopped.
+  // learn "no" (S#281).
+  //
+  // [S#283] THIS COMMENT USED TO DESCRIBE THE OPPOSITE OF THE CODE. It said "a
+  // cached ON is trusted for its whole window, a cached OFF is re-read every
+  // few seconds". `killSwitchOn` does the reverse and always has: only an OFF
+  // reading is cached, an ON reading is returned and re-read next call. Read
+  // the function, not this line -- and note that the docstring on the function
+  // was correct the whole time, so the two disagreed in the one path whose job
+  // is to stop the bridge.
+  //
+  // What the asymmetry actually buys: RESTARTING is immediate (an ON is never
+  // trusted twice, so the moment the flag clears the bridge answers), while
+  // STOPPING is delayed by at most one window. Cache the ON instead and a
+  // restart would appear not to work, which is the direction that produces
+  // panic and a second, worse intervention.
   try {
     if (await killSwitchOn(store, ctx.now)) return { ok: false, reason: "bridge-disabled" };
   } catch {

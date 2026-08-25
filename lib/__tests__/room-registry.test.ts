@@ -3,6 +3,7 @@ import { after, beforeEach, describe, it } from "node:test";
 
 import {
   CACHE_TTL_MS,
+  KILL_SWITCH_CACHE_MS,
   authorize,
   bumpIdleStreak,
   canWrite,
@@ -506,5 +507,56 @@ describe("per-room budget — the ceiling a token cap cannot express", () => {
       /do not ask for a replacement token/i,
       "the counter closes the rotation path; the message has to close it in words too",
     );
+  });
+});
+
+/**
+ * THE KILL-SWITCH CACHE, PINNED (S#283).
+ *
+ * The reading is cached to save one command per request, and the cache is
+ * ASYMMETRIC: only an OFF is reused. Nothing tested that, and the inline
+ * comment at the call site had drifted into describing the exact opposite --
+ * in the one path whose job is to stop the bridge. A property with a wrong
+ * comment and no test is a property nobody is holding.
+ */
+describe("the kill-switch cache is asymmetric, and the direction is the point", () => {
+  it("[!!] RESTARTING is immediate — an ON reading is never reused", async () => {
+    const { store, ownerToken } = await freshRoom();
+    await store.set(KILL_SWITCH, "1");
+
+    const stopped = await authorize(store, { presentedToken: ownerToken, now: T0 });
+    assert.equal(stopped.ok, false);
+    assert.equal((stopped as { reason: string }).reason, "bridge-disabled");
+
+    // The operator lifts it. No waiting, no window: the very next call must
+    // work, because a bridge that stays down after `bridger start` is the
+    // failure that produces a second, worse intervention.
+    await store.del(KILL_SWITCH);
+    const back = await authorize(store, { presentedToken: ownerToken, now: T0 });
+    assert.equal(back.ok, true, "an ON must be re-read, so a restart takes effect at once");
+  });
+
+  it("STOPPING is delayed by at most one window — and no longer", async () => {
+    const { store, ownerToken } = await freshRoom();
+
+    const running = await authorize(store, { presentedToken: ownerToken, now: T0 });
+    assert.equal(running.ok, true);
+
+    // Flag set. Inside the window the cached OFF is still trusted: this is the
+    // cost of the cache, stated rather than hidden.
+    await store.set(KILL_SWITCH, "1");
+    const during = await authorize(store, {
+      presentedToken: ownerToken,
+      now: new Date(T0.getTime() + KILL_SWITCH_CACHE_MS - 1),
+    });
+    assert.equal(during.ok, true, "the cached OFF is reused for its window — this is the trade");
+
+    // Past the window it must bite, or the switch is not a switch.
+    const after = await authorize(store, {
+      presentedToken: ownerToken,
+      now: new Date(T0.getTime() + KILL_SWITCH_CACHE_MS + 1),
+    });
+    assert.equal(after.ok, false, "the window is a bound, not a hope");
+    assert.equal((after as { reason: string }).reason, "bridge-disabled");
   });
 });
