@@ -125,9 +125,21 @@ await measure("post one entry (400B body)", async (s, st) => {
 }, { setup: async (store) => await room(store, 10) });
 
 // ── audit write ──
-await measure("writeAudit one row", async (s, st) => {
+// TWO ROWS, because they genuinely differ. The tally is a read-modify-write and
+// the read is skipped when this instance already wrote the record (S#283) -- so
+// the FIRST audited call to a room costs a read that the rest do not. Reporting
+// only one of them would overstate or understate the bill depending on which.
+await measure("writeAudit one row (cold room)", async (s, st) => {
   await writeAudit(s, { ts: T0.toISOString(), tokenId: "abc", roomId: st.room.id, side: "a", tool: "read", status: "ok" });
 }, { setup: async (store) => await room(store, 0) });
+
+await measure("writeAudit one row (warm)", async (s, st) => {
+  await writeAudit(s, { ts: T0.toISOString(), tokenId: "abc", roomId: st.room.id, side: "a", tool: "read", status: "ok" });
+}, { setup: async (store) => {
+  const st = await room(store, 0);
+  await writeAudit(store, { ts: T0.toISOString(), tokenId: "abc", roomId: st.room.id, side: "a", tool: "read", status: "ok" });
+  return st;
+}});
 
 // ── storage: what a room of N entries occupies ──
 const store = new FakeStore();
