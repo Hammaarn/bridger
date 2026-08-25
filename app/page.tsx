@@ -746,12 +746,21 @@ function copy(text: string) {
 }
 
 /** A one-click copy that says it worked, because a silent copy button is a coin flip. */
-function CopyButton({ value, children }: { value: string; children: React.ReactNode }) {
+function CopyButton({
+  value,
+  children,
+  strong,
+}: {
+  value: string;
+  children: React.ReactNode;
+  /** Filled rather than outlined: for the copy that IS the step, not a convenience beside it. */
+  strong?: boolean;
+}) {
   const [done, setDone] = useState(false);
   return (
     <button
       type="button"
-      className={`bx-copy ${done ? "done" : ""}`}
+      className={`bx-copy ${strong ? "strong" : ""} ${done ? "done" : ""}`}
       onClick={() => {
         copy(value);
         setDone(true);
@@ -1730,11 +1739,10 @@ It names the commit it is running and answers without a token.`;
         <div className="bx-handoff">
           <div className="bx-handoff-head">
             <div>
-              <h2>Send this to them</h2>
+              <h2>1 · Send this link to them</h2>
               <p className="fine">
-                A link rather than a token. It expires, mints exactly one credential, and hands
-                their AI the whole protocol in one document — so the message you send stays
-                worthless to anyone who finds it later.
+                {/* One line. The reasoning lives in VERIFY.md, not above a link. */}
+                Their AI opens it and joins. Nothing to install.
               </p>
             </div>
             <button
@@ -1753,7 +1761,9 @@ It names the commit it is running and answers without a token.`;
             <div className="bx-invite">
               <code className="bx-invite-url">{invite.joinUrl}</code>
               <div className="bx-invite-actions">
-                <CopyButton value={invite.joinUrl}>copy link</CopyButton>
+                <CopyButton value={invite.joinUrl} strong>
+                  Copy link
+                </CopyButton>
                 <CopyButton value={inviteMessage}>copy message</CopyButton>
               </div>
               <p className="fine">
@@ -1854,12 +1864,11 @@ It names the commit it is running and answers without a token.`;
           <h2>
             {isSolo
               ? `${minted.slots.length} connectors, all yours`
-              : "Your connector, and a pass to watch"}
+              : "2 · Paste your connector into your AI"}
           </h2>
           <p className="fine">
-            A connector is the only thing an AI needs to reach this room — no account, no
-            install, no repository access. One connector is one seat, and it can write to the
-            record as that seat.
+            {/* Was four lines of what a connector IS. This is what you DO. */}
+            This is your seat. Without it, your own AI is not in the room.
           </p>
         </div>
 
@@ -1917,7 +1926,9 @@ It names the commit it is running and answers without a token.`;
                   )}
                 </p>
                 <code className="bx-token-val">{s.token}</code>
-                <CopyButton value={s.token}>copy connector</CopyButton>
+                <CopyButton value={s.token} strong={s.side === "a" && !isSolo}>
+                  {s.side === "a" && !isSolo ? "Copy connector" : "copy connector"}
+                </CopyButton>
               </div>
             );
           })}
@@ -1972,8 +1983,19 @@ It names the commit it is running and answers without a token.`;
           sentence instead of a shrug.
         */}
         <p className="fine bx-close-note">
-          Your own connector is on this screen only. Copy it before you leave — a lost
-          token is replaced with <code>bridger rotate</code>, not recovered.
+          {/*
+            THIS ADVICE WAS FALSE FOR THE AUDIENCE MOST LIKELY TO NEED IT (S#283).
+
+            It said a lost token is replaced with `bridger rotate`. That command
+            calls `operatorStore()`, which requires Upstash credentials -- so a
+            browser-only operator, who is exactly the person who just made a
+            room by clicking, CANNOT run it. For them a closed tab meant their
+            side of the room was gone for good, and the screen pointed them at
+            a recovery that does not exist on their machine.
+          */}
+          <strong>Copy your connector before you close this tab.</strong> It is shown here and
+          nowhere else — only its hash is stored, so nobody can look it up again, including us.
+          Without it you would have to open a new room.
         </p>
       </div>
     </main>

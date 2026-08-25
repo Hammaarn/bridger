@@ -375,7 +375,14 @@ export async function POST(req: Request) {
       viewerToken,
       endpoint: new URL("/api/mcp", req.url).toString(),
       unclaimedExpiresInSeconds: UNCLAIMED_ROOM_TTL_SECONDS,
-      note: "These tokens are shown once. Only their hashes are stored — nobody can look them up again, including us. Lost one? Mint a replacement with `bridger rotate --side a|b`.",
+      // "Mint a replacement with `bridger rotate`" was FALSE for the reader most
+      // likely to need it (S#283): `cmdRotate` calls `operatorStore()`, which
+      // requires Upstash credentials. A browser-only operator -- the person who
+      // just made a room by clicking -- cannot run it, so this banner pointed
+      // them at a recovery that does not exist on their machine. Say what they
+      // can actually do (behavioural rule: a flagged gap with no redirect is
+      // half a finding).
+      note: "These tokens are shown once. Only their hashes are stored — nobody can look them up again, including us. Copy what you need before you leave this page: `bridger rotate` can replace one, but it needs operator credentials, so from a browser the only fix is opening a new room.",
     },
     { status: 201 },
   );
