@@ -524,6 +524,8 @@ type CacheEntry<T> = { record: T | null; fetchedAt: number };
 let killSwitchCache: { on: boolean; at: number } | null = null;
 const tokenCache = new Map<string, CacheEntry<TokenRecord>>();
 const roomCache = new Map<string, CacheEntry<RoomRecord>>();
+/** The room tally this instance last successfully wrote. See `writeAudit`. */
+const activityCache = new Map<string, RoomActivity>();
 
 /**
  * Test seam; also called after any mutation so a revoke is visible immediately.
@@ -537,6 +539,7 @@ export function clearRegistryCache(): void {
   tokenCache.clear();
   roomCache.clear();
   killSwitchCache = null;
+  activityCache.clear();
   // The TTL-refresh cache lives in `store.ts` (S#283) for the same reason the
   // kill switch lives in its own variable: it is the same KIND of thing, and
   // one reset is the only way a test never has to know where each cache sits.
@@ -1497,7 +1500,32 @@ export async function writeAudit(store: Store | null, entry: AuditEntry): Promis
   if (!entry.roomId) return;
   try {
     const day = entry.ts.slice(0, 10);
-    const prev = await readRoomActivity(store, entry.roomId);
+    /**
+     * THE READ IS SKIPPED WHEN WE ALREADY KNOW THE ANSWER (S#283).
+     *
+     * This was a read-modify-write on every logged call: `get` the record,
+     * add one, `setex` it back -- three commands per audited call once the
+     * `lpush` is counted, on a store metered by command.
+     *
+     * We wrote the previous value ourselves, so re-reading it asks the database
+     * to tell us something we just said. The cache holds what this instance
+     * last wrote and the merge runs against that instead.
+     *
+     * WHAT IT COSTS, stated rather than glossed: `calls` can now under-count
+     * when two serverless instances write to the same room concurrently, since
+     * both start from their own last-known value. **That race already existed**
+     * -- a `get` and a `setex` are two commands with a gap between them, and
+     * two instances interleaving there lose a count in exactly the same way.
+     * The cache widens the window from milliseconds to the instance's life.
+     *
+     * That is acceptable HERE and would not be anywhere else in this codebase:
+     * the number is a volume indication for the operator ("it counts CALLS, not
+     * people" -- `cmdUsage`), nothing is gated on it, and no partner ever sees
+     * it. The entry ledger, the chain, the seq counter and the daily caps are
+     * all exact and none of them are touched by this.
+     */
+    const cached = activityCache.get(entry.roomId);
+    const prev = cached ?? (await readRoomActivity(store, entry.roomId));
     const days = prev?.days ?? [];
     // `firstAt` and `lastAt` are a MINIMUM and a MAXIMUM, not "the first write"
     // and "the latest write". Caught S#280 by backdating a row in a check: an
@@ -1519,7 +1547,13 @@ export async function writeAudit(store: Store | null, entry: AuditEntry): Promis
     // Expires WITH the room it describes, so a finished room takes its own
     // bookkeeping with it rather than leaving a tombstone behind. One command.
     await store.setex(ROOM_ACTIVITY_KEY(entry.roomId), ROOM_TTL_SECONDS, JSON.stringify(next));
+    // Cached only AFTER the write lands. Caching the value we intended to store
+    // would make a failed write invisible to the next call, which would then
+    // build on a number the database never accepted.
+    activityCache.set(entry.roomId, next);
   } catch {
-    /* best-effort, exactly like the line above it */
+    // The cached value may now disagree with the store, so drop it: the next
+    // call re-reads rather than compounding on a write that did not happen.
+    activityCache.delete(entry.roomId);
   }
 }
