@@ -337,3 +337,99 @@ describe("[!!] bandwidth: an incremental read fetches the tail, not the room", (
     assert.deepEqual(wide.map((e) => e.id), unbounded.map((e) => e.id));
   });
 });
+
+describe("[!!] the TTL refresh is amortised -- four expires per write became four per hour", () => {
+  /**
+   * Count the expires that refresh the ROOM's 30-day fuse, by key.
+   *
+   * Counting every `expire` would be wrong: the first write to a room also
+   * lights the orphan fuses on its seq and counter keys (`lightFuse`), which
+   * is a different mechanism with a different lifetime. Asserting on a raw
+   * total would silently pass or fail on that one instead, and the test would
+   * be measuring something other than what it names.
+   */
+  async function roomExpiresDuring(
+    store: FakeStore,
+    roomId: string,
+    fn: (s: FakeStore) => Promise<void>,
+  ): Promise<number> {
+    const { ROOM_KEY, ENTRIES_KEY, CONTRACT_KEY, ROOM_TOKENS_KEY } = await import("../store");
+    const ttlKeys = new Set([
+      ROOM_KEY(roomId),
+      ENTRIES_KEY(roomId),
+      CONTRACT_KEY(roomId),
+      ROOM_TOKENS_KEY(roomId),
+    ]);
+    let hits = 0;
+    const spy = new Proxy(store, {
+      get(t, p, r) {
+        const v = Reflect.get(t, p, r);
+        if (p !== "expire") return typeof v === "function" ? v.bind(t) : v;
+        return async (...a: unknown[]) => {
+          if (ttlKeys.has(a[0] as string)) hits++;
+          return (v as (...x: unknown[]) => Promise<unknown>).apply(t, a);
+        };
+      },
+    });
+    await fn(spy as unknown as FakeStore);
+    return hits;
+  }
+
+  it("the FIRST write refreshes, and the next five do not", async () => {
+    const { clearTouchCache } = await import("../store");
+    const { appendEntry } = await import("../entries");
+    clearTouchCache();
+    const { store, room, jms } = await bridge();
+
+    const post = (s: FakeStore) =>
+      appendEntry(s, room, jms, { type: "note", title: "t", body: "b" }, T0).then(() => {});
+
+    const first = await roomExpiresDuring(store, room.id, post);
+    assert.equal(first, 4, "a cold instance must always refresh the room's fuse");
+
+    let later = 0;
+    for (let i = 0; i < 5; i++) later += await roomExpiresDuring(store, room.id, post);
+    assert.equal(later, 0, "five more writes inside the window must cost zero expires");
+  });
+
+  it("a FAILED refresh does not buy an hour of silence", async () => {
+    // Best-effort has to keep meaning best-effort once the call is skippable:
+    // if the expire throws, the next write must try again rather than assume
+    // the fuse was pushed back.
+    const { clearTouchCache, touchRoom } = await import("../store");
+    clearTouchCache();
+    const { store, room } = await bridge();
+
+    let attempts = 0;
+    const broken = new Proxy(store, {
+      get(t, p, r) {
+        const v = Reflect.get(t, p, r);
+        if (p !== "expire") return typeof v === "function" ? v.bind(t) : v;
+        return async () => {
+          attempts++;
+          throw new Error("upstash is down");
+        };
+      },
+    });
+
+    await touchRoom(broken as unknown as FakeStore, room.id);
+    await touchRoom(broken as unknown as FakeStore, room.id);
+    assert.ok(attempts >= 2, "a refresh that threw must be retried by the next write");
+  });
+
+  it("a DIFFERENT room is never covered by another room's refresh", async () => {
+    const { clearTouchCache } = await import("../store");
+    const { appendEntry } = await import("../entries");
+    clearTouchCache();
+    const one = await bridge();
+    const two = await bridge();
+
+    await roomExpiresDuring(one.store, one.room.id, (s) =>
+      appendEntry(s, one.room, one.jms, { type: "note", title: "t", body: "b" }, T0).then(() => {}),
+    );
+    const other = await roomExpiresDuring(two.store, two.room.id, (s) =>
+      appendEntry(s, two.room, two.jms, { type: "note", title: "t", body: "b" }, T0).then(() => {}),
+    );
+    assert.equal(other, 4, "the cache is keyed by room; one room must not silence another");
+  });
+});
