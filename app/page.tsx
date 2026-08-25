@@ -2047,7 +2047,32 @@ function RoomView({
    * questions, unclaimed plan items -- so choosing a wider reading column never
    * costs you the thing that would have made you open the panel.
    */
-  const [rails, setRails] = useState<{ left: boolean; right: boolean }>({ left: true, right: true });
+  /**
+   * BOTH RAILS START CLOSED (S#283) -- finishing what S#282 gaveled.
+   *
+   * That decision ended: "keep the rails expandable, DEFAULT TO COLLAPSED."
+   * The default was never changed, so every first-time reader met both panels
+   * open. Erik's brother, seeing the room for the first time and not having
+   * read any of this: *"What is all the stuff on the left? I can't understand
+   * what its purpose is at all."*
+   *
+   * He is describing an index of a record he has not read yet. The folders
+   * answer "where is the decision among ninety entries", which is a question
+   * you only have after you have a ninety-entry room -- and never on the
+   * screen where you are still working out what this thing IS. The panel was
+   * built for the wrong moment, not built wrong.
+   *
+   * Closed is therefore the honest default for a NEW reader, and the strip
+   * still carries the counts, so nothing is hidden -- it is the same
+   * "collapsing must not hide a signal" contract, applied from the start
+   * rather than after the first click. Anyone who wants the index opens it
+   * once and `localStorage` remembers, so the cost falls entirely on the
+   * person who has already decided they want it.
+   */
+  const [rails, setRails] = useState<{ left: boolean; right: boolean }>({
+    left: false,
+    right: false,
+  });
   useEffect(() => {
     try {
       const raw = localStorage.getItem(RAILS_KEY);
