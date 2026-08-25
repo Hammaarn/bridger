@@ -1531,6 +1531,35 @@ function TokenBox({
    * persisting it would put a token-bearing URL on disk next to the viewer token
    * for no gain -- a reload half an hour later would find it expired anyway.
    */
+  /**
+   * THE LINK EXISTS BEFORE YOU ASK FOR IT (S#283, Erik).
+   *
+   * "Literally 1 button to generate a link -> send to the other end -> they
+   * join." The button was already there; the problem was that it produced the
+   * link on a SECOND action, after a screen showing five other things, so the
+   * one artifact you actually need was the one thing not on screen yet.
+   *
+   * A trust room always needs exactly one invite, so waiting to be asked buys
+   * nothing. Minting it on arrival costs one call at the moment the room is
+   * created -- the moment it is most certainly wanted.
+   */
+  const autoMinted = useRef(false);
+  useEffect(() => {
+    if (isSolo || invite || inviteBusy || autoMinted.current) return;
+    // A REF, not the `invite` state, because state has not landed yet when the
+    // effect runs a second time. React 19's StrictMode invokes effects twice in
+    // development, so the state guard alone minted TWO links -- the second
+    // superseding the first, which made a brand-new room announce "the previous
+    // link for this seat has stopped working". Harmless in production and
+    // alarming on screen, which is the worst combination: it would have read as
+    // a real defect to every reader and reproduced for none of them.
+    autoMinted.current = true;
+    void makeInvite();
+    // Once, on arrival. `invite` and `inviteBusy` guard re-entry; adding
+    // makeInvite here would re-fire on every render that redefines it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSolo]);
+
   async function makeInviteAndEnter() {
     const link = await makeInvite();
     if (link) onWatch(minted.viewerToken, link);
@@ -1548,7 +1577,13 @@ function TokenBox({
           Authorization: `Bearer ${minted.slots[0].token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ op: "invite" }),
+        // FOUR HOURS, not the server's 30-minute default (S#283). That default
+        // has now killed three invites unredeemed -- it is tuned for "paste it
+        // and they click now", while the real flow is "message a human, wait
+        // for a human". The TOKEN it mints still lasts days: two clocks, two
+        // jobs, and only the link's fuse is protecting a credential sitting in
+        // somebody's chat log.
+        body: JSON.stringify({ op: "invite", ttlMinutes: 240 }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -1674,8 +1709,153 @@ It names the commit it is running and answers without a token.`;
           So every card now leads with its JOB -- who it is for and what it does
           -- before it shows a single character of the credential.
         */}
+        {/*
+          THE INVITE COMES FIRST (S#283, Erik: "literally 1 button to generate a
+          link -> send to the other end -> they join").
+
+          It used to sit FOURTH, under three credential cards and a warning, so
+          the one artifact the operator actually has to act on was the last
+          thing they reached -- and the card above it showed the partner's raw
+          token, which is the wrong thing to send. Placement was doing the
+          opposite of what the copy was saying.
+        */}
+        {/*
+          The whole INVITE CEREMONY -- the link block and the generate-and-enter
+          action -- is a trust-room thing. Two siblings, so a fragment: there is
+          no wrapper element to reuse and adding one would change the layout for
+          the room type that already works.
+        */}
+        {!isSolo && (
+          <>
+        <div className="bx-handoff">
+          <div className="bx-handoff-head">
+            <div>
+              <h2>Send this to them</h2>
+              <p className="fine">
+                A link rather than a token. It expires, mints exactly one credential, and hands
+                their AI the whole protocol in one document — so the message you send stays
+                worthless to anyone who finds it later.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="bx-primary bx-invite-make"
+              onClick={makeInvite}
+              disabled={inviteBusy}
+            >
+              {inviteBusy ? "Minting…" : invite ? "New link" : "Generate invite link"}
+            </button>
+          </div>
+
+          {inviteError ? <p className="bx-invite-error">{inviteError}</p> : null}
+
+          {invite ? (
+            <div className="bx-invite">
+              <code className="bx-invite-url">{invite.joinUrl}</code>
+              <div className="bx-invite-actions">
+                <CopyButton value={invite.joinUrl}>copy link</CopyButton>
+                <CopyButton value={inviteMessage}>copy message</CopyButton>
+              </div>
+              <p className="fine">
+                {/* Nobody divides by 60 to find out whether they have time to send a link. */}
+                For <strong>{invite.forLabel}</strong>. Live for{" "}
+                {invite.linkExpiresInMinutes >= 120
+                  ? `${Math.round(invite.linkExpiresInMinutes / 60)} hours`
+                  : `${invite.linkExpiresInMinutes} minutes`}
+                ; the token it mints lasts {invite.tokenExpiresInDays} days.
+                {invite.replacedPreviousLink
+                  ? " The previous link for this seat has stopped working."
+                  : null}
+              </p>
+            </div>
+          ) : null}
+
+          {/*
+            Kept, not deleted, and demoted rather than hidden. The token block
+            works when a link cannot -- a partner behind something that mangles
+            URLs, or one who wants a credential that outlives thirty minutes --
+            and removing a working path to make a point is not an improvement.
+          */}
+          <details className="bx-details bx-handoff-fallback">
+            <summary>Or hand over the token directly</summary>
+            <p className="fine">
+              Everything the link would have given them, inline. The tradeoff is that this message
+              contains a live credential, so it stays valid for as long as the token does — in the
+              chat, the inbox and the transcript.
+            </p>
+            <div className="bx-handoff-head">
+              <div />
+              <CopyButton value={pasteBlock}>copy the whole block</CopyButton>
+            </div>
+            <pre className="bx-handoff-body">{pasteBlock}</pre>
+          </details>
+        </div>
+
+        <details className="bx-details">
+          <summary>Or connect it as an MCP server (optional)</summary>
+          <p className="fine">
+            Better ergonomics where the client supports it: the tools are discoverable and the token
+            lives in a config file the model never reads. The tradeoff is that an MCP tool schema is
+            resident — it costs the far side context on every turn of their session, used or not, so
+            it is the upgrade rather than the starting point. Every client needs the same two facts
+            and differs only in what it calls the endpoint key.
+          </p>
+          <div className="bx-snippet">
+            <div className="bx-snippet-head">
+              Claude Code <CopyButton value={claudeCmd}>copy</CopyButton>
+            </div>
+            <pre>{claudeCmd}</pre>
+          </div>
+          <div className="bx-snippet">
+            <div className="bx-snippet-head">
+              Antigravity — <code>~/.gemini/config/mcp_config.json</code>
+              <CopyButton value={antigravity}>copy</CopyButton>
+            </div>
+            <pre>{antigravity}</pre>
+            <p className="fine">
+              Antigravity wants <code>serverUrl</code> and rejects <code>url</code> and{" "}
+              <code>httpUrl</code>. It keeps three of these files on disk and two are usually empty —
+              use the IDE&rsquo;s <em>View raw config</em> button to find the live one.
+            </p>
+          </div>
+        </details>
+
+        <div className="bx-close-actions">
+          <button
+            type="button"
+            className="bx-primary"
+            onClick={makeInviteAndEnter}
+            disabled={inviteBusy}
+          >
+            {/*
+              The label has to follow the state. Since the link is now minted on
+              arrival (S#283), "Generate link" was describing work already done
+              -- and a button offering to do a thing that is visibly done reads
+              as "did it not work?", which is the opposite of the reassurance a
+              primary action owes.
+            */}
+            {inviteBusy ? "minting…" : invite ? "Open the room" : "Generate link & open the room"}
+          </button>
+          <button type="button" className="link" onClick={() => onWatch(minted.viewerToken)}>
+            open the room without a link
+          </button>
+        </div>
+          </>
+        )}
+
         <div className="bx-tokens-intro">
-          <h2>{isSolo ? `${minted.slots.length} connectors, all yours` : "Two connectors and a watch pass"}</h2>
+          {/*
+            "Two connectors and a watch pass" was true until the partner's raw
+            token stopped being shown here (S#283). A trust room now hands you
+            YOUR connector and a watch pass; their seat is the invite above.
+            A heading that counts wrong is a small lie in the one place a
+            reader is trying to work out what they are holding.
+          */}
+          <h2>
+            {isSolo
+              ? `${minted.slots.length} connectors, all yours`
+              : "Your connector, and a pass to watch"}
+          </h2>
           <p className="fine">
             A connector is the only thing an AI needs to reach this room — no account, no
             install, no repository access. One connector is one seat, and it can write to the
@@ -1684,7 +1864,26 @@ It names the commit it is running and answers without a token.`;
         </div>
 
         <div className="bx-tokens">
-          {minted.slots.map((s) => {
+          {minted.slots
+            /**
+             * THE SCREEN USED TO SHOW THE ARTIFACT IT TELLS YOU NOT TO SEND.
+             *
+             * The partner's card carried the words "This is theirs, not yours.
+             * Send the invite link below instead" -- while displaying the token
+             * in a copy box, above the link, in a stack of equals. Erik sent the
+             * wrong one on the first real test. That is not a reading failure;
+             * it is a screen offering two ways to do one job and giving the
+             * worse one better placement.
+             *
+             * So in a trust room the partner's seat is represented by the INVITE
+             * and nothing else. The raw token still exists and is still
+             * reachable -- "Or hand over the token directly" is directly below,
+             * for the air-gapped partner and the client that cannot fetch a URL.
+             * A solo room has no partner, so every slot there is yours and the
+             * filter does not apply.
+             */
+            .filter((s) => isSolo || s.side !== "b")
+            .map((s) => {
             // side "a" is `ownerToken` and side "b" is `peerToken`
             // (app/api/rooms/route.ts:371-374), which are exactly the "Your
             // side" and "Their side" fields the create form asked for. The
@@ -1751,118 +1950,6 @@ It names the commit it is running and answers without a token.`;
             )} hours.`}
         </div>
 
-        {/*
-          The whole INVITE CEREMONY -- the link block and the generate-and-enter
-          action -- is a trust-room thing. Two siblings, so a fragment: there is
-          no wrapper element to reuse and adding one would change the layout for
-          the room type that already works.
-        */}
-        {!isSolo && (
-          <>
-        <div className="bx-handoff">
-          <div className="bx-handoff-head">
-            <div>
-              <h2>Send this to them</h2>
-              <p className="fine">
-                A link rather than a token. It dies in minutes, mints exactly one credential, and
-                hands their AI the whole protocol in one document — so the message you send stays
-                worthless to anyone who finds it later.
-              </p>
-            </div>
-            <button
-              type="button"
-              className="bx-primary bx-invite-make"
-              onClick={makeInvite}
-              disabled={inviteBusy}
-            >
-              {inviteBusy ? "Minting…" : invite ? "New link" : "Generate invite link"}
-            </button>
-          </div>
-
-          {inviteError ? <p className="bx-invite-error">{inviteError}</p> : null}
-
-          {invite ? (
-            <div className="bx-invite">
-              <code className="bx-invite-url">{invite.joinUrl}</code>
-              <div className="bx-invite-actions">
-                <CopyButton value={invite.joinUrl}>copy link</CopyButton>
-                <CopyButton value={inviteMessage}>copy message</CopyButton>
-              </div>
-              <p className="fine">
-                For <strong>{invite.forLabel}</strong>. Live for {invite.linkExpiresInMinutes}{" "}
-                minutes; the token it mints lasts {invite.tokenExpiresInDays} days.
-                {invite.replacedPreviousLink
-                  ? " The previous link for this seat has stopped working."
-                  : null}
-              </p>
-            </div>
-          ) : null}
-
-          {/*
-            Kept, not deleted, and demoted rather than hidden. The token block
-            works when a link cannot -- a partner behind something that mangles
-            URLs, or one who wants a credential that outlives thirty minutes --
-            and removing a working path to make a point is not an improvement.
-          */}
-          <details className="bx-details bx-handoff-fallback">
-            <summary>Or hand over the token directly</summary>
-            <p className="fine">
-              Everything the link would have given them, inline. The tradeoff is that this message
-              contains a live credential, so it stays valid for as long as the token does — in the
-              chat, the inbox and the transcript.
-            </p>
-            <div className="bx-handoff-head">
-              <div />
-              <CopyButton value={pasteBlock}>copy the whole block</CopyButton>
-            </div>
-            <pre className="bx-handoff-body">{pasteBlock}</pre>
-          </details>
-        </div>
-
-        <details className="bx-details">
-          <summary>Or connect it as an MCP server (optional)</summary>
-          <p className="fine">
-            Better ergonomics where the client supports it: the tools are discoverable and the token
-            lives in a config file the model never reads. The tradeoff is that an MCP tool schema is
-            resident — it costs the far side context on every turn of their session, used or not, so
-            it is the upgrade rather than the starting point. Every client needs the same two facts
-            and differs only in what it calls the endpoint key.
-          </p>
-          <div className="bx-snippet">
-            <div className="bx-snippet-head">
-              Claude Code <CopyButton value={claudeCmd}>copy</CopyButton>
-            </div>
-            <pre>{claudeCmd}</pre>
-          </div>
-          <div className="bx-snippet">
-            <div className="bx-snippet-head">
-              Antigravity — <code>~/.gemini/config/mcp_config.json</code>
-              <CopyButton value={antigravity}>copy</CopyButton>
-            </div>
-            <pre>{antigravity}</pre>
-            <p className="fine">
-              Antigravity wants <code>serverUrl</code> and rejects <code>url</code> and{" "}
-              <code>httpUrl</code>. It keeps three of these files on disk and two are usually empty —
-              use the IDE&rsquo;s <em>View raw config</em> button to find the live one.
-            </p>
-          </div>
-        </details>
-
-        <div className="bx-close-actions">
-          <button
-            type="button"
-            className="bx-primary"
-            onClick={makeInviteAndEnter}
-            disabled={inviteBusy}
-          >
-            {inviteBusy ? "minting…" : "Generate link & open the room"}
-          </button>
-          <button type="button" className="link" onClick={() => onWatch(minted.viewerToken)}>
-            open the room without a link
-          </button>
-        </div>
-          </>
-        )}
         {/*
           A solo room has no invitation to send, so the exit is a plain one.
         */}
