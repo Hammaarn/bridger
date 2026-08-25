@@ -2847,22 +2847,66 @@ input.bx-folder-name:focus {
   color: var(--text-faint);
 }
 
+/*
+  A COPY BUTTON HAS TO LOOK LIKE A BUTTON (S#283).
+
+  Erik, looking straight at the minted screen: "there is no copy to clipboard
+  button on the Link or the other tokens." There were four. They were 12px
+  faint text on a transparent ground with 4px of padding, sitting under the
+  value, beside a filled 44px primary -- so they read as captions and he never
+  saw them.
+
+  An affordance nobody can see is worse than a missing one, because we believed
+  it shipped. Same size class as a real control now, and legible at rest rather
+  than only on hover: nobody hovers a thing they have not registered as
+  clickable.
+*/
 .bx-copy {
   margin-left: auto;
   font-family: var(--font-mono-stack);
-  font-size: 12px;
-  letter-spacing: 0.06em;
-  color: var(--text-faint);
-  background: transparent;
-  border: 1px solid var(--line);
+  font-size: 12.5px;
+  letter-spacing: 0.04em;
+  color: var(--text);
+  background: var(--surface-2, rgba(255, 255, 255, 0.06));
+  border: 1px solid var(--line-strong);
   border-radius: 6px;
-  padding: 4px 9px;
+  padding: 8px 14px;
+  min-height: 34px;
   cursor: pointer;
 }
 
 .bx-copy:hover {
   color: var(--text);
+  background: rgba(255, 255, 255, 0.12);
   border-color: var(--line-strong);
+}
+
+/*
+  The two copies that ARE the job. Filled, so the eye lands on them before the
+  prose -- which is what "make the eyes more drawn to it" has to mean on a
+  screen where everything was previously the same weight.
+*/
+.bx-copy.strong {
+  background: var(--text);
+  /*
+    `--ink-900`, NOT `--bg`. There is no `--bg` token in this file -- I wrote one
+    from memory, it resolved to nothing, `color` fell back to the inherited
+    `--text`, and both primary copy buttons rendered as BLANK WHITE RECTANGLES.
+    Invisible label on a visible button, which is worse than the faint button it
+    replaced. Caught by screenshotting it; a typecheck cannot see a CSS variable
+    that does not exist.
+  */
+  color: var(--ink-900);
+  border-color: var(--text);
+  font-weight: 600;
+  min-height: 40px;
+  padding: 0 18px;
+}
+
+.bx-copy.strong:hover {
+  background: var(--text);
+  color: var(--ink-900);
+  filter: brightness(0.92);
 }
 
 .bx-term pre {
