@@ -271,7 +271,14 @@ async function cmdOpen() {
   Bridge open — ${room.topic}
   room ${room.id}   you: ${seat(room, "a").label} (${seat(room, "a").code})   partner: ${seat(room, "b").label} (${seat(room, "b").code})
 
-  ✓ YOUR SIDE IS CONNECTED. Nothing to paste — this session holds it.
+  ── YOUR CONNECTOR — this is the only time it is shown ────────────
+
+  ${ownerToken}
+
+  If an AI ran this command, it already has it and there is nothing to do.
+  If YOU ran it, paste it into your AI. Nothing stores it: \`room.json\`
+  carries no secret, and a lost one is replaced with \`bridger rotate\`,
+  never recovered.
 
   ── 1. SEND THIS TO ${theirs.toUpperCase()} ${"─".repeat(Math.max(0, 41 - theirs.length))}
 
