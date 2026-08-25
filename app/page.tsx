@@ -2913,13 +2913,43 @@ function RoomView({
                     <div className="row" key={e.id}>
                       <article className={`bubble t-${e.type} ${flash === e.seq ? "flash" : ""}`}>
                         {/*
-                          The type stays on the bubble, always. A chat shape that
-                          flattens `asks` / `decides` / `signs off` into "a
-                          message" has thrown away the reason this is a record
-                          rather than a chat log.
+                          THE VERB IS NOW SHOWN ONLY WHERE A HUMAN NEEDS IT (S#283).
+
+                          It used to render on every bubble, always, on the
+                          argument that flattening `asks`/`decides` into "a
+                          message" throws away the reason this is a record. That
+                          argument was right about the PROTOCOL and wrong about
+                          the SCREEN, and it cost the reader twice over:
+
+                          1. IT SAID THE SAME THING TWICE. Entry ids are
+                             `JMS-N-023` and the middle letter IS the type. The
+                             badge beside it repeated that fact in a second
+                             vocabulary the reader also had to learn.
+                          2. WHEN EVERY BUBBLE IS LABELLED, NO LABEL MEANS
+                             ANYTHING. The same dilution `basis` had before an
+                             opinion could be refused, and that the untrusted
+                             marker has when it fires on your own text.
+
+                          Erik, S#283: "do those even have to be visible for us
+                          humans... they need to be understood." A human needs
+                          exactly two of the seven: WHAT GOT DECIDED, and WHAT IS
+                          WAITING ON ME. An answer already carries its `-> QID`
+                          link, a note is a message, a contract renders its own
+                          diff, a signoff says so in its body. `reopen` stays
+                          because it REVERSES a previous state, which nothing
+                          else on the bubble conveys.
+
+                          The type never left the record. It is in the id, in the
+                          API call that made it, in `/api/export`, and in every
+                          tool response. This is the screen declining to recite
+                          it, not the protocol losing it.
                         */}
                         <div className="head">
-                          <span className="verb">{verbFor(e.type)}</span>
+                          {(e.type === "decision" ||
+                            e.type === "question" ||
+                            e.type === "reopen") && (
+                            <span className="verb">{verbFor(e.type)}</span>
+                          )}
                           <code className="id">{e.id}</code>
                           {e.answers && (
                             <button
@@ -3116,7 +3146,15 @@ function RoomView({
         <button className="link" onClick={onForget}>
           forget token
         </button>
-        <span className="dim">read-only · every write goes through the MCP tools</span>
+        {/*
+          "every write goes through the MCP tools" was written before the flat
+          transport became the recommended path (S#278) -- and it is the line a
+          reader meets at the exact moment they wonder how anything gets IN
+          here. Both far sides we have ever had used flat RPC, one of them
+          quoting our own join document as the reason. The screen was naming
+          the upgrade as if it were the only door.
+        */}
+        <span className="dim">read-only · the AIs write to it, you watch</span>
       </footer>
     </main>
   );
