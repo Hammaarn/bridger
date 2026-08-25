@@ -123,7 +123,7 @@ the exact confusion this product exists to remove.
 | 15 | **`usage` still lists purged rooms** | Found S#282 during cleanup: the tally key survives `purge`, so the operator's room list stays misleading after a deletion. Arguably correct as a volume record, wrong as a room list. |
 | 16 | **The create flow reads as a modal and is not one** | Gemini's audit "found" a focus trap, backdrop-dismiss and scroll-lock bugs in a component that does not exist — no `<dialog>`, no role, URL unchanged. The finding is wrong and the SIGNAL is real: a competent auditor thought it was a modal. Make it read as a page, or make it one. |
 | 17 | **`status` reads every entry in the room** | 74.6 KB on a 100-entry room. |
-| 18 | **B5 at scale** | Chrome headless only — no real monitor, no phone, no Safari, no Firefox. |
+| 18 | **[~] B5 at scale** | **The 100+ entry half is DONE S#283** (rendered at 108: no horizontal overflow, all three panels scrolling, all 108 entries present, evidence dedup counting). What is left needs hardware I do not have: a real monitor, a phone, Safari, Firefox. |
 | 19 | **D4's create half** | S#282 added a stage strip and a blocked-reason line, which is more information but not fewer steps. |
 | 20 | **C3a citation bundles** | The far side's remaining proposal. |
 | 21 | **F4 housekeeping** | Room `d437fff5b423` still needs a fresh invite code. |
@@ -662,11 +662,27 @@ of this list is still owed, and this is the argument for it.
 
 
 - **Nobody has looked at the shipped design on a real monitor.** Everything was
-  judged from screenshots and measurements.
-- **No real device, no Safari, no Firefox.** Chrome headless only.
-- **The room view has only ever been captured with a FOUR-entry room.** Panel
-  scrolling, the chain spine over 100+ entries and the tree at length are all
-  unexercised.
+  judged from screenshots and measurements. **Still true.**
+- **No real device, no Safari, no Firefox.** Chrome headless only. **Still
+  true, and it is now the whole of what is left here.**
+- ~~**The room view has only ever been captured with a FOUR-entry room.**~~
+  **DONE S#283 -- rendered at 108 entries** on a local file store, seeded over
+  the flat transport with a realistic mix (30 questions, 10 left open, answers,
+  decisions, notes, both sides, four citation qualities). Measured in the DOM,
+  not judged from the picture:
+    - **zero horizontal overflow** on the document
+    - **all three scroll panels actually scrolling** (`bx-tree`, `bx-chat`,
+      `bx-agree`) -- the S#280 `min-height` fix holds at length
+    - **all 108 entries present in `bx-chat`**; the tree shows 84 and agreements
+      22, which is the grouping working, not entries going missing
+    - 32 permalinks, and the thin/ok split held (8 thin, 47 ok)
+    - the evidence panel DEDUPLICATES and counts (`lib/store.ts:613 ... 21x`),
+      which had never been seen with enough repeats to matter
+  **A correction worth keeping:** the first count said "86 of 108 rendered",
+  which looked like 22 missing entries. It was a GUESSED selector
+  (`[id^=JMS-]` matches nothing -- entry ids are not DOM ids). Counting by what
+  the DOM actually contains gave 108. A matcher is a claim about the DOM, and
+  this one would have shipped a phantom bug into this file.
 - **The token box**: see A5.
 - Reduced-motion, contrast (20/20 AA) and 60.6fps ARE measured and hold.
 
