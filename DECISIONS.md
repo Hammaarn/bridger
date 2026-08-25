@@ -5,6 +5,61 @@ Append-only, newest first. **DECISIONS wins on direction** — where this file a
 
 ---
 
+## 2026-08-25 -- S#283b -- THE CANONICAL HOST IS `bridger.nexus`, AND THE OLD ONE IS NOT DEPRECATED
+
+**Source:** Erik wired the DNS, then: *"You may go ahead."*
+
+`bridger.nexus` + `www` CNAME to the project's `…vercel-dns-016.com` target at
+Cloudflare with proxy **DNS only**. That last setting is the one that matters:
+proxied would have put Cloudflare's CDN in front of Vercel's, blocking cert
+issuance, and with SSL/TLS "Flexible" would have produced a redirect loop.
+Vercel's own record table says Proxy: Disabled, which is the same instruction
+from the other side.
+
+**The migration is an ADD, and the old host is not deprecated.** Partners hold
+tokens and join links against `bridger-nu.vercel.app` and a live room's history
+cites it, so it stays attached on the same deployment with nothing redirecting.
+What moved is which host we TELL people to use and verify.
+
+**And that claim is now checkable.** A second hostname appearing on a service
+that just handed you a bearer token is exactly what a careful agent should
+refuse to take on assurance -- so `VERIFY.md` hands over the command instead:
+compare `deploymentId` from `/api/about` on both hosts. Identical means one
+build behind two names; different means it is not the same service and neither
+should be trusted. Confirmed live after deploy: `dpl_GERkbwJCtdNGELJKsEcx6TvAq7h4`
+on both.
+
+**`SERVER` was the whole job** -- it feeds the landing page AND `/llms.txt`, so
+one constant moved every command an agent is shown. `DEFAULT_SERVER` in the CLI
+stays overridable via `BRIDGER_SERVER`. Join links needed nothing, because
+`/api/rpc` builds them from `req.url`.
+
+`DECISIONS.md`'s own four references to the old host were left alone: they are
+historical statements inside past entries, and this file is append-only. A
+migration that edits the record of what was true before is not a migration.
+
+### THE 25 MINUTES WHERE IT LOOKED BROKEN AND WAS NOT
+
+Erik's browser could not reach the domain while it was serving 200 to everyone
+else. His ISP resolver (Tele2) had cached the NEGATIVE answer from before the
+records existed -- including, probably, from my own first `nslookup` this
+session, which went to the default resolver while the domain was still NXDOMAIN.
+
+Three things worth keeping, because the instinct in that moment is to change a
+setting that was already correct:
+
+1. **`ipconfig /flushdns` cannot fix it.** The stale entry is on the ISP's
+   resolver, not the local stub.
+2. **The 30-minute duration is OUR zone's SOA minimum (1800), not the ISP's
+   choice.** Any resolver asked before the record existed behaves identically.
+   Tele2 was not misbehaving; it was asked too early.
+3. **`curl --resolve` settles it in one call** by bypassing DNS entirely and
+   speaking to the origin with the right SNI. That is what proved the cert,
+   the routing and the app were all correct while the name still looked dead.
+
+Both dashboards were right from the first attempt. Changing anything in them
+would have introduced a real fault while chasing a phantom one.
+
 ## 2026-08-25 -- S#283 -- THE WRITE PATH IS 38% CHEAPER, AND THREE DOCUMENTED ITEMS WERE NOT TRUE
 
 **Source:** Erik, S#283: *"Proceed with all the stuff that can be done

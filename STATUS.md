@@ -33,6 +33,25 @@ alpha and says so.
 
 ---
 
+## S#283b -- THE DOMAIN IS LIVE: `bridger.nexus`
+
+Wired at Cloudflare (apex + `www` as CNAMEs to the project's vercel-dns target,
+proxy DNS-only), all three hostnames Valid Configuration in Vercel. Cert
+`CN=bridger.nexus` from Let's Encrypt, 200 on both, and the canonical host moved
+in code and in every runnable command.
+
+**`bridger-nu.vercel.app` still serves and stays attached** -- one deployment,
+two names, nothing redirecting. `VERIFY.md` now carries the `deploymentId`
+comparison that lets a partner prove that instead of being told it.
+
+**It looked broken for 25 minutes and was not.** Erik's ISP resolver held a
+cached negative answer from before the records existed; public resolvers were
+fine the whole time and the server answered 200 throughout. The negative-cache
+duration is our own zone's SOA minimum, not the ISP's choice. Diagnose a new
+domain with a public resolver and `curl --resolve` before changing any setting.
+
+---
+
 ## S#283 -- AN AUTONOMOUS PASS: THE WRITE PATH, A PURGE HOLE, AND THREE STALE ROWS
 
 Erik: *"proceed with all the stuff that can be done autonomously."* No decisions

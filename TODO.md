@@ -14,6 +14,9 @@ git -C . log --oneline -5                          # what shipped last
 `STATUS.md` says what is TRUE now, including the full Upstash budget audit.
 `DECISIONS.md` wins on direction. This file is only what is LEFT.
 
+**The canonical host is `bridger.nexus` as of S#283.** `bridger-nu.vercel.app`
+still serves the same deployment and is not going away.
+
 **413 tests, tsc 0, tree clean.**
 
 **S#283 was an AUTONOMOUS pass over the solo list.** The write path got 38%
@@ -56,38 +59,40 @@ rooms confirmed present.
 
 ## NEEDS ERIK — decisions, not work
 
-### [!!] 0. THE DOMAIN — `bridger.nexus`, bought S#282 and NOT LIVE YET
+### ~~0. THE DOMAIN~~ -- DONE S#283, `bridger.nexus` IS LIVE
 
-Erik bought it mid-session. **It does not resolve** (NXDOMAIN) and Vercel has
-never heard of it — `vercel domains ls` lists only `judgemysite.org`, so it was
-not bought through Vercel. Nothing in the repo has been repointed, deliberately:
-aiming docs at a host that does not serve is invariant 15 failing in the other
-direction.
+Erik wired it at Cloudflare (both `@` and `www` as CNAMEs to the project's
+`…vercel-dns-016.com` target, proxy **DNS only**); Vercel reports all three
+hostnames Valid Configuration.
 
-**The name is GAVELED** (`DECISIONS.md` 2026-08-25, S#282c). It was chosen for
-the destination rather than the current state -- a nexus is a HUB, which two
-parties in one room is not, and many rooms with accumulated knowledge is.
-Revisit only if the product gets big; $10 against $100+/yr settles it until then.
+**Verified before anything in the repo moved:** Let's Encrypt cert
+`CN=bridger.nexus` issued 17:31 UTC, HTTP 200 on apex and `www`, `/api/about`
+serving the live commit. The two constants then moved -- `lib/site-content.ts`
+(`SERVER`, which feeds the landing page AND `/llms.txt`) and `cli/bridger.ts`
+(`DEFAULT_SERVER`, still overridable via `BRIDGER_SERVER`) -- along with every
+runnable command in `VERIFY.md`, `TODO`'s header and `STATUS`'s checks. Join
+links needed nothing, exactly as scoped.
 
-**What Erik does:** add the domain in Vercel (or `vercel domains add
-bridger.nexus`), then set the DNS records the registrar side needs.
+**`bridger-nu.vercel.app` still serves and stays attached.** Both hostnames
+report ONE `deploymentId`, and `VERIFY.md` now hands a suspicious reader the
+command that proves it rather than asking them to believe it -- a second
+hostname on a service that just issued you a bearer token is precisely what
+should not be accepted on assurance.
 
-**What happens then, and the size is small:** exactly TWO authoritative
-constants — `lib/site-content.ts:36` (`SERVER`) and `cli/bridger.ts:176`
-(`DEFAULT_SERVER`, already overridable via `BRIDGER_SERVER`). The other 24
-occurrences are prose and test fixtures.
+**One operational lesson worth keeping.** It looked broken for ~25 minutes and
+was not: Erik's ISP resolver (Tele2) was serving a cached NEGATIVE answer from
+before the records existed, while `1.1.1.1` and `8.8.8.8` resolved fine and the
+server answered 200 with a valid cert the whole time. `ipconfig /flushdns` does
+nothing for that -- the stale entry is on the ISP's side, and the 30-minute
+duration is set by our OWN zone's SOA minimum (1800), not by them. It cleared on
+its own at 20:53. **When a brand-new domain "does not work", query a public
+resolver and bypass DNS entirely (`curl --resolve`) before touching a single
+setting** -- both dashboards were correct from the first attempt, and changing
+anything would have introduced a real fault while chasing a phantom one.
 
-**[!!] KEEP `bridger-nu.vercel.app` SERVING.** Partners hold tokens and join
-links against it, and the live Trigvanta room's entire history cites it. The new
-domain is an ADD with the old one kept as an alias, never a replace.
+---
 
-**Join links need no work:** `app/api/rpc/route.ts:341` builds `joinUrl` from
-`req.url`, so a link minted on the new host is already a new-host link.
-
-**The trust surfaces must move together or not at all** — `/api/about`,
-`VERIFY.md` and the landing page all tell a partner which host to check. A page
-served from `bridger.nexus` telling them to verify `bridger-nu.vercel.app` is
-the exact confusion this product exists to remove.
+### The decisions still open
 
 | # | Decision | Why it is yours |
 |---|---|---|
