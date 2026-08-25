@@ -231,20 +231,73 @@ async function cmdOpen() {
     ) + "\n",
   );
 
+  /**
+   * ONE COMMAND IS THE WHOLE SETUP (S#283, Erik's flow).
+   *
+   * Erik wrote the flow he wanted, and the shape of it is what this now emits:
+   *
+   *     create room -> pick names -> GET AN INVITE LINK AND A WATCH TOKEN
+   *     -> send the link -> their AI joins -> done
+   *
+   * Two outputs, not five. Note what is NOT in his flow: your own connector.
+   * Creating the room FROM your AI session means your side is already
+   * connected, so there is nothing to paste anywhere -- which is the difference
+   * between five steps and eleven. The browser path cannot do that (your AI is
+   * in another application, so you become the transport for your own
+   * credential), and that is the friction he hit.
+   *
+   * THIS ALSO ENDS A STRAIGHT CONTRADICTION BETWEEN TWO SURFACES. `open` used
+   * to print the PARTNER'S RAW TOKEN with an instruction to send it, while the
+   * browser's minted screen argued the opposite in as many words: "This is
+   * theirs, not yours. Send the invite link instead -- a link expires, a pasted
+   * token does not." Both cannot be right. The link wins, for the reason the
+   * browser already gave: a chat message is durable, and a token pasted into
+   * one stays valid for as long as the bridge does.
+   *
+   * The peer token is still minted -- it is what the invite redeems into -- it
+   * is simply not printed. `--show-token` prints it for the case the link
+   * cannot serve: an air-gapped partner, or a client that cannot fetch a URL.
+   */
+  const linkMinutes = Math.max(1, Number(arg("--ttl-minutes", "240")) || 240);
+  const tokenDays = Math.max(1, Number(arg("--token-days", "7")) || 7);
+  const invite = await mintInvite(store, room, "b", new Date(), {
+    ttlSeconds: linkMinutes * 60,
+    tokenTtlSeconds: tokenDays * 24 * 60 * 60,
+  });
+  const watchToken = await issueToken(store, room, "a", new Date(), undefined, "viewer");
+  const showToken = process.argv.includes("--show-token");
+
   console.log(`
   Bridge open — ${room.topic}
   room ${room.id}   you: ${seat(room, "a").label} (${seat(room, "a").code})   partner: ${seat(room, "b").label} (${seat(room, "b").code})
 
-  ── YOURS — connect this session ──────────────────────────────────
-  ${joinCommand(server, ownerToken)}
+  ✓ YOUR SIDE IS CONNECTED. Nothing to paste — this session holds it.
 
-  ── SEND THIS TO ${theirs.toUpperCase()} ${"─".repeat(Math.max(0, 44 - theirs.length))}
+  ── 1. SEND THIS TO ${theirs.toUpperCase()} ${"─".repeat(Math.max(0, 41 - theirs.length))}
+
+  ${server}/j/${invite.code}
+
+  One link. Their AI opens it and gets the whole protocol plus a credential
+  minted for them alone. Live for ${Math.round((Number(arg("--ttl-minutes", "240")) || 240) / 60)}h; the token it mints lasts ${arg("--token-days", "7")} days.
+  Send the LINK, not a token: a link expires, a message does not.
+
+  ── 2. WATCH IT IN A BROWSER ─────────────────────────────────────
+
+  ${server}   ->  paste:  ${watchToken}
+
+  Read-only. It cannot write, and it draws on its own budget rather than
+  the room's, so leaving the tab open cannot starve the actual work.
+${
+  showToken
+    ? `
+  ── partner's raw token (--show-token) ────────────────────────────
   ${joinCommand(server, peerToken)}
 
   ${joinFacts(server, peerToken)}
-
-  Both tokens are shown ONCE. Only their hashes are stored — we cannot
-  recover them. Lost one? \`bridger rotate --side a|b\`.
+`
+    : ""
+}
+  Shown ONCE — only hashes are stored. Lost one? \`bridger rotate --side a|b\`.
   Wrote ${ROOM_FILE} (contains no secret; safe to commit).
 `);
 }
@@ -1330,6 +1383,9 @@ const USAGE = `
 
   OPERATOR (needs UPSTASH_REDIS_REST_URL / _TOKEN)
     open   --topic "<what this is>" --me "<You>" --them "<Partner>" [--server <url>]
+           THE WHOLE SETUP IN ONE COMMAND: your side connected, an invite LINK
+           to send, and a read-only watch token. Nothing to paste anywhere.
+           [--ttl-minutes 240] [--token-days 7] [--show-token]
     rotate --side a|b [--room <id>]      mint a fresh token, revoke the old one
     viewer --side a|b [--room <id>]      mint a READ-ONLY token (for a browser tab)
     answerer --side a|b [--room <id>]    mint a TWO-TOOL token -- ping + answer only.
