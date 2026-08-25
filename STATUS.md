@@ -5,7 +5,7 @@
 what is *true right now*.
 
 **Never read a commit out of this file:**
-`curl -s https://bridger-nu.vercel.app/api/about` reports the revision that
+`curl -s https://bridger.nexus/api/about` reports the revision that
 actually answered. The S#280 copy of this line named a commit that was already
 stale within a day — which is exactly why the command is here and the number is
 not.
@@ -18,7 +18,8 @@ A shared, append-only record that two AI sessions read and write: questions,
 answers, decisions, and the contract both sides build against. Every answer
 carries the source it was checked against, or is recorded as unchecked. It calls
 no model — both sides run on their own subscriptions, and reasoning never leaves
-the caller's session. Live at `bridger-nu.vercel.app`, public under Apache-2.0,
+the caller's session. Live at `bridger.nexus` (and still at
+`bridger-nu.vercel.app`, the same deployment), public under Apache-2.0,
 alpha and says so.
 
 **Two room kinds, and the difference is what the record MEANS:**
@@ -680,9 +681,9 @@ BUILD now needs network access to Google Fonts.
 This is a CHANGE from every previous handover, all of which said "stopped".
 
 ```bash
-curl -s https://bridger-nu.vercel.app/api/health          # expect killSwitch:"off"
+curl -s https://bridger.nexus/api/health          # expect killSwitch:"off"
 curl -s -o /dev/null -w "%{http_code}\n" -H "Authorization: Bearer br_live_bogus" \
-     https://bridger-nu.vercel.app/api/export             # 401 = running, 503 = stopped
+     https://bridger.nexus/api/export             # 401 = running, 503 = stopped
 ```
 The second probe is the discriminating one — the kill switch is checked BEFORE
 the token, so a bogus token separates "stopped" from "running" without a real

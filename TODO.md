@@ -5,9 +5,9 @@
 **Three commands before you believe anything in this file:**
 
 ```bash
-curl -s https://bridger-nu.vercel.app/api/about    # the commit that ACTUALLY answered
-#  bridger.nexus is bought but NOT LIVE -- see item 0 below
-curl -s https://bridger-nu.vercel.app/api/health   # killSwitch on|off
+curl -s https://bridger.nexus/api/about    # the commit that ACTUALLY answered
+curl -s https://bridger.nexus/api/health   # killSwitch on|off
+#  bridger-nu.vercel.app STILL SERVES the same deployment -- both are valid
 git -C . log --oneline -5                          # what shipped last
 ```
 
