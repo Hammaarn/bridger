@@ -607,10 +607,55 @@ export function coerceJson(raw: unknown): unknown {
 }
 
 /**
+ * How long a room's TTL refresh may be skipped for.
+ *
+ * `touchRoom` spent FOUR `expire`s on every single write to push back a
+ * deadline THIRTY DAYS away -- 40% of the ten commands a `post` costs, to move
+ * a month-long fuse by the length of one HTTP request. Measured, not guessed:
+ * `node scripts/upstash-cost.mjs`.
+ *
+ * An hour against thirty days is 0.14% of the fuse. The room now expires up to
+ * one hour "early" relative to thirty days after its last write, which is not
+ * a behaviour anybody can observe.
+ */
+export const TOUCH_INTERVAL_MS = 60 * 60 * 1000;
+
+/** Rooms touched recently, and when. See `touchRoom`. */
+const touchedAt = new Map<string, number>();
+
+/** Test seam. Also cleared by `clearRegistryCache()`, which is the one callers use. */
+export function clearTouchCache(): void {
+  touchedAt.clear();
+}
+
+/**
  * Refresh the room's idle TTL. Best-effort: a missed expire call means the room
  * lives longer than intended, which is never the dangerous direction.
+ *
+ * AMORTISED (S#283). The refresh is skipped when this instance already pushed
+ * this room's fuse back within `TOUCH_INTERVAL_MS`.
+ *
+ * **The safety argument is the direction of the error, and it holds both ways.**
+ * Skipping cannot shorten a room's life below "thirty days minus one hour after
+ * the last write" -- because the FIRST write in each window always refreshes,
+ * so a room being actively written to is never more than one window stale. A
+ * room that stops being written to expires on its own, which is the entire
+ * point of an idle TTL. Neither direction loses a live room.
+ *
+ * **Why an in-process map and not a stored marker.** A stored marker would cost
+ * a `get` to save four `expire`s, which is a real saving but a smaller one, and
+ * it would put a network round trip on the write path to avoid a network round
+ * trip. Serverless instances are ephemeral and plural, so the worst case here
+ * is one refresh per instance per hour per room -- still a rounding error
+ * against one per write, and a cold instance simply refreshes, which is the
+ * safe direction. Same shape as `killSwitchCache`, and cleared by the same
+ * `clearRegistryCache()`.
  */
 export async function touchRoom(store: Store, roomId: string): Promise<void> {
+  const now = Date.now();
+  const last = touchedAt.get(roomId);
+  if (last !== undefined && now - last < TOUCH_INTERVAL_MS) return;
+
   try {
     await Promise.all([
       store.expire(ROOM_KEY(roomId), ROOM_TTL_SECONDS),
@@ -618,6 +663,10 @@ export async function touchRoom(store: Store, roomId: string): Promise<void> {
       store.expire(CONTRACT_KEY(roomId), ROOM_TTL_SECONDS),
       store.expire(ROOM_TOKENS_KEY(roomId), ROOM_TTL_SECONDS),
     ]);
+    // Recorded only on success. A failed refresh must not buy an hour of
+    // silence -- the next write retries, which is what "best-effort" has to
+    // mean once the call is skippable.
+    touchedAt.set(roomId, now);
   } catch {
     /* best-effort by design */
   }

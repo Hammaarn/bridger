@@ -67,6 +67,7 @@ import {
   WASTE_KEY,
   SERVED_KEY,
   WASTE_WINDOW_SECONDS,
+  clearTouchCache,
   utcDay,
   ROOM_KEY,
   ROOM_TOKENS_KEY,
@@ -536,6 +537,10 @@ export function clearRegistryCache(): void {
   tokenCache.clear();
   roomCache.clear();
   killSwitchCache = null;
+  // The TTL-refresh cache lives in `store.ts` (S#283) for the same reason the
+  // kill switch lives in its own variable: it is the same KIND of thing, and
+  // one reset is the only way a test never has to know where each cache sits.
+  clearTouchCache();
 }
 
 // ── parsing ──────────────────────────────────────────────────────
