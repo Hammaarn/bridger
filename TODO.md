@@ -92,6 +92,41 @@ anything would have introduced a real fault while chasing a phantom one.
 
 ---
 
+### [!!] I1. ROOM CREATION + INVITATION -- "smooth as butter" (Erik, S#283)
+
+> Erik, mid-test with his brother: *"we need to make the room creation and
+> invitation process as smooth as butter."*
+
+**Full argument + evidence: `DECISIONS.md` 2026-08-25 (S#283c). The shape is NOT
+decided** -- "smooth" needs a referent before anything is built on it.
+
+**THE SPLIT: the far side is fine, the operator side is not.** Grok (in Cursor,
+another machine, no repo access) read `/api/about` before connecting, restated
+the trust model correctly, diagnosed a dead code precisely and refused to
+improvise. Second vendor after Antigravity to get it right from documents alone.
+**Do not spend effort on the join document.** Every minute of friction was in
+minting, choosing and sending.
+
+| | defect, all observed tonight |
+|---|---|
+| 1 | **30-minute default has killed THREE invites in three sessions.** Tuned for "paste it and they click now"; the real flow is "message a human, wait for a human" |
+| 2 | The link burns down with **no countdown and no expiry shown** on the mint screen |
+| 3 | **Two links looked live at once and the wrong one got sent** -- that was the whole failure. The API returns `replacedPreviousLink: true`; the UI never says it |
+| 4 | No **"the one I sent is dead, give me another and tell me which is current"** path. `New link` supersedes silently |
+| 5 | Three credentials handed over at once -- **this is D4 from the invitation side** |
+
+**Sound already, do not re-litigate:** one live credential per seat, link-over-
+token, and the 10-minute re-read window that makes a preview or retry harmless.
+The mechanism is right; the operator cannot SEE it working.
+
+**The one change I would make without a design session, and it is Erik's
+because it is the auth path:** invite TTL default 30 minutes -> hours, token
+lifetime unchanged. Two clocks, two jobs -- the link's fuse protects a
+credential sitting in a chat log, the token's lifetime bounds access. Costs
+almost nothing: the link mints exactly once and supersedes on re-mint.
+
+---
+
 ### The decisions still open
 
 | # | Decision | Why it is yours |
@@ -414,7 +449,12 @@ GitHub", on the page whose job is to be trusted.
   stands on the append-only property alone, which is the only support it needed.
 - Room `d437fff5b423` (Bridger x Antigravity) holds a contract and three seeded
   questions and is waiting on a fresh invite code — the S#277 one expired
-  unredeemed. `npm run bridger -- invite --side b --ttl-minutes 60 --token-days 7`.
+  unredeemed. `npm run bridger -- invite --side b --ttl-minutes 240 --token-days 7`.
+  **[S#283] THIS IS NOW THREE INSTANCES, NOT ONE.** The same 30-minute default
+  killed tonight's `2BYN-977X-SKND` before Erik's brother reached it, and
+  `RVE2-XSTX-H1HH` was on the same path. Three is a default that is wrong, not
+  three unlucky evenings — promoted to **I1** above. Pass `--ttl-minutes` until
+  the default moves.
 
 ## A9. TWO DIRECTIONS FROM S#282, parked with reasoning
 

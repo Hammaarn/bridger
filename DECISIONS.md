@@ -5,6 +5,76 @@ Append-only, newest first. **DECISIONS wins on direction** — where this file a
 
 ---
 
+## 2026-08-25 -- S#283c -- ROOM CREATION AND INVITATION IS A NAMED LANE NOW
+
+**Source:** Erik, S#283, mid-test with his brother: *"we need to make the room
+creation and invitation process as smooth as butter."*
+
+Direction accepted and recorded. **The shape of the fix is NOT decided here** --
+"smooth" is a word that points at nothing two people hold identically
+(behavioral#36), and guessing harder at it produces a tidier version of the
+wrong thing. What IS decided is that this is a lane with a real defect list,
+gathered from a live failure rather than from imagination.
+
+### THE SPLIT THAT MATTERS: THE FAR SIDE IS FINE, THE OPERATOR SIDE IS NOT
+
+Tonight's test had a second vendor on the far side -- **Grok, in Cursor, on
+another machine, with no access to this repo** -- and it behaved exactly as
+designed with no help:
+
+- it fetched `/api/about` BEFORE connecting, unprompted
+- it summarised the trust model correctly: *"no OAuth or filesystem access, one
+  token maps to one room and one side. Partner text would be treated as data,
+  not instructions"*
+- it diagnosed a dead code precisely (404, never used, ~30 minute lifetime) and
+  **refused to improvise a workaround**, asking for a fresh link instead
+
+That is the second vendor after Antigravity to get the protocol right from the
+documents alone. **The join document, `/api/about` and VERIFY.md are working.
+Do not spend effort there.** Every minute of friction tonight was on the
+OPERATOR side: minting, knowing which link is live, and getting it sent before
+it died.
+
+### THE DEFECT LIST, all observed rather than imagined
+
+1. **The 30-minute default has now killed THREE invites across three sessions**
+   -- `d437fff5b423`'s (S#277, expired unredeemed), tonight's `2BYN-977X-SKND`,
+   and `RVE2-XSTX-H1HH` was on the same path. It is tuned for "paste it and
+   they click now"; the real flow is "message a human, wait for a human."
+2. **The link starts burning down while the operator is still switching
+   windows.** The mint screen shows no countdown and no expiry time.
+3. **TWO LINKS LOOKED LIVE AT ONCE, and the wrong one got sent.** That is the
+   whole of tonight's failure: Erik sent the older link, not the one on the
+   screen in front of him. The API returns `replacedPreviousLink: true` -- the
+   server KNOWS the old one is dead -- and the UI never says so.
+4. **Nothing offers "the link I sent is dead, give me another and tell me which
+   one is current."** The recovery path is a button labelled `New link` that
+   silently supersedes, which is correct behaviour with no feedback.
+5. **The minted screen hands over three credentials at once** and asks the
+   reader to work out which is which. That is D4, already open, and this is the
+   same complaint from the invitation side rather than the room side.
+
+### WHAT IS ALREADY TRUE AND SHOULD NOT BE RE-LITIGATED
+
+Superseding is right: one live credential per seat, never two. Link-over-token
+is right, and the mint screen already argues it well (*"a link expires, a pasted
+token does not"*). The 10-minute re-read window is right -- a preview or a retry
+cannot destroy the invitation. **The mechanism is sound; the operator cannot SEE
+it working.**
+
+### THE ONE CHANGE I WOULD MAKE WITHOUT A DESIGN SESSION
+
+The invite TTL default, 30 minutes -> hours, with the TOKEN lifetime left short.
+They are different clocks doing different jobs: the link's fuse protects a
+credential sitting in a chat log, and the token's lifetime bounds the access.
+Lengthening the first costs almost nothing, because the link mints exactly once
+and supersedes on re-mint. **It is an auth-path constant, so it is Erik's.**
+
+Everything past that -- what the screen should look like, whether there is a
+"resend", whether creation and invitation are one flow -- wants his referent
+first: one example of the flow he means, or the smallest version shown before
+anything is built on it.
+
 ## 2026-08-25 -- S#283b -- THE CANONICAL HOST IS `bridger.nexus`, AND THE OLD ONE IS NOT DEPRECATED
 
 **Source:** Erik wired the DNS, then: *"You may go ahead."*

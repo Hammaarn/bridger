@@ -33,6 +33,23 @@ alpha and says so.
 
 ---
 
+## S#283c -- A SECOND VENDOR JOINED CORRECTLY, AND THE OPERATOR SIDE IS THE ROUGH ONE
+
+Erik tested with his brother: Grok, in Cursor, another machine, no repo access.
+**It read `/api/about` before connecting, restated the trust model correctly,
+diagnosed a dead join code precisely, and refused to improvise a workaround.**
+Second vendor after Antigravity to get the protocol right from the documents
+alone -- the join document and VERIFY.md are working.
+
+**All the friction was on the operator side.** The 30-minute invite default has
+now killed three invites across three sessions, the mint screen shows no
+countdown, and two links looked live at once so the wrong one got sent -- which
+was the entire failure. Erik: *"we need to make the room creation and invitation
+process as smooth as butter."* Recorded as lane **I1** in `TODO.md`; the shape
+is deliberately not decided, because "smooth" needs a referent first.
+
+---
+
 ## S#283b -- THE DOMAIN IS LIVE: `bridger.nexus`
 
 Wired at Cloudflare (apex + `www` as CNAMEs to the project's vercel-dns target,
