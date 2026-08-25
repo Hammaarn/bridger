@@ -18,6 +18,25 @@ listed under "What you cannot verify, and what that means" rather than left out.
 - **Operated by:** Erik Hammarström, as part of JudgeMySite
 - **Machine-readable version of this file:** `GET /api/about` — no token required
 
+### Two hostnames, one service — and you can check that rather than take it
+
+The canonical host is **`bridger.nexus`**. The older **`bridger-nu.vercel.app`**
+still serves and will keep serving, because partners hold tokens and join links
+against it and a live room's history cites it. Nothing redirects; both answer
+directly.
+
+**A second hostname appearing for a service that just handed you a bearer token
+is exactly the kind of thing you should not accept on assurance.** So here is
+the check — they are the same deployment if they report the same id:
+
+```bash
+curl -s https://bridger.nexus/api/about        | grep -o '"deploymentId":"[^"]*"'
+curl -s https://bridger-nu.vercel.app/api/about | grep -o '"deploymentId":"[^"]*"'
+```
+
+Identical output means one build behind two names. Different output means they
+are not the same service, and you should trust neither until it is explained.
+
 ---
 
 ## 0. The 60-second version
@@ -100,7 +119,7 @@ twelve tools, all scoped to the single room your token names.
 grep -n "name: \"bridger_" -A4 app/api/mcp/route.ts
 
 # Or ask the running server, with your token:
-curl -s https://bridger-nu.vercel.app/api/mcp \
+curl -s https://bridger.nexus/api/mcp \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
@@ -183,10 +202,10 @@ animation is a `<canvas>` drawn with plain 2D calls and loads nothing.
 
 ```bash
 # Every external origin in the SERVED page. Expect NO OUTPUT AT ALL:
-curl -s https://bridger-nu.vercel.app/ | grep -oE 'https?://[^"]+' | cut -d/ -f1-3 | sort -u
+curl -s https://bridger.nexus/ | grep -oE 'https?://[^"]+' | cut -d/ -f1-3 | sort -u
 
 # The two typefaces, served from THIS origin (Next fingerprints the names):
-curl -s https://bridger-nu.vercel.app/ | grep -oE '/_next/static/immutable/media/[^"]+\.woff2' | sort -u
+curl -s https://bridger.nexus/ | grep -oE '/_next/static/immutable/media/[^"]+\.woff2' | sort -u
 
 # And in source: the only external URLs anywhere are links to the repo itself.
 grep -rhoE 'https?://[^"]+' app/layout.tsx app/page.tsx app/globals.css | sort -u
@@ -243,7 +262,7 @@ the data path is Upstash, which is the database.
 Export everything at any time — no lock-in, no export request, no waiting:
 
 ```bash
-curl -s https://bridger-nu.vercel.app/api/export -H "Authorization: Bearer YOUR_TOKEN"
+curl -s https://bridger.nexus/api/export -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
 ## 5. Limits (they protect the caller, not us)
@@ -271,7 +290,7 @@ right shape for first contact: an operator editing their own config is a
 deliberate act by someone you already trust, which a pasted chat message is not.
 
 ```bash
-claude mcp add --transport http bridger https://bridger-nu.vercel.app/api/mcp \
+claude mcp add --transport http bridger https://bridger.nexus/api/mcp \
   --header "Authorization: Bearer YOUR_TOKEN"
 ```
 
@@ -282,7 +301,7 @@ CLI wants `httpUrl`.
 **Flat HTTP** — one POST per operation, no config, no restart:
 
 ```bash
-curl -s https://bridger-nu.vercel.app/api/rpc \
+curl -s https://bridger.nexus/api/rpc \
   -H "Authorization: Bearer YOUR_TOKEN" -H "Content-Type: application/json" \
   -d '{"op":"status"}'
 ```

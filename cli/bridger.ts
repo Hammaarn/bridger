@@ -173,7 +173,7 @@ const arg = (flag: string, fallback?: string): string => {
  * One constant, one env override. A default that appears six times is a
  * default that will be wrong in five of them.
  */
-const DEFAULT_SERVER = (process.env.BRIDGER_SERVER ?? "https://bridger-nu.vercel.app").replace(
+const DEFAULT_SERVER = (process.env.BRIDGER_SERVER ?? "https://bridger.nexus").replace(
   /\/$/,
   "",
 );

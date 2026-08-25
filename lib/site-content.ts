@@ -33,7 +33,21 @@
  * pre-filled suggestions, which had the same problem one layer up: they were our
  * own session names, so a stranger opening the page read our context back.
  */
-export const SERVER = "https://bridger-nu.vercel.app";
+/**
+ * THE CANONICAL HOST. Changed to `bridger.nexus` S#283.
+ *
+ * **`bridger-nu.vercel.app` STILL SERVES and must keep serving.** Partners hold
+ * tokens and join links against it and the live Northwind room's history cites
+ * it, so it stays attached in Vercel as a second hostname on the SAME
+ * deployment -- verified by both hosts reporting one `deploymentId` from
+ * `/api/about`. This is an ADD, never a replace, and nothing redirects.
+ *
+ * What this constant decides is which host we TELL people to use and verify:
+ * the landing page's commands, `/llms.txt`, and every example. Those move
+ * together or not at all -- a page telling a partner to verify a different host
+ * than the one serving it is the exact confusion this product exists to remove.
+ */
+export const SERVER = "https://bridger.nexus";
 
 export interface Step {
   n: string;
