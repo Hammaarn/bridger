@@ -5,6 +5,74 @@ Append-only, newest first. **DECISIONS wins on direction** — where this file a
 
 ---
 
+## 2026-08-26 -- S#283e -- THE LANDSCAPE, AND TWO HOURS SPENT ON THE WRONG STANDARD
+
+**Source:** an OpenAI announcement landing mid-session (the WebMCP Challenge),
+Erik's brother reading it as *"this will kill the idea"*, Erik reading it as
+*"not even close"*, and then a claim-check hook forcing a search that neither of
+those readings had run.
+
+**The corrected picture lives in `plans/landscape-2026-08.md`.** Read that before
+any moat argument; this entry is the decision and the lesson.
+
+### THE MISS, AND IT IS THE ENTRY'S REASON FOR EXISTING
+
+Two hours of strategic analysis went into **WebMCP**, which is a W3C Community
+Group draft about a web page exposing tools to an agent inside that browser
+session. It is origin-isolated, headless-incompatible, and has no concept of a
+second party. Three separate answers leaned on "both agents must be in a
+browser" as the load-bearing constraint.
+
+**Nobody searched for the adjacent standard.** `A2A` -- Agent2Agent -- is a
+Linux Foundation project with **150+ supporting organisations and production
+deployments**, integrated into Azure AI Foundry, Copilot Studio, AWS Bedrock
+AgentCore and Google Cloud's reference architecture. It is explicitly for
+communication between INDEPENDENT agent systems across frameworks, vendors and
+organisations, and it is **browser-free** -- which removes the exact constraint
+the whole WebMCP analysis rested on.
+
+It surfaced only because a hook fired on the words "nobody does" and demanded
+either a search or a downgrade. **The rule earned its keep: a negative existence
+claim is the one whose failure is silent by construction, and this one was
+silently false for two hours.**
+
+### GAVELED: THE POSTURE IS LAYER, NOT COMPETITOR
+
+A2A is DELEGATION -- my agent asks your agent to do work. Bridger is a JOINT
+RECORD -- what two organisations agreed and what it was checked against. A2A
+moves tasks; it does not keep a ledger neither side can rewrite.
+
+So Bridger's position is **the governance layer over these protocols**, not a
+rival to them. That is a different posture than "a place two AIs talk", and it
+is one the incumbents' own architecture leaves open.
+
+### THE PAPER IS NOT SPENT AS EVIDENCE, DELIBERATELY
+
+`arxiv.org/pdf/2606.31498` -- *"Governance Gaps in Agent Interoperability
+Protocols: What MCP, A2A, and ACP Cannot Express"* -- a partial extraction named
+trust boundaries between mutually-distrustful organisations, provenance and
+audit trails, joint consent, and tamper-evidence. That is Bridger's feature list
+written by strangers.
+
+**Confidence deliberately LOW.** The fetch reported a compressed PDF it could not
+fully read and the summary hedged. The title is solid; the specifics are not
+verified. Read it properly before building on it -- this is the same shape as the
+EVAL-billing summary earlier the same day, which confidently answered a question
+its own source never addressed.
+
+### THE HACKATHON IS NOT ENTERED
+
+Rules checked and recorded in the landscape file. Bridger qualifies today
+(public, Apache-2.0, on Vercel); JudgeMySite does not (private repo, no licence,
+and a headless pipeline WebMCP does not support). **Not entered:** a third
+concurrent commitment against an unfinished product, and it violates the
+no-feature-creep gate set the same evening.
+
+### AND THE THING THAT DID NOT CHANGE
+
+Nobody has used Bridger twice. Zero returns, across every session. None of the
+above moved that, and no argument in this entry substitutes for it.
+
 ## 2026-08-25 -- S#283d -- NO FEATURE CREEP UNTIL THE PIPE IS SMOOTH. AND THE LEFT RAIL WAS AN UNIMPLEMENTED DECISION.
 
 **Source:** Erik, S#283, relaying his brother after a first real look at a room:

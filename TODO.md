@@ -17,6 +17,12 @@ git -C . log --oneline -5                          # what shipped last
 **The canonical host is `bridger.nexus` as of S#283.** `bridger-nu.vercel.app`
 still serves the same deployment and is not going away.
 
+**[!!] Before any argument about position or moat: `plans/landscape-2026-08.md`.**
+MCP / WebMCP / A2A on three layers, what each cannot reach, the WebMCP Challenge
+rules, and the two hours S#283 spent analysing the wrong standard because nobody
+ran a search. **A2A is the one that matters** -- Linux Foundation, 150+ orgs, in
+production, browser-free -- and Bridger's posture against it is LAYER, not rival.
+
 **413 tests, tsc 0, tree clean.**
 
 **S#283 was an AUTONOMOUS pass over the solo list.** The write path got 38%

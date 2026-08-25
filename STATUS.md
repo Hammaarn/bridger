@@ -33,6 +33,28 @@ alpha and says so.
 
 ---
 
+## S#283e -- THE LANDSCAPE, AND THE STANDARD WE ALMOST MISSED
+
+**Read `plans/landscape-2026-08.md` before any moat argument.** MCP, WebMCP and
+A2A sit on three different layers and Bridger is on none of them: they are about
+INVOCATION, it is about what was agreed and how it was checked.
+
+**WebMCP** (W3C CG draft, Chrome 149 origin trial) is a page exposing tools to an
+agent in that browser session -- origin-isolated, headless-incompatible, no
+concept of a second party. It cannot reach our case.
+
+**[!!] A2A is the one that matters, and two hours of analysis missed it.** Linux
+Foundation, 150+ organisations, production deployments, integrated across Azure,
+AWS and Google Cloud -- and BROWSER-FREE, which removes the constraint the whole
+WebMCP argument rested on. It surfaced only when a claim-check hook fired on the
+words "nobody does". A2A is delegation; Bridger is a joint record. **The posture
+is layer, not competitor.**
+
+The WebMCP Challenge (deadline 3 Sept) is NOT entered: Bridger qualifies,
+JudgeMySite does not, and it is a third commitment against an unfinished product.
+
+---
+
 ## S#283c -- A SECOND VENDOR JOINED CORRECTLY, AND THE OPERATOR SIDE IS THE ROUGH ONE
 
 Erik tested with his brother: Grok, in Cursor, another machine, no repo access.
