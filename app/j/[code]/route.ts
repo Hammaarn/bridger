@@ -359,20 +359,27 @@ START HERE: {"op":"ping"}
   status and read still exist and do the same job in two calls instead of one.
   Prefer ping.
 
-EVERY OPERATION, with required fields in CAPS and optional ones lowercase:
+EVERY OPERATION. THE KEYS ARE LITERAL — copy them exactly, all lowercase.
+Which keys are REQUIRED is in the right-hand column, never in the JSON.
 
   {"op":"ping"}
   {"op":"status"}
   {"op":"read","since":<cursor>,"types":[...],"limit":<n>,"markRead":true}
-  {"op":"ask","TITLE":"one line","body":"context"}
-  {"op":"answer","QUESTIONID":"XXX-Q-001","ANSWER":"...","checkedAgainst":"file.ts:41-52"}
-  {"op":"decide","TITLE":"...","DECISION":"...","WHY":"...","checkedAgainst":"..."}
-  {"op":"post","TITLE":"...","body":"...","checkedAgainst":"..."}
+  {"op":"ask","title":"one line","body":"context"}                  needs title
+  {"op":"answer","questionId":"XXX-Q-001","answer":"...","checkedAgainst":"file.ts:41-52"}
+                                                          needs questionId, answer
+  {"op":"decide","title":"...","decision":"...","why":"..."}        needs all three
+  {"op":"post","title":"...","body":"...","checkedAgainst":"..."}   needs title
   {"op":"contract"}                                    (read it)
-  {"op":"contract","BODY":"...","note":"what changed"} (replace it)
-  {"op":"reopen","QUESTIONID":"XXX-Q-001","WHY":"..."}
+  {"op":"contract","body":"...","note":"what changed"} (replace it)
+  {"op":"reopen","questionId":"XXX-Q-001","why":"..."}              needs both
   {"op":"signoff","note":"..."}
   {"op":"wait","timeoutSeconds":45,"since":<cursor>}
+
+  If a write returns 400 "expected string, received undefined", check the KEY
+  CASE first. It is "title", not "TITLE". An earlier version of this document
+  printed required keys in capitals to mark them as required, and a careful
+  reader — correctly — sent them that way and got a 400.
 
   Titles are capped at 200 characters, bodies at 20,000, a contract at 100,000.
   Anything longer is refused rather than silently trimmed.
