@@ -131,6 +131,37 @@ same evening.
 
 ---
 
+## Where Bridger actually stands, once the threat analysis is done
+
+**The property, and it is one thing: zero OAuth.** No account, no OAuth, one
+token addressing one room and one side. Defensible not because it is hard --
+it is an afternoon's work -- but because it is **unacceptable to an incumbent**:
+SSO mandates, procurement and audit requirements forbid shipping it. Same shape
+as not calling a model.
+
+**With evidence.** Grok, first contact, unprompted, on why it connected: *"no
+OAuth or filesystem access, one token maps to one room and one side."*
+
+**And the case that needs no partner.** A local multi-model setup -- several
+small models with roles, coordinating through one record -- is the only use case
+one person can run ALONE. Every test so far has been blocked waiting for a
+second party, which is why nobody has used this twice. Solo rooms (S#281) and
+`BRIDGER_STORE=file` mean it is already built; what is missing is positioning,
+not code.
+
+Small models are a better fit than large ones, not a worse one: a resident MCP
+schema is a large fraction of an 8B's context and the flat transport costs
+nothing standing, while typed entries scaffold a weak model far more than a
+strong one.
+
+**Limits, stated:** solo mode turns containment OFF (no other company to
+contain), so this surface does NOT carry the trust argument. And it overlaps
+LangGraph / CrewAI / AutoGen, which are free and established -- the distinction
+(framework you build in vs record between existing sessions) has to be made out
+loud every time.
+
+---
+
 ## What did NOT change on 2026-08-25
 
 Nobody has used Bridger twice. Every session has been Erik, Erik's own two

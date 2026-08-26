@@ -5,6 +5,67 @@ Append-only, newest first. **DECISIONS wins on direction** — where this file a
 
 ---
 
+## 2026-08-26 -- S#283f -- ZERO-OAUTH IS THE PROPERTY, AND THE LOCAL CASE NEEDS NO PARTNER
+
+**Source:** Erik, after the landscape work and a night of hard outside reads:
+*"maybe I was being too much of a doomsayer, this product is still unique and
+honestly its mostly because 1 thing, and that is the 0 oAuth usability. This
+means users having big local AI setups can use bridger to organize and delegate
+work between them (like small 8b param models with their respective roles)."*
+
+Recorded as POSITIONING, not as a build item. Nothing here is new work: solo
+rooms shipped S#281 and `BRIDGER_STORE=file` runs the whole product offline.
+
+### WHY ZERO-OAUTH IS DEFENSIBLE, and it is not because it is hard
+
+Anyone can build a bearer-token API in an afternoon. **It is defensible because
+it is unacceptable to an incumbent.** No enterprise vendor ships "no account, no
+OAuth, one token, one room" -- SSO mandates, procurement and audit requirements
+forbid it. Same structural shape as not calling a model: a thing they cannot do
+while remaining themselves.
+
+**And there is evidence, which is rare in this file.** Grok, on first contact,
+unprompted, gave its reason for connecting: *"no OAuth or filesystem access, one
+token maps to one room and one side."* A foreign AI on another vendor named this
+exact property as why it trusted the service. That is not a hypothesis about a
+buyer; it is a recorded behaviour of a real far side.
+
+### [!!] THE LOCAL CASE'S REAL VALUE IS NOT THE USE CASE. IT IS THAT IT NEEDS NO PARTNER.
+
+Every test this project has run was blocked on a second party: Erik's own two
+sessions, Antigravity on his laptop, his brother. **That is why nobody has used
+Bridger twice -- the second use has always required somebody else to show up.**
+
+A local multi-model setup is a use case ONE PERSON CAN RUN ALONE. It is the
+shortest path to the only question that has mattered all session, and it removes
+the dependency that has blocked every previous attempt to answer it.
+
+**The fit is real for a reason specific to small models:** an 8B has a small
+context, so ~1,800 tokens of resident MCP schema is a serious fraction of it --
+the flat transport costs nothing standing. And typed entries help a WEAK model
+more than a strong one: "post a question with this schema" is far easier to
+comply with than "write a good message". The structure is scaffolding, not
+ceremony, and that argument gets stronger as the model gets smaller.
+
+### THE HONEST LIMITS, so this is not adopted on relief
+
+1. **Solo mode turns the containment machinery OFF.** `kind === "solo"` skips
+   `containForeign` -- correctly, since there is no other company. So the local
+   case gets the record and the types but NOT the untrusted-boundary argument
+   that the same night identified as the structural moat. It is a different
+   surface wearing the same protocol, and the two should not be pitched as one.
+2. **LangGraph, CrewAI and AutoGen already coordinate local multi-agent setups**,
+   free and established. The distinction is real -- those are frameworks you
+   BUILD IN, Bridger is a record between sessions that already exist -- but it
+   has to be made out loud, every time, or the listener hears "another
+   orchestration library".
+3. **It is a niche of a niche.** High willingness to try, low willingness to pay.
+   That makes it distribution and evidence, not revenue.
+
+### WHAT THIS DOES NOT CHANGE
+
+Nobody has used Bridger twice. This is a route to finding out, not an answer.
+
 ## 2026-08-26 -- S#283e -- THE LANDSCAPE, AND TWO HOURS SPENT ON THE WRONG STANDARD
 
 **Source:** an OpenAI announcement landing mid-session (the WebMCP Challenge),
