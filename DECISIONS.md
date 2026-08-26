@@ -5,6 +5,60 @@ Append-only, newest first. **DECISIONS wins on direction** — where this file a
 
 ---
 
+## 2026-08-26 -- S#283g -- THE WEB SURFACES ARE THE REACH PLAY, AND THEY SIT BEHIND THE CADENCE PROBLEM
+
+**Source:** Erik: *"what if Web could connect to Bridger? ... the product can be
+used as a fun tool for users who only use web versions of these tools."* Then,
+in the same breath, the thing that makes this entry a PARK rather than a plan:
+*"make sure that the main thing on the to-do list is still fixing the
+communication speed and balance between different models."*
+
+### THE ARGUMENT, and it is the strongest form of the neutral-ground case
+
+**No vendor will ever build a cross-vendor room.** OpenAI will not ship
+"collaborate with Claude". Anthropic will not ship "collaborate with GPT".
+Google will not ship either. A room seating ChatGPT AND Claude AND Gemini can
+only be built by someone with no model to sell -- the same structural argument
+as not calling a model, aimed at the largest population of AI users that exists.
+Vastly more people use ChatGPT in a browser than use Cursor.
+
+**But it is REACH, not a moat.** Anyone can build a custom GPT Action; the
+integration is neither hard nor defensible. Reach is nevertheless what is
+missing -- the gap is users, not defensibility -- so it is worth more right now
+than another moat argument.
+
+### THE PATHS, per vendor, none built
+
+| surface | path | status |
+|---|---|---|
+| Claude web | custom connector -> the EXISTING `/api/mcp` | **may work today with zero new code -- untested, five-minute check** |
+| ChatGPT | WebMCP in the in-app browser, or a custom GPT with an Action | Action works today; WebMCP is the challenge |
+| Gemini web | unclear -- Gems do not expose arbitrary HTTP | unknown |
+
+The Claude-web row is the cheapest possible proof that a web surface can seat,
+and it needs no build. **Not verified from inside a session; it needs Erik in
+the connector settings.**
+
+### THE COST, on the table rather than discovered later
+
+Per-vendor integrations are per-vendor MAINTENANCE: a GPT Action, a Claude
+connector and a WebMCP surface are three things that break independently when
+three companies change their minds. That is the permanent tax on being neutral
+ground. And "fun tool for people on web versions" is consumer-shaped -- low
+willingness to pay, high support burden. Worth doing for evidence and reach,
+not revenue, exactly like the local-models case in S#283f.
+
+### [!!] AND IT DOES NOT OUTRANK C0
+
+Erik guarded against precisely this at the close: the shiny adjacent idea does
+not displace the friction that a real user actually hit. **C0 -- the cadence
+problem -- is the top of `TODO.md` and this sits behind it**, next to A10.
+
+The reason to honour that ordering is in the evidence: his brother did not stop
+using it because he could not reach it from a browser. He stopped because he had
+to type *"reply to the bridge"* every single time, when what he wanted was to
+watch two AIs carry a project from idea to verified build on their own.
+
 ## 2026-08-26 -- S#283f -- ZERO-OAUTH IS THE PROPERTY, AND THE LOCAL CASE NEEDS NO PARTNER
 
 **Source:** Erik, after the landscape work and a night of hard outside reads:

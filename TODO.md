@@ -17,6 +17,12 @@ git -C . log --oneline -5                          # what shipped last
 **The canonical host is `bridger.nexus` as of S#283.** `bridger-nu.vercel.app`
 still serves the same deployment and is not going away.
 
+**[!!] THE TOP ITEM IS C0 -- THE CADENCE PROBLEM.** Erik gaveled it at the S#283
+close: nothing else moves until two AIs can carry a project through its phases
+without a human typing "reply to the bridge" at every step. The web-surface
+reach idea and A10 both sit behind it. It is NOT a latency problem -- the
+transport is milliseconds; the conversation is human-clocked.
+
 **[!!] Before any argument about position or moat: `plans/landscape-2026-08.md`.**
 MCP / WebMCP / A2A on three layers, what each cannot reach, the WebMCP Challenge
 rules, and the two hours S#283 spent analysing the wrong standard because nobody
@@ -155,6 +161,72 @@ almost nothing: the link mints exactly once and supersedes on re-mint.
 | 9 | **F1 in a real room, and D3's live test** | The plan stage has never been touched by a far side, and its DEFAULT partner state is plan mode. |
 | 10 | **Repo permalinks, from the far side** | Shipped and server-proven; no partner has ever declared a repo. |
 | 11 | **B1's adversarial half**, B2, B4 | Still owed. Room `0c7a12ba09d2` is open and side B's token is still unused. |
+
+---
+
+### [!!] C0. THE CADENCE PROBLEM -- TOP OF THE LIST, ABOVE EVERYTHING ELSE
+
+> **Erik's brother, after using it:** the chat is too slow, and he always has to
+> type *"reply to the bridge"*. **What he wanted to watch** was two AIs building
+> an entire project on their own, through the phases a real build has:
+>
+> ```
+> Idea -> Plan -> Delegate -> Execute -> Verify -> Refine -> Execute -> Verify
+> ```
+>
+> **Erik, S#283 close: this stays the main item.** The web-surface reach idea
+> (S#283g) and A10 both sit BEHIND it. Nothing else moves until this does.
+
+**IT IS NOT A LATENCY PROBLEM, and calling it "slow chat" will send the next
+session to optimise the wrong thing.** Measured on the live bridge this session:
+
+```
+blocked wait -> delivery      5.2 s      (no polling, context cost zero while asleep)
+post                          62 ms
+ask / answer / identify       36-132 ms
+```
+
+The transport is fast. **The CONVERSATION is slow because it is human-clocked.**
+Every inbound message needs a person to start a turn, on both sides. A build
+with eight phases and two sides is sixteen human actions at the absolute floor,
+and in practice far more.
+
+**THE FLOOR IS STRUCTURAL AND CANNOT BE ENGINEERED AWAY.** Nothing can make a
+language model start a turn; a server that could make your model run inference
+could burn your operator's quota at will. The protection and the limitation are
+one mechanism. So the target is NOT "remove the nudge" -- it is:
+
+  1. **MAXIMISE WORK PER NUDGE.** One turn should carry a whole PHASE, not one
+     message. Tonight's own asymmetry is the proof: one nudge on our side
+     produced a contract patch, a correctness bug in their spec, a negative
+     control and an answer; one nudge on theirs produced "Test Hello World".
+     Same cost, wildly different value. The friction is a low work-per-nudge
+     ratio, not the nudge.
+  2. **REDUCE THE NUMBER OF ROUND TRIPS.** A message that forces a reply just to
+     get its own obvious follow-up answered has spent the other operator's nudge
+     for nothing. Write the next thing too: your question, the answer you would
+     give it, and what you will do absent an objection.
+  3. **REMOVE THE NOTICE COST.** `bridger listen --exec` already does this -- a
+     process, not a turn, sleeping free and speaking once. What it removes is the
+     thousand wasted polling turns, never the last one.
+
+**WHAT ALREADY EXISTS AND SHOULD BE READ BEFORE BUILDING ANYTHING:**
+
+- `phase` on a room (`plan` / `build`) -- F1, shipped S#280. Phases are LABELS
+  today; they do not advance anything and deliberately do not GATE writes
+  (F2: "a room in `plan` that refuses a `decide` is hostile"). Not gating is
+  right. Not *guiding* is the gap.
+- the `guidance` field -- already on every response, already the channel that
+  reaches the far side. A real far side stopped polling on advisory guidance
+  alone, so this channel demonstrably works.
+- `listen` / `wait`, `integrations/cursor/bridger.mdc`, `skill/SKILL.md`.
+
+**THE CANDIDATE THAT REDUCES THE COUNT RATHER THAN THE SIZE**, and it is a
+protocol decision rather than a build: **proposal-with-default.** An entry that
+states what its author will do absent an objection, with a deadline. Silence
+becomes assent, and a required round trip becomes an optional one. That is a
+real semantic commitment about what the record MEANS and wants Erik's gavel
+before anyone writes code.
 
 ---
 
