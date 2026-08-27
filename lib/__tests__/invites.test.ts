@@ -3,10 +3,14 @@ import { beforeEach, describe, it } from "node:test";
 
 import {
   INVITE_REREAD_SECONDS,
+  INVITE_TTL_SECONDS,
+  PASTE_TOKEN_TTL_SECONDS,
+  inviteTtlPhrase,
   mintInvite,
   newInviteCode,
   redeemInvite,
   parseInvite,
+  joinAcceptIsHtml,
 } from "../invites";
 import { authorize, clearRegistryCache, createRoom, parseRoom, type RoomRecord } from "../room-registry";
 import { INVITE_KEY, ROOM_KEY } from "../store";
@@ -28,6 +32,48 @@ async function room() {
 }
 
 describe("join codes", () => {
+  it("the unredeemed fuse is hours; the minted token is still days", () => {
+    // I1: two clocks, two jobs. Lengthening the link must not lengthen access.
+    assert.equal(INVITE_TTL_SECONDS, 4 * 60 * 60);
+    assert.ok(INVITE_TTL_SECONDS >= 60 * 60);
+    assert.equal(PASTE_TOKEN_TTL_SECONDS, 7 * 24 * 60 * 60);
+    assert.equal(inviteTtlPhrase(), "4 hours");
+    assert.ok(INVITE_REREAD_SECONDS < INVITE_TTL_SECONDS);
+  });
+
+  it("HTML Accept does not redeem; any other fetch mints once and re-reads the same token", async () => {
+    // GET /j/[code] in app/j/[code]/route.ts: joinAcceptIsHtml BEFORE redeemInvite.
+    const { store, room: r, loadRoom } = await room();
+    const { code } = await mintInvite(store, r, "b", T0);
+
+    assert.equal(joinAcceptIsHtml("text/html,application/xhtml+xml"), true);
+    assert.equal(
+      joinAcceptIsHtml("text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"),
+      true,
+      "a browser Accept still includes text/html",
+    );
+    assert.equal(joinAcceptIsHtml("*/*"), false);
+    assert.equal(joinAcceptIsHtml(null), false);
+    assert.equal(joinAcceptIsHtml("text/plain"), false);
+
+    // The HTML path: parse, do not redeem.
+    const preview = parseInvite(await store.get(INVITE_KEY(code)));
+    assert.ok(preview);
+    assert.equal(preview.token, undefined, "a browser visit must not mint");
+    assert.equal(preview.redeemedAt, undefined);
+
+    const first = await redeemInvite(store, code, T0, loadRoom);
+    assert.equal(first.ok, true);
+    if (!first.ok) return;
+    assert.equal(first.reused, false);
+
+    const second = await redeemInvite(store, code, plus(T0, 5_000), loadRoom);
+    assert.equal(second.ok, true, "inside the re-read window the same fetch is not an error");
+    if (!second.ok) return;
+    assert.equal(second.token, first.token);
+    assert.equal(second.reused, true);
+  });
+
   it("is readable out of a chat window — no confusable characters", () => {
     for (let i = 0; i < 200; i++) {
       const code = newInviteCode();
@@ -212,5 +258,45 @@ describe("join codes", () => {
     assert.equal(parseInvite("not json"), null);
     assert.equal(parseInvite(JSON.stringify({ roomId: "r1", side: "z" })), null);
     assert.equal(parseInvite(JSON.stringify({ roomId: "r1", side: "a" }))?.side, "a");
+  });
+
+  it("[!] redeeming the link retires the create-time token for that seat", async () => {
+    // Dogfood 2026-08-27: POST /api/rooms minted slots[1]; /j/<code> minted
+    // another; both wrote as B; wait looked for A. One seat, one live token.
+    const store = new FakeStore();
+    const created = await createRoom(store, {
+      topic: "paste-and-go",
+      ownerLabel: "JudgeMySite",
+      peerLabel: "Trigvanta",
+      now: T0,
+    });
+    const loadRoom = async (id: string) => parseRoom(await store.get(ROOM_KEY(id)));
+    const { code } = await mintInvite(store, created.room, "b", T0);
+
+    assert.equal((await authorize(store, { presentedToken: created.peerToken, now: T0 })).ok, true);
+
+    const redeemed = await redeemInvite(store, code, T0, loadRoom);
+    assert.equal(redeemed.ok, true);
+    if (!redeemed.ok) return;
+
+    const old = await authorize(store, { presentedToken: created.peerToken, now: plus(T0, 1) });
+    assert.equal(old.ok, false);
+    assert.equal(old.ok === false && old.reason, "revoked");
+
+    const fresh = await authorize(store, { presentedToken: redeemed.token, now: plus(T0, 1) });
+    assert.equal(fresh.ok, true);
+
+    const owner = await authorize(store, { presentedToken: created.ownerToken, now: plus(T0, 1) });
+    assert.equal(owner.ok, true);
+
+    const again = await redeemInvite(store, code, plus(T0, 2_000), loadRoom);
+    assert.equal(again.ok, true);
+    if (!again.ok) return;
+    assert.equal(again.token, redeemed.token);
+    assert.equal(
+      (await authorize(store, { presentedToken: redeemed.token, now: plus(T0, 3_000) })).ok,
+      true,
+      "a re-read must not rotate away the token it just handed back",
+    );
   });
 });

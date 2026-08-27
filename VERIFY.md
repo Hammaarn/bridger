@@ -250,7 +250,7 @@ hold production credentials first.** We would rather you sandbox us.
 | Audit log (who called what) | same | most recent 5,000 rows, **key ids only, never tokens** |
 | Token records | same | `sha256` only, 90-day default expiry |
 | Room opened but never joined | same | **2 hours** |
-| Join code, unredeemed | same | 30 minutes |
+| Join code, unredeemed | same | 4 hours |
 | Join code, after first read | same | **10 minutes**, during which it returns the same token and holds it in plaintext — then deleted |
 | Join code tombstone (no token) | same | 24 hours, so a spent code says so instead of reading as a typo |
 | Token minted by a join code | same | 7 days |

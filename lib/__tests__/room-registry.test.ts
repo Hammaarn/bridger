@@ -82,11 +82,12 @@ describe("token secrecy", () => {
   it("never lets two sides share an entry-ID namespace", async () => {
     const store = new FakeStore();
     const { room } = await createRoom(store, {
-      topic: "same name both sides",
+      topic: "codes must still disambiguate when labels do not",
       ownerLabel: "Acme",
-      peerLabel: "Acme",
+      peerLabel: "Acmeee",
       now: T0,
     });
+    assert.equal(deriveCode("Acme"), deriveCode("Acmeee"), "control: these labels collide on the raw code");
     assert.notEqual(
       room.sides.a!.code,
       room.sides.b!.code,

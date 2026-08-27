@@ -45,7 +45,7 @@ import {
 import type { Entry } from "../lib/entries";
 import { classifyCitation, describeCitation, isUnlocated, isWideRange } from "../lib/citation";
 import { verifyChain, type ChainedEntry } from "../lib/chain";
-import { INVITE_REREAD_SECONDS, mintInvite } from "../lib/invites";
+import { INVITE_REREAD_SECONDS, INVITE_TTL_MINUTES, mintInvite } from "../lib/invites";
 import { decidePurge, executePurge, purgeState, recordPurgeConsent } from "../lib/purge";
 import type { AuditEntry } from "../lib/room-registry";
 
@@ -258,7 +258,7 @@ async function cmdOpen() {
    * is simply not printed. `--show-token` prints it for the case the link
    * cannot serve: an air-gapped partner, or a client that cannot fetch a URL.
    */
-  const linkMinutes = Math.max(1, Number(arg("--ttl-minutes", "240")) || 240);
+  const linkMinutes = Math.max(1, Number(arg("--ttl-minutes", String(INVITE_TTL_MINUTES))) || INVITE_TTL_MINUTES);
   const tokenDays = Math.max(1, Number(arg("--token-days", "7")) || 7);
   const invite = await mintInvite(store, room, "b", new Date(), {
     ttlSeconds: linkMinutes * 60,
@@ -285,7 +285,7 @@ async function cmdOpen() {
   ${server}/j/${invite.code}
 
   One link. Their AI opens it and gets the whole protocol plus a credential
-  minted for them alone. Live for ${Math.round((Number(arg("--ttl-minutes", "240")) || 240) / 60)}h; the token it mints lasts ${arg("--token-days", "7")} days.
+  minted for them alone. Live for ${Math.round(linkMinutes / 60)}h; the token it mints lasts ${arg("--token-days", "7")} days.
   Send the LINK, not a token: a link expires, a message does not.
 
   ── 2. WATCH IT IN A BROWSER ─────────────────────────────────────
@@ -354,7 +354,7 @@ async function cmdInvite() {
   const room = parseRoom(await store.get(ROOM_KEY(roomId)));
   if (!room) die(`No such room: ${roomId}`);
 
-  const minutes = Number(arg("--ttl-minutes", "30"));
+  const minutes = Math.max(1, Number(arg("--ttl-minutes", String(INVITE_TTL_MINUTES))) || INVITE_TTL_MINUTES);
   const days = Number(arg("--token-days", "7"));
   const server = (local?.server ?? DEFAULT_SERVER).replace(/\/$/, "");
 

@@ -73,7 +73,7 @@
 
 import { randomBytes } from "node:crypto";
 
-import { issueToken, type RoomRecord, type SideId } from "./room-registry";
+import { issueToken, revokeSide, type RoomRecord, type SideId } from "./room-registry";
 import {
   INVITE_KEY,
   INVITE_SPENT_KEY,
@@ -83,8 +83,26 @@ import {
   type Store,
 } from "./store";
 
-/** Default life of a join code. Long enough to send, short enough to matter. */
-export const INVITE_TTL_SECONDS = 30 * 60;
+/**
+ * Default life of an UNREDEEMED join code.
+ *
+ * Hours, not minutes (I1 / S#283). Thirty minutes killed three invites across
+ * three sessions: it was tuned for "paste it and they click now", and the real
+ * flow is "message a human, wait for a human". The TOKEN this redeems into is
+ * a different clock (`PASTE_TOKEN_TTL_SECONDS`) and is not lengthened here.
+ */
+export const INVITE_TTL_SECONDS = 4 * 60 * 60;
+
+/** Default unredeemed-link life in minutes — the unit `opInvite` speaks. */
+export const INVITE_TTL_MINUTES = INVITE_TTL_SECONDS / 60;
+
+/** English for the join document and the HTML decision page. */
+export function inviteTtlPhrase(): string {
+  const hours = INVITE_TTL_SECONDS / 3600;
+  if (hours === 1) return "1 hour";
+  if (Number.isInteger(hours) && hours >= 1) return `${hours} hours`;
+  return `${INVITE_TTL_MINUTES} minutes`;
+}
 
 /**
  * How long a code keeps returning the SAME token after its first read.
@@ -94,7 +112,7 @@ export const INVITE_TTL_SECONDS = 30 * 60;
  * cover the readers that arrive in a burst: an unfurler fetches in
  * milliseconds, an agent retries in seconds, a human previews a link and pastes
  * it to their AI in a minute or two. Ten minutes covers all of them with room
- * to spare, and nothing needs the full thirty.
+ * to spare, and nothing needs the full unredeemed-link TTL.
  */
 export const INVITE_REREAD_SECONDS = 10 * 60;
 
@@ -106,6 +124,17 @@ export const INVITE_SPENT_TTL_SECONDS = 24 * 60 * 60;
 
 /** Default life of the token a code redeems into. */
 export const PASTE_TOKEN_TTL_SECONDS = 7 * 24 * 60 * 60;
+
+/**
+ * THE AUDIENCE SPLIT ON GET /j/[code].
+ *
+ * A browser sends `Accept: text/html`. Curl, fetch, and every agent client do
+ * not. HTML is a decision page and must not mint; anything else is the protocol
+ * document and does. The route checks this BEFORE `redeemInvite`.
+ */
+export function joinAcceptIsHtml(accept: string | null): boolean {
+  return (accept ?? "").includes("text/html");
+}
 
 /**
  * Crockford-style alphabet: no I, L, O, U. A join code gets read aloud, typed
@@ -367,6 +396,13 @@ export async function redeemInvite(
   }
 
   const expiresAt = new Date(now.getTime() + invite.tokenTtlSeconds * 1000).toISOString();
+  // ONE LIVE CREDENTIAL PER SEAT. createRoom already minted a participant
+  // token for this side (the mint-screen `slots[1]` / CLI peer token). A second
+  // issueToken here left both live, so two agents on the same join URL — and
+  // the operator holding the create-time paste block — all wrote as one seat
+  // while wait looked for the other. Rotate first: the link is the door, the
+  // create-time token is what it replaces. Re-reads do not reach this branch.
+  await revokeSide(store, room, invite.side, "participant");
   // Half the MCP daily cap: this token reaches a model's context, so it is the
   // one that can leak. See PASTE_PATH_DAILY_CAP.
   const token = await issueToken(

@@ -116,6 +116,16 @@ describe("sanitiseRoomText — a room name stops being trusted the moment anyone
       assert.equal((e as RoomTextRejected).field, "ownerLabel");
     }
   });
+
+  it("refuses two sides with the same name — the ledger would not say who wrote", () => {
+    try {
+      sanitiseRoomMetadata({ topic: "ok", ownerLabel: "test", peerLabel: "Test" });
+      assert.fail("should have thrown");
+    } catch (e) {
+      assert.ok(e instanceof RoomTextRejected);
+      assert.equal((e as RoomTextRejected).field, "peerLabel");
+    }
+  });
 });
 
 describe("createRoom is where it actually bites — the callers do not get a say", () => {

@@ -315,3 +315,20 @@ describe("[!] joining is recorded on EVERY transport, not just MCP", () => {
     assert.equal((await load()).sides.b!.joinedAt, first, "joinedAt records the FIRST contact");
   });
 });
+
+describe("[!] status idle copy must not call own-side writes 'nothing new'", () => {
+  it("distinguishes 'they have not written' from 'the ledger is empty'", async () => {
+    const { store, room } = await bridge();
+    const a = await ctxFor(store, room, "a", T0);
+    await opAsk(a, { title: "own question sitting in the ledger", body: "..." });
+    const status = await opStatus(a) as { unread: number; latestSeq: number; cursor: number; guidance?: string };
+    assert.equal(status.unread, 0, "own writes are not unread news");
+    assert.ok(status.latestSeq > status.cursor);
+    assert.match(
+      String(status.guidance),
+      /other side has not written/i,
+      "the operator asked 'did someone write?'; 'nothing new' was a lie",
+    );
+    assert.doesNotMatch(String(status.guidance), /Nothing new since your last check/);
+  });
+});

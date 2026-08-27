@@ -146,9 +146,14 @@ export function sanitiseRoomMetadata(input: {
   ownerLabel: unknown;
   peerLabel: unknown;
 }): { topic: string; ownerLabel: string; peerLabel: string } {
-  return {
-    topic: sanitiseRoomText(input.topic, "topic", MAX_TOPIC),
-    ownerLabel: sanitiseRoomText(input.ownerLabel, "ownerLabel", MAX_LABEL),
-    peerLabel: sanitiseRoomText(input.peerLabel, "peerLabel", MAX_LABEL),
-  };
+  const topic = sanitiseRoomText(input.topic, "topic", MAX_TOPIC);
+  const ownerLabel = sanitiseRoomText(input.ownerLabel, "ownerLabel", MAX_LABEL);
+  const peerLabel = sanitiseRoomText(input.peerLabel, "peerLabel", MAX_LABEL);
+  if (ownerLabel.toLowerCase() === peerLabel.toLowerCase()) {
+    throw new RoomTextRejected(
+      "peerLabel",
+      "the two sides need different names — the record uses the label to say who wrote",
+    );
+  }
+  return { topic, ownerLabel, peerLabel };
 }
