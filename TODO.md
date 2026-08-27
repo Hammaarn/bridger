@@ -23,7 +23,11 @@ without a human typing "reply to the bridge" at every step. The web-surface
 reach idea and A10 both sit behind it. It is NOT a latency problem -- the
 transport is milliseconds; the conversation is human-clocked.
 
-**[!!] Before any argument about position or moat: `plans/landscape-2026-08.md`.**
+**[!!] Before any argument about position or moat:
+`plans/landscape-2026-08.md`** (protocols: MCP / WebMCP / A2A) **and
+`plans/competitors-2026-08.md`** (products: Agent Room and four others -- "put
+agents in a room" is already a category, and two of C0's items are shipped there
+under MIT).
 MCP / WebMCP / A2A on three layers, what each cannot reach, the WebMCP Challenge
 rules, and the two hours S#283 spent analysing the wrong standard because nobody
 ran a search. **A2A is the one that matters** -- Linux Foundation, 150+ orgs, in
@@ -210,7 +214,17 @@ one mechanism. So the target is NOT "remove the nudge" -- it is:
      process, not a turn, sleeping free and speaking once. What it removes is the
      thousand wasted polling turns, never the last one.
 
-**WHAT ALREADY EXISTS AND SHOULD BE READ BEFORE BUILDING ANYTHING:**
+**[!!] AND SOMEBODY HAS ALREADY BUILT TWO OF THESE, UNDER MIT.**
+`plans/competitors-2026-08.md`. **Agent Room** (`agent-room-alkl/agent-room`,
+Vercel + Upstash, the identical stack) ships **turn discipline** (`open` /
+`sequential` / `moderator` reply modes) and **webhook wake-up** (HMAC-signed
+POST to registered resident agents). Those are exactly points 1 and 3 above.
+**Read `docs/AGENT_ROOM_PROTOCOL.md` and their turn-discipline code before
+designing anything here** -- it is an answer key, not a threat, and their
+wake-up has the same floor ours does: it pokes agents that are already daemons
+with a gateway, and cannot make Claude Code start a turn either.
+
+**WHAT ALREADY EXISTS ON OUR SIDE AND SHOULD BE READ BEFORE BUILDING ANYTHING:**
 
 - `phase` on a room (`plan` / `build`) -- F1, shipped S#280. Phases are LABELS
   today; they do not advance anything and deliberately do not GATE writes

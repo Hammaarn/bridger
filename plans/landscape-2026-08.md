@@ -13,6 +13,10 @@
 
 ---
 
+> **Products, not protocols, are in `competitors-2026-08.md`.** "Put agents in
+> the same room" is already a category with at least five projects in it. Read
+> that file before concluding anything about position from this one.
+
 ## The three things, and they are on different layers
 
 | | what it is | scope | status |
