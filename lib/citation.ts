@@ -99,8 +99,35 @@ const COMMIT_RE = /^\s*[0-9a-f]{7,40}\s*$/i;
  */
 const LOCATOR_RE = /([\w./\\@-]+\.[A-Za-z0-9]{1,12}):(\d+)(?:\s*[-–]\s*(\d+))?/;
 
-/** A bare file path with an extension and no line number. */
-const FILE_RE = /(^|\s)([\w./\\@-]*[\w@-]\.[A-Za-z0-9]{1,12})(\s|$|,|;)/;
+/**
+ * Web TLDs, declared HERE because both `FILE_RE` (as an exclusion) and
+ * `URL_RE` (as a match) need them, and a `const` cannot be read before its
+ * own declaration. See the long note on `URL_RE` for why the list is an
+ * allowlist rather than "dot followed by letters".
+ */
+const WEB_TLDS = "com|org|net|edu|gov|mil|int|info|io|dev|app|ai|xyz|eu|uk|nl|se|de|fr";
+
+/**
+ * A bare file path with an extension and no line number.
+ *
+ * **A WEB TLD IS NOT A SOURCE EXTENSION** — the negative lookahead is doing
+ * real work, and it was added S#284 after shipping the bug it prevents.
+ *
+ * The `url` rule below runs first and used to catch every domain, so this
+ * pattern never had to care. Once that rule required the URL to *dominate* the
+ * citation, a domain mentioned in passing started falling through to here —
+ * and `kernbot.com` has exactly the shape of a file with a `.com` extension.
+ * It appeared in the live integration surface as a file in somebody's
+ * repository, which is the identical false fact (`1927flood.lthp.org` graded
+ * "whole file") that put the url rule where it is.
+ *
+ * Excluding the TLDs here instead of relying on rule ORDER makes the guarantee
+ * independent of which rule runs first, which is the version that cannot be
+ * broken again by tuning something upstream.
+ */
+const FILE_RE = new RegExp(
+  `(^|\\s)([\\w./\\\\@-]*[\\w@-]\\.(?!(?:${WEB_TLDS})(?![\\w-]))[A-Za-z0-9]{1,12})(\\s|$|,|;)`,
+);
 
 /**
  * WEB SOURCES, AND WHY THIS MUST RUN BEFORE `FILE_RE`.
@@ -158,7 +185,6 @@ const FILE_RE = /(^|\s)([\w./\\@-]*[\w@-]\.[A-Za-z0-9]{1,12})(\s|$|,|;)/;
  * real cases by a wide margin — the live misclassifications sat near 8%, the
  * legitimate ones at 43% and 53% — so its exact value is not load-bearing.
  */
-const WEB_TLDS = "com|org|net|edu|gov|mil|int|info|io|dev|app|ai|xyz|eu|uk|nl|se|de|fr";
 const URL_RE = new RegExp(
   `(?:https?://|www\\.)[^\\s,;]+|(?:[a-z0-9-]+\\.)+(?:${WEB_TLDS})(?![\\w-])`,
   "i",
