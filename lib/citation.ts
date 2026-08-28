@@ -105,7 +105,15 @@ const LOCATOR_RE = /([\w./\\@-]+\.[A-Za-z0-9]{1,12}):(\d+)(?:\s*[-–]\s*(\d+))?
  * own declaration. See the long note on `URL_RE` for why the list is an
  * allowlist rather than "dot followed by letters".
  */
-const WEB_TLDS = "com|org|net|edu|gov|mil|int|info|io|dev|app|ai|xyz|eu|uk|nl|se|de|fr";
+const WEB_TLDS =
+  "com|org|net|edu|gov|mil|int|info|io|dev|app|ai|xyz|eu|uk|nl|se|de|fr|" +
+  // S#284: `headless.design` reached the live integration surface because
+  // `.design` was simply absent. Every addition here is checked against one
+  // question -- could it be a source extension? -- which is why `.sh`, `.rs`,
+  // `.py`, `.pl`, `.ex` and `.hs` are all deliberately still missing.
+  "co|tech|cloud|site|online|store|blog|news|wiki|space|live|design|digital|" +
+  "studio|agency|systems|tools|network|email|today|page|link|world|" +
+  "group|works|media|team|zone|biz|pro|tv|no|dk|fi|be|at|ch|ie|nz|br|za";
 
 /**
  * A bare file path with an extension and no line number.
@@ -128,6 +136,32 @@ const WEB_TLDS = "com|org|net|edu|gov|mil|int|info|io|dev|app|ai|xyz|eu|uk|nl|se
 const FILE_RE = new RegExp(
   `(^|\\s)([\\w./\\\\@-]*[\\w@-]\\.(?!(?:${WEB_TLDS})(?![\\w-]))[A-Za-z0-9]{1,12})(\\s|$|,|;)`,
 );
+
+/**
+ * Extensions that make a SEPARATOR-LESS token a file rather than a domain.
+ *
+ * **Why this exists, and why excluding web TLDs was not enough.** The TLD
+ * allowlist can never be complete — there are over a thousand of them, and
+ * `headless.design` survived the exclusion and landed in the live integration
+ * surface as a file in a partner's repository. Chasing that with a longer TLD
+ * list is a race nobody wins.
+ *
+ * So the discriminator is structural instead. A real file citation almost
+ * always either contains a path separator (`lib/store.ts`) or carries a
+ * recognisable source extension (`package.json`). A bare dotted token with
+ * neither is far likelier to be a hostname.
+ *
+ * **The honest residual:** a slash-less citation with an exotic extension
+ * (`deps.edn` on its own) now reads as prose. That is the safe direction and
+ * the same trade already made above — `unlocated` is an honest "no locator
+ * here", while "a file in your repository" is a false fact about somebody
+ * else's codebase, which is the one thing this module promises not to state.
+ */
+const SOURCE_EXT =
+  /\.(ts|tsx|js|jsx|mjs|cjs|json|md|mdx|css|scss|html|htm|yml|yaml|toml|ini|env|sql|sh|bash|ps1|py|rb|go|rs|java|kt|swift|c|h|cpp|hpp|cs|php|vue|svelte|astro|prisma|graphql|gql|lock|txt|csv|xml|svg|png|jpg|jpeg|gif|webp|pdf|proto|tf|dockerfile|gitignore|npmrc|nvmrc|jsonl|ndjson|edn|ex|exs|erl|hs|lua|pl|r|scala|dart|zig|nim|sol)$/i;
+
+/** A path separator makes it a path; nothing else needs to. */
+const HAS_SEPARATOR = /[/\\]/;
 
 /**
  * WEB SOURCES, AND WHY THIS MUST RUN BEFORE `FILE_RE`.
@@ -252,8 +286,13 @@ export function classifyCitation(raw: string | null | undefined): Citation {
     return { kind: "url", raw, path: url[0] };
   }
 
+  // A separator-less token must carry a known source extension to count as a
+  // file. See SOURCE_EXT: the web-TLD exclusion alone loses a race it cannot
+  // win, and calling somebody's hostname a file in their repo is a false fact.
   const file = FILE_RE.exec(text);
-  if (file) return { kind: "file", raw, path: file[2] };
+  if (file && (HAS_SEPARATOR.test(file[2]) || SOURCE_EXT.test(file[2]))) {
+    return { kind: "file", raw, path: file[2] };
+  }
 
   return { kind: "unlocated", raw };
 }

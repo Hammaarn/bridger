@@ -277,6 +277,35 @@ describe("[!!] a citation that MENTIONS a domain is prose, not a web source (S#2
     assert.equal(c.path, undefined, "a domain must never enter the file surface");
   });
 
+  it("[!!] a hostname must not enter the file surface, whatever its TLD", () => {
+    // Two fixes deep: excluding web TLDs was not enough, because the TLD list
+    // can never be complete -- `headless.design` survived it and reached the
+    // live surface. The structural rule is what holds: a separator-less token
+    // needs a recognised SOURCE extension to be a file.
+    for (const s of [
+      "Runs against headless.design and the dev server, durations read from the log afterwards",
+      "Local runs against kernbot.com and the dev server with mock=1, durations from the log",
+    ]) {
+      const c = classifyCitation(s);
+      assert.equal(c.kind, "unlocated", s);
+      assert.equal(c.path, undefined, "no hostname may be reported as a path");
+    }
+  });
+
+  it("NEGATIVE CONTROL: a bare domain cited ALONE is still a web source", () => {
+    for (const s of ["headless.design", "kernbot.com", "1927flood.lthp.org"]) {
+      assert.equal(classifyCitation(s).kind, "url", s);
+    }
+  });
+
+  it("NEGATIVE CONTROL: extensions that double as TLDs stay files", () => {
+    // .sh, .rs, .py, .pl are all real country TLDs and all real source
+    // extensions. They are deliberately absent from WEB_TLDS for that reason.
+    for (const s of ["scripts/deploy.sh", "src/main.rs", "app.py", "lib/store.ts"]) {
+      assert.equal(classifyCitation(s).kind, "file", s);
+    }
+  });
+
   it("NEGATIVE CONTROL: real source files are untouched by that exclusion", () => {
     for (const [s, expected] of [
       ["lib/store.ts", "file"],
