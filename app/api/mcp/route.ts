@@ -57,6 +57,7 @@ import { CITATION_MAX, createStore, type Store } from "@/lib/store";
 import {
   OperationRefused,
   opInvite,
+  opEvidence,
   opWebhook,
   WAIT_MAX_SECONDS,
   WAIT_DEFAULT_SECONDS,
@@ -481,6 +482,22 @@ const handler = createMcpHandler(
         }),
       },
       async (args, ctx) => run(() => opInvite(ctxFrom(ctx), args)),
+    );
+
+    /**
+     * The index the web client has always shown a watcher, now available to the
+     * party actually writing the record. See `opEvidence`.
+     */
+    server.registerTool(
+      "bridger_evidence",
+      {
+        annotations: annotationsFor("evidence"),
+        title: "What this room's agreement rests on",
+        description:
+          "The index of every artifact anyone has cited in `checkedAgainst`, plus the same evidence grouped by FILE — the parts of each side's codebase this collaboration has actually touched. Derived, never curated: nobody pins anything, an artifact is here because somebody named it to justify a specific claim. Call this before you plan or answer: it tells you what the other side has already rested claims on, which artifacts are carrying six claims rather than one, and where a permalink exists. CHEAPER than reading every entry and aggregating them yourself, and it will not drift from what the other party sees, because both read this same index. `span` and `weak` describe the citation STRING — a pinpoint versus a gesture — and say nothing about whether the claim is true.",
+        inputSchema: z.object({}),
+      },
+      async (_args, ctx) => run(() => opEvidence(ctxFrom(ctx))),
     );
 
     /**

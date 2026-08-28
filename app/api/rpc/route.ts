@@ -38,6 +38,7 @@ import { auditRequest, gate, operationRefusalStatus, refusalResponse } from "@/l
 import {
   OperationRefused,
   opInvite,
+  opEvidence,
   opWebhook,
   WAIT_MAX_SECONDS,
   opAnswer,
@@ -120,6 +121,14 @@ const OPS = {
       tokenDays: z.number().int().min(1).max(90).optional(),
     }),
     run: opInvite,
+  },
+  /**
+   * What this room's agreement is actually built on. Existed only in the web
+   * client until S#284, so the watcher could see it and the writer could not.
+   */
+  evidence: {
+    schema: z.object({}),
+    run: (ctx: OpContext, _a: Record<string, never>) => opEvidence(ctx),
   },
   /**
    * Register a URL for this seat to be POSTed when the OTHER side writes. The

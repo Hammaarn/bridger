@@ -64,6 +64,7 @@ import {
   PASTE_TOKEN_TTL_SECONDS,
   mintInviteReplacing,
 } from "./invites";
+import { buildEvidenceIndex } from "./evidence";
 import {
   WebhookRejected,
   listWebhooks,
@@ -1413,6 +1414,62 @@ export async function opInvite(
       (replaced
         ? " The previous unredeemed link for this seat was replaced and no longer works."
         : ""),
+  };
+}
+
+/**
+ * THE EVIDENCE INDEX, for the party that is writing rather than watching.
+ *
+ * This aggregation already existed — in the web client, where only a spectator
+ * could see it. An agent about to answer needs it more than a watcher does:
+ * what has the other side already rested claims on, which artifacts are
+ * carrying six claims instead of one, and which files this integration has
+ * actually touched.
+ *
+ * WHAT IT COSTS, and it is the good direction. Same read as `status` — the
+ * whole entry list — but the RESULT is a fraction of the size, because an index
+ * of what was cited is much smaller than the entries that cited it. An agent
+ * wanting to know the surface should call this rather than `read` a hundred
+ * entries and aggregate them itself. That is also why it lives in `lib/` and
+ * not in each caller: two aggregations of one record drift, and the drift shows
+ * up as two parties reading the same evidence differently.
+ *
+ * No containment note. Every string here either came from OUR classifier
+ * (`span`) or is the caller's own `raw` citation shown back — and far-side raw
+ * citations ARE contained, below, for the same reason `wire()` contains them:
+ * `checkedAgainst` is the field most likely to be read as a literal path and
+ * acted on.
+ */
+export async function opEvidence(ctx: OpContext) {
+  const entries = await readEntries(ctx.store, ctx.room.id);
+  const index = buildEvidenceIndex(entries, ctx.room);
+  await noteOp(ctx.store, ctx.token.id, "r");
+
+  const sources = index.sources.map((s) => ({
+    ...s,
+    // Contained exactly as it is on an entry. A citation written by the other
+    // company is the same text here as it is there.
+    raw: s.sides.some((side) => side !== ctx.token.side)
+      ? containFor(ctx, s.raw, seat(ctx.room, s.sides[0]).label)
+      : s.raw,
+  }));
+
+  return {
+    ...containmentNote(ctx, index.sources.some((s) => s.sides.some((side) => side !== ctx.token.side))),
+    sources,
+    files: index.files,
+    perSide: index.perSide,
+    uncited: index.uncited,
+    you: ctx.token.side,
+    guidance:
+      index.sources.length === 0
+        ? "Nothing has been cited in this room yet. The index fills itself as claims arrive — nobody pins anything here."
+        : `${index.files.length} file(s) across ${index.sources.length} cited artifact(s). ` +
+          "This is derived, not curated: an artifact is here because somebody named it to justify a specific claim. " +
+          "`span` and `weak` describe the STRING — a pinpoint versus a gesture — and say nothing about whether the claim is true. " +
+          (index.uncited > 0
+            ? `${index.uncited} answer(s) or decision(s) carry no citation at all, which is allowed and visible on purpose.`
+            : "Every answer and decision here carries a citation."),
   };
 }
 

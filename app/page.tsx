@@ -49,6 +49,7 @@
 
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { openQuestionIds } from "@/lib/question-state";
+import { buildEvidenceIndex } from "@/lib/evidence";
 import { classifyCitation, describeCitation, isUnlocated, isWideRange } from "@/lib/citation";
 import { defaultColourFor, monogramFor, vendorFor, SEAT_COLOURS } from "@/lib/seats";
 import { ROOM_SHAPES } from "@/lib/room-shapes";
@@ -506,36 +507,15 @@ function Clampable({ text, className, mine }: { text: string; className: string;
  * an artifact holding up six answers is a different risk from one holding up
  * a single note.
  */
-interface EvidenceSource {
-  n: number;
-  raw: string;
-  span: string;
-  weak: boolean;
-  citedBy: string[];
-}
-
-function evidenceIndex(entries: Entry[]): { sources: EvidenceSource[]; numberOf: Map<string, number> } {
-  const byRaw = new Map<string, EvidenceSource>();
-  const numberOf = new Map<string, number>();
-  for (const e of entries) {
-    if (!e.checkedAgainst) continue;
-    let src = byRaw.get(e.checkedAgainst);
-    if (!src) {
-      const c = classifyCitation(e.checkedAgainst);
-      src = {
-        n: byRaw.size + 1,
-        raw: e.checkedAgainst,
-        span: describeCitation(c),
-        weak: isUnlocated(c) || isWideRange(c),
-        citedBy: [],
-      };
-      byRaw.set(e.checkedAgainst, src);
-    }
-    src.citedBy.push(e.id);
-    numberOf.set(e.id, src.n);
-  }
-  return { sources: [...byRaw.values()], numberOf };
-}
+/**
+ * MOVED TO `lib/evidence.ts` (S#284).
+ *
+ * It lived here, which meant the human WATCHING a room could see what its
+ * agreement rests on and the agent WRITING that agreement could not. One
+ * implementation now serves both, for the same reason one set of rules serves
+ * two transports: two aggregations of one record drift, and the drift shows up
+ * as two parties reading the same evidence differently.
+ */
 
 /**
  * THE PLAN, AS A BOARD (F1).
@@ -2657,7 +2637,7 @@ function RoomView({
   const decisions = entries.filter((e) => e.type === "decision");
 
   /** Every artifact this room rests on, numbered by first appearance. */
-  const evidence = useMemo(() => evidenceIndex(entries), [entries]);
+  const evidence = useMemo(() => buildEvidenceIndex(entries), [entries]);
 
   /** What has landed since the reader scrolled away. Derived, never tallied. */
   const missed = bottomSeq === null ? 0 : Math.max(0, (entries.at(-1)?.seq ?? 0) - bottomSeq);
@@ -3041,10 +3021,10 @@ function RoomView({
                     <button
                       type="button"
                       className={`bx-src ${src.weak ? "thin" : ""} ${
-                        focus && src.citedBy.includes(focus) ? "on" : ""
+                        focus && src.citedBy.some((c) => c.id === focus) ? "on" : ""
                       }`}
-                      title={`Cited by ${src.citedBy.join(", ")}`}
-                      onClick={() => setFocus(focus === src.citedBy[0] ? null : src.citedBy[0])}
+                      title={`Cited by ${src.citedBy.map((c) => c.id).join(", ")}`}
+                      onClick={() => setFocus(focus === src.citedBy[0]?.id ? null : (src.citedBy[0]?.id ?? null))}
                     >
                       <span className="cite">{src.n}</span>
                       <span className="bx-src-body">
@@ -3280,7 +3260,7 @@ function RoomView({
                             <span>why</span> {e.why}
                           </p>
                         )}
-                        <Provenance entry={e} n={evidence.numberOf.get(e.id)} />
+                        <Provenance entry={e} n={evidence.numberOf[e.id]} />
 
                       </article>
                     </div>
