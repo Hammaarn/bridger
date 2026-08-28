@@ -118,6 +118,12 @@ export const OP_NATURE: Record<string, OpNature> = {
     idempotent: true,
     summary: "Destroys the room and its record. The only operation here that removes rather than appends.",
   },
+  evidence: {
+    writes: false,
+    idempotent: true,
+    summary:
+      "Everything this room has rested a claim on, grouped by artifact and by file. Cheaper than reading every entry and aggregating them yourself.",
+  },
   webhook: {
     writes: true,
     idempotent: true,
