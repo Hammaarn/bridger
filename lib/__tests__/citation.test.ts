@@ -221,3 +221,53 @@ describe("citation — web sources, found by a real answer being graded 'whole f
     assert.ok(!verdicts.test(describeCitation(classifyCitation("example.org"))));
   });
 });
+
+describe("[!!] a citation that MENTIONS a domain is prose, not a web source (S#284)", () => {
+  // Found live, in the real Trigvanta room, the hour the evidence index
+  // shipped: four of seven citations were graded "web source" because a
+  // sentence happened to contain a domain.
+  //
+  // The mislabel was not the harm. `isUnlocated` fires only on `unlocated`, so
+  // these long vague citations ESCAPED the weak flag while an honest
+  // three-word "the codebase" got flagged -- the vaguest citations in the room
+  // rendering as STRONGER than the modest ones. A gesture presented as a
+  // pointer, inside the classifier written to prevent exactly that.
+  const LIVE = {
+    prodLogs:
+      "Production runtime logs, act1 capture durations: rid=mt3f7rk3 and rid=mt3glpuk (headless.design, deployments)",
+    ghCommand:
+      "gh repo view --json visibility,name,owner on Hammaarn/judgemysite -> PRIVATE. curl of https://judgemysite.org/",
+    localRuns: "Local runs against localhost:3312 /api/dev/live-review with mock=1",
+  };
+
+  it("prose mentioning a domain falls through to unlocated", () => {
+    assert.equal(classifyCitation(LIVE.prodLogs).kind, "unlocated");
+    assert.equal(classifyCitation(LIVE.localRuns).kind, "unlocated");
+  });
+
+  it("[!!] and therefore reads as WEAK, which is the whole point", () => {
+    assert.ok(isUnlocated(classifyCitation(LIVE.prodLogs)), "a paragraph naming no locator is a gesture");
+    assert.ok(isUnlocated(classifyCitation(LIVE.localRuns)));
+  });
+
+  it("`gh` is a command someone ran, not a web source", () => {
+    // It was falling through to URL because a tool this codebase uses
+    // constantly was simply missing from COMMAND_RE.
+    assert.equal(classifyCitation(LIVE.ghCommand).kind, "command");
+  });
+
+  it("NEGATIVE CONTROL: a short phrase around a domain is still a web source", () => {
+    // Anchoring alone would have broken this, and the suite caught it. You can
+    // go and look at tribunaldelasaguas.org; that is a located source.
+    assert.equal(classifyCitation("see tribunaldelasaguas.org for the ordinances").kind, "url");
+  });
+
+  it("NEGATIVE CONTROL: coverage is measured across ALL urls, not the first", () => {
+    // The five-domain regression string scores 8% on its first match and ~43%
+    // on the total. Judged on the first alone it falls back to "whole file" --
+    // the exact bug the suite above exists for.
+    const five =
+      "notes: alpha.org, beta.org, gamma.org, delta.org, epsilon.org and some trailing commentary here";
+    assert.equal(classifyCitation(five).kind, "url");
+  });
+});

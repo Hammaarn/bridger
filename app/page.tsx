@@ -2222,6 +2222,149 @@ function WakeToggle({ token, canWrite }: { token: string; canWrite: boolean }) {
   );
 }
 
+/**
+ * DECLARE YOUR REPO — the least discoverable control in the product (V3).
+ *
+ * `TODO.md` row 10 said for three sessions that repo permalinks were "shipped
+ * and server-proven; no partner has ever declared a repo." It was never a
+ * mystery. Declaring one is an optional argument on `bridger_identify` and
+ * nothing else — reachable only by an agent that read four optional fields in
+ * a tool description closely enough to notice. The OPERATOR, who is the person
+ * who actually knows the repository URL, had no way to set it at all.
+ *
+ * So the highest-value item in the whole citation lane was gated behind a
+ * control no human could reach. This is that control.
+ *
+ * Participant-only, and not by choice: `opIdentify` calls `requireWrite`, so a
+ * read-only watch pass cannot even READ its own identity. Correct — a viewer
+ * belongs to neither side and has no identity to declare.
+ */
+function RepoDeclaration({ token, canWrite }: { token: string; canWrite: boolean }) {
+  const [repo, setRepo] = useState<{ host: string; owner: string; name: string; ref: string; pinned: boolean } | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [url, setUrl] = useState("");
+  const [ref, setRef] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const call = useCallback(
+    async (body: Record<string, unknown>) => {
+      const res = await fetch("/api/rpc", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ op: "identify", ...body }),
+      });
+      if (res.status === 404) return null;
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.error ?? "That did not work.");
+      return json;
+    },
+    [token],
+  );
+
+  useEffect(() => {
+    if (!canWrite) return;
+    void (async () => {
+      try {
+        const j = await call({});
+        if (j) setRepo(j.repo ?? null);
+      } catch {
+        /* a control that cannot read its own state stays quiet */
+      } finally {
+        setLoaded(true);
+      }
+    })();
+  }, [call, canWrite]);
+
+  if (!canWrite || !loaded) return null;
+
+  async function save(next: { repo: string | null; repoRef?: string | null }) {
+    setBusy(true);
+    setErr(null);
+    try {
+      const j = await call(next);
+      if (j) setRepo(j.repo ?? null);
+      setOpen(false);
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="bx-wake bx-repo">
+      <div className="bx-wake-row">
+        <span className={`bx-wake-led ${repo ? "on" : ""}`} aria-hidden />
+        <strong>Your repository</strong>
+        <span className="bx-wake-state">
+          {repo ? `${repo.owner}/${repo.name} @ ${repo.ref}${repo.pinned ? " (pinned)" : " (branch)"}` : "not declared"}
+        </span>
+        <button type="button" className="bx-wake-btn" disabled={busy} onClick={() => setOpen((v) => !v)}>
+          {open ? "cancel" : repo ? "change" : "declare"}
+        </button>
+      </div>
+
+      <p className="bx-wake-note">
+        {repo
+          ? "Every `checkedAgainst` you write is a link the other side can open."
+          : "Declare it and every `checkedAgainst` you write becomes a link the other side can open — `lib/store.ts:41` stops being a promise and becomes evidence."}
+        {repo && !repo.pinned && (
+          <span className="bx-wake-peer">
+            {" "}This points at a branch, so your links move as it moves. A commit sha keeps them on the lines you actually cited.
+          </span>
+        )}
+      </p>
+
+      {open && (
+        <div className="bx-wake-form">
+          <input
+            type="url"
+            value={url}
+            placeholder="https://github.com/you/your-repo"
+            onChange={(e) => setUrl(e.target.value)}
+          />
+          <input
+            type="text"
+            value={ref}
+            placeholder="commit sha (recommended) or branch"
+            onChange={(e) => setRef(e.target.value)}
+            style={{ flex: "0 1 240px" }}
+          />
+          <button
+            type="button"
+            className="bx-wake-btn"
+            disabled={busy || !url.trim()}
+            onClick={() => void save({ repo: url.trim(), repoRef: ref.trim() || null })}
+          >
+            save
+          </button>
+          {repo && (
+            <button type="button" className="bx-wake-btn" disabled={busy} onClick={() => void save({ repo: null })}>
+              clear
+            </button>
+          )}
+          <span className="bx-wake-note">
+            {/*
+              The honest disclosure. Nothing here fetches the repo, so we cannot
+              know whether the far side can open it — and a link that renders as
+              evidence and 404s for the reader is provenance theatre, which is
+              the one thing this product must not ship.
+            */}
+            GitHub, GitLab and a few other known forges only — an arbitrary host is
+            indistinguishable from an attacker&apos;s. Nothing checks that you own it, and
+            nothing checks it is <em>public</em>: if the repository is private, your
+            partner sees links they cannot open. Say so in the room if it is.
+          </span>
+        </div>
+      )}
+
+      {err && <div className="error">{err}</div>}
+    </div>
+  );
+}
+
 // ── view: room (three panels) ────────────────────────────────────
 
 function RoomView({
@@ -2933,6 +3076,7 @@ function RoomView({
         </div>
       )}
 
+      {data && <RepoDeclaration token={token} canWrite={canWrite} />}
       {data && <WakeToggle token={token} canWrite={canWrite} />}
 
       {error && <div className="error" style={{ margin: "12px 22px" }}>{error}</div>}

@@ -4466,7 +4466,10 @@ details > summary::-webkit-details-marker {
    invite row, one live dot, and the explanatory line carrying more weight
    than the switch. A reader should finish it knowing what it cannot do.
 */
-.bx-wake {
+/* `.bx-repo` shares every primitive below: both are inline control rows in the
+   room header, and duplicating the rules would guarantee they drift apart. */
+.bx-wake,
+.bx-repo {
   margin: 12px 22px 0;
   padding: 12px 14px;
   border: 1px solid var(--line-strong);
