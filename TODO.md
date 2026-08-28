@@ -298,6 +298,113 @@ before anyone writes code.
 | 19 | **D4's create half** | S#282 added a stage strip and a blocked-reason line, which is more information but not fewer steps. |
 | 20 | **C3a citation bundles** | The far side's remaining proposal. |
 | 21 | **F4 housekeeping** | Room `d437fff5b423` still needs a fresh invite code. |
+| **V1** | **[!!] `documented` — the fourth state `checkedAgainst` is missing** | See below. A citation proves a claim is *described*, never that it *works* at our scope. |
+| **V2** | **Merkle + gossiped heads, against `cannotVerify` #1** | See below. Our two-ness makes split-view detection nearly free. |
+| **V3** | **Repo declaration is invisible — that is why nobody has ever done it** | See below. It is an MCP argument on `identify` and nothing in the UI mentions it. |
+
+---
+
+## V1. `documented` — THE FOURTH STATE `checkedAgainst` IS MISSING
+
+**Source:** Erik, S#284, noticing that the agent architecture's own grounding rail
+had already solved this and Bridger had not.
+
+`the-primer/01-concept/GROUNDING-RAIL-TEMPLATE.md` Part A tags evidence four
+ways — `grounded` / **`documented`** / `unverified` / `gap` — and the fourth was
+added at S#264 for a reason that applies here word for word:
+
+> *"A CITATION proves a claim is described, never that it WORKS at your scope, on
+> your version."*
+
+**Bridger has three states and needs four.** Today `checkedAgainst` conflates:
+
+- *"I read this and it says so"* — a documentation claim, and
+- *"I read this and it holds in our configuration"* — an empirical one.
+
+The second is what a partner will build against. The first is what most citations
+actually are, especially citations of a README, a vendor doc or an API guarantee.
+Conflating them is how the S#275 `extkeys.mjs` failure happened one layer up: a
+tool's own prose was quoted as if it were a reading of the system.
+
+**Shape, not decided:** most likely a `basis` widening rather than a new field —
+`opinion` / `inference` / `documented`, with an absent `basis` plus a citation
+continuing to mean the strong empirical claim. That keeps the existing two-value
+enum's argument intact ("every extra name is more taxonomy to learn") while
+adding the one distinction that carries weight. **Erik's call — it changes what a
+recorded claim MEANS, which is a semantic commitment about the record.**
+
+**Cross-check before building:** LegalCiteBench (`plans/citation-verification-2026-08.md`,
+Finding 5) found explicit uncertainty instructions reduce confident fabrication
+but do not improve correctness. So expect this to reduce *misrepresentation*, not
+to make citations better. That is still the thing worth having.
+
+---
+
+## V2. MERKLE + GOSSIPED HEADS — the one place two-ness is a cryptographic advantage
+
+**Source:** Erik, S#284, pointing at verifiable computing and asking whether it
+helps. It does, but one layer away from where it looks like it should.
+
+**What verifiable computing actually proves** (fetched, not remembered): faithful
+execution of a computation on *given inputs*, against an untrusted worker. It
+explicitly does **not** verify the correctness of the inputs. So it cannot touch
+`checkedAgainst` — *"does `lib/store.ts:613` support my claim"* is not a
+computation whose execution could be proven. Even zkML would defeat a lying HOST,
+not a hallucinating MODEL. Wrong threat.
+
+**But it is exactly the threat model of `/api/about`'s `cannotVerify` #1:**
+
+> *"The SERVER computes those hashes, so an operator could recompute the whole
+> chain and serve a consistent forgery. A chain verified only against the server
+> that produced it proves nothing about that server."*
+
+**The practical technology is not SNARKs** — the Wikipedia article itself notes
+most constructions remain very expensive in practice. It is **transparency logs**,
+Certificate-Transparency-shaped: a Merkle tree rather than a linear chain, signed
+tree heads, plus **inclusion proofs** ("your entry is in this tree") and
+**consistency proofs** ("this tree is an append-only extension of that one"),
+each verifiable in O(log n) without holding the whole log.
+
+**[!!] AND THE HARD PART IS CHEAP FOR US.** The unsolved problem in transparency
+logs is the split view — the server showing A one log and B another. CT needs an
+ecosystem of gossiping auditors and monitors to catch it. **Bridger has exactly
+two parties, and they already talk to each other through the log.** If each side
+posts the head it observed, an operator forging the record must maintain two
+consistent forgeries AND fake each side's record of the other's head, while both
+sides hold their own local head from `bridger verify`. **This is the one place the
+two-seat data model is a cryptographic advantage rather than a product ceiling.**
+
+**Honest status: `documented`, in the rail's own vocabulary** — reasoned from a
+fetched source, no construction verified. Real open questions: bootstrapping the
+first head, a side that never runs `verify`, whether posted heads need signing
+keys and who holds them. **Do not build this before V3 and the deterministic
+resolver; it closes a hole that `bridger verify` already mitigates.**
+
+---
+
+## V3. REPO DECLARATION IS INVISIBLE, AND THAT IS THE WHOLE REASON NOBODY DOES IT
+
+Row 10 has said for three sessions that repo permalinks are *"shipped and
+server-proven; no partner has ever declared a repo."* Found S#284, and it is not
+a mystery:
+
+**Declaring a repo is an argument on `bridger_identify` and nothing else.** It is
+reachable only by an agent that read the tool description closely enough to
+notice `repo` among four optional fields. `app/page.tsx` never mentions it. The
+operator — the person who would actually know the repository URL — has no way to
+set it at all.
+
+So the highest-value item in the citation lane is gated behind the least
+discoverable control in the product. **The fix is UI, not protocol:** surface repo
++ `repoRef` on the room view for a participant token, next to the rename control
+that already exists there, and say what it buys — *every `checkedAgainst` you
+write becomes a link the other side can open.*
+
+Cheap, and it is the precondition for everything else in this lane: a declared
+repo at a pinned sha is what turns *"this file does not have line 613"* from a
+heuristic into a closed-world fact (`plans/citation-verification-2026-08.md`).
+
+---
 
 ---
 
