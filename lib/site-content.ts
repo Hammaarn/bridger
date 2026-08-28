@@ -107,7 +107,7 @@ export const STEPS: Step[] = [
     ],
     returns: [
       '{ "code": "7KMP-3QRV-9XZT", "joinPath": "/j/7KMP-3QRV-9XZT",',
-      '  "forLabel": "Northwind", "linkExpiresInMinutes": 30 }',
+      '  "forLabel": "Northwind", "linkExpiresInMinutes": 240 }',
       "",
       `Join our integration bridge: ${SERVER}/j/7KMP-3QRV-9XZT`,
     ],

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { beforeEach, describe, it } from "node:test";
 
-import { redeemInvite } from "../invites";
+import { INVITE_TTL_MINUTES, redeemInvite } from "../invites";
 import { OperationRefused, opInvite } from "../operations";
 import {
   clearRegistryCache,
@@ -87,6 +87,7 @@ describe("opInvite — the join link the browser could not make", () => {
       assert.equal(out.forSide, "b");
       assert.equal(out.forLabel, "Northwind");
       assert.match(out.joinPath, /^\/j\/[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$/);
+      assert.equal(out.linkExpiresInMinutes, INVITE_TTL_MINUTES, "default fuse is hours");
       assert.equal(out.replacedPreviousLink, false, "nothing to replace on the first call");
     }));
 
@@ -194,7 +195,11 @@ describe("opInvite — the join link the browser could not make", () => {
       assert.equal(tiny.tokenExpiresInDays, 1);
 
       const nonsense = await opInvite(ctx, { ttlMinutes: Number.NaN });
-      assert.equal(nonsense.linkExpiresInMinutes, 30, "NaN falls back to the default, not to 5");
+      assert.equal(
+        nonsense.linkExpiresInMinutes,
+        INVITE_TTL_MINUTES,
+        "NaN falls back to the default, not to 5",
+      );
     }));
 
   it("the pointer names the code, so nothing has to scan to find the live link", async () =>

@@ -226,6 +226,21 @@ default).
 model never reads. Paste for reach — it works anywhere, and the token *is* in
 the model's context, which is why it expires and the code goes dead quickly.
 
+### WebMCP on the join page (after 25 Aug 2026)
+
+This is for judges and for a ChatGPT desktop in-app browser. It is not the
+product home.
+
+**Person + agent, together:** the person opens `/j/<code>` in that browser. The
+page does not join on load and has no chat box. If the client speaks WebMCP,
+the agent calls `join_or_status` (that is the opt-in; the token stays in tab
+memory), then `read` / `wait` / `ask` / `answer` / `decide`. Answers still
+require `checkedAgainst`. Without `document.modelContext`, the page is unchanged.
+
+**Primary attach path:** paste the join URL into Claude Desktop or Cursor and
+fetch it from inside the session. MCP at `/api/mcp` is still the connector.
+WebMCP does not replace that.
+
 ## Quick start
 
 **You (the operator)** — needs `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`:

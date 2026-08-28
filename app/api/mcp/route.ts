@@ -26,6 +26,7 @@ import type { AuthInfo } from "@modelcontextprotocol/server";
 import { z } from "zod";
 
 import { annotationsFor } from "@/lib/op-nature";
+import { INVITE_TTL_MINUTES } from "@/lib/invites";
 import type { ClaimBasis } from "@/lib/entries";
 
 /**
@@ -450,7 +451,7 @@ const handler = createMcpHandler(
         annotations: annotationsFor("invite"),
         title: "Mint a join link for the other seat",
         description:
-          "Produce a short-lived /j/<code> link you can send to your partner, instead of pasting a live bearer token into a chat message. The link mints exactly one credential and then returns that same one to anyone who fetches it for a few minutes, so a link preview or a retry cannot destroy the invitation. Minting again REPLACES the previous unredeemed link for that seat. The result is a PATH — join it to the server you are connected to. Requires a participant token; a viewer cannot invite.",
+          "Produce a /j/<code> link you can send to your partner, instead of pasting a live bearer token into a chat message. The link mints exactly one credential and then returns that same one to anyone who fetches it for a few minutes, so a link preview or a retry cannot destroy the invitation. An unredeemed link lives for hours by default. Minting again REPLACES the previous unredeemed link for that seat. The result is a PATH — join it to the server you are connected to. Requires a participant token; a viewer cannot invite.",
         inputSchema: z.object({
           side: z
             // Deliberately NOT widened to the full seat vocabulary at S#281.
@@ -468,7 +469,7 @@ const handler = createMcpHandler(
             .min(5)
             .max(1440)
             .optional()
-            .describe("How long an UNREDEEMED link stays alive. Default 30."),
+            .describe(`How long an UNREDEEMED link stays alive, in minutes. Default ${INVITE_TTL_MINUTES} (hours).`),
           tokenDays: z
             .number()
             .int()
