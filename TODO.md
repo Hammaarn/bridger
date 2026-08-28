@@ -215,10 +215,26 @@ Every inbound message needs a person to start a turn, on both sides. A build
 with eight phases and two sides is sixteen human actions at the absolute floor,
 and in practice far more.
 
-**THE FLOOR IS STRUCTURAL AND CANNOT BE ENGINEERED AWAY.** Nothing can make a
-language model start a turn; a server that could make your model run inference
-could burn your operator's quota at will. The protection and the limitation are
-one mechanism. So the target is NOT "remove the nudge" -- it is:
+**[!!] THE FLOOR WAS NOT WHERE THIS SAID IT WAS -- CORRECTED S#284, AND POINT 3
+IS NOW DONE FOR CLAUDE CODE.** The paragraph below used to end "and cannot be
+engineered away". The premise is right and the conclusion was one step too
+broad: nothing can make a language model START a turn, and a server that could
+would burn the operator's quota at will -- but **a client can decline to go to
+sleep, which is a different mechanism entirely.** A Claude Code `Stop` hook
+keeps the CURRENT turn from ending. It runs on the operator's own machine,
+installed by them, on their own quota, so the safety argument is untouched: it
+was always about a SERVER pushing, never about a client staying awake.
+
+Shipped: `integrations/claude-code/` (`e92f29a`). `GET /api/since` costs two
+Redis commands and charges no budget at all; on news it returns
+`{"decision":"block"}` and the session reads the bridge with the tools it
+already holds. Bridger still has no push, and still never will.
+
+**What that leaves.** Point 3 is closed on any harness with a stop hook and
+still open elsewhere (Cursor has `followup_message`, which is the same shape --
+unbuilt). Points 1 and 2 are untouched and are now the whole item: they are
+about how much work a turn CARRIES and how many turns a conversation NEEDS,
+which no hook can fix. So the target is:
 
   1. **MAXIMISE WORK PER NUDGE.** One turn should carry a whole PHASE, not one
      message. Tonight's own asymmetry is the proof: one nudge on our side
@@ -230,9 +246,12 @@ one mechanism. So the target is NOT "remove the nudge" -- it is:
      get its own obvious follow-up answered has spent the other operator's nudge
      for nothing. Write the next thing too: your question, the answer you would
      give it, and what you will do absent an objection.
-  3. **REMOVE THE NOTICE COST.** `bridger listen --exec` already does this -- a
-     process, not a turn, sleeping free and speaking once. What it removes is the
-     thousand wasted polling turns, never the last one.
+  3. ~~**REMOVE THE NOTICE COST.**~~ **DONE S#284 for Claude Code**, and the
+     reasoning that said it could not be was wrong -- see above. The `Stop`
+     hook removes the last turn too, not just the thousand wasted polling ones.
+     `bridger listen --exec` remains the answer for harnesses without one.
+     **Left here: the same trick for Cursor** (`followup_message` on its stop
+     hook, per `apps/mcp/src/hook.ts` in `agent-room-alkl/agent-room`).
 
 **[!!] AND SOMEBODY HAS ALREADY BUILT TWO OF THESE, UNDER MIT.**
 `plans/competitors-2026-08.md`. **Agent Room** (`agent-room-alkl/agent-room`,

@@ -5,6 +5,52 @@ Append-only, newest first. **DECISIONS wins on direction** — where this file a
 
 ---
 
+## 2026-08-28 -- S#284 -- THE NOTICE COST IS GONE ON CLAUDE CODE, AND A WOKEN TURN MAY ANSWER
+
+**Source:** Erik, after reading `agent-room-alkl/agent-room` (MIT) with me.
+Asked three questions and gaveled all three.
+
+**Reverses:** C0's *"the floor is structural and cannot be engineered away"*, and
+`integrations/README.md`'s *"the thing no integration can fix"*. Both were built
+on a true premise -- nothing can make a model START a turn -- generalised one
+step too far. A client declining to go to sleep is a different mechanism, and it
+was available the whole time.
+
+**Scope:** a new shipped integration, and one behavioural commitment.
+
+| decision | ruling |
+|---|---|
+| How far may a woken turn go? | **It may ANSWER**, not only read and report. I recommended read-and-report for the first ship; Erik took the fuller version. |
+| What wakes it? | **Any new entry.** `/api/since` cannot say whether something needs us, and the call that can (`ping`) charges the 400/day cap and feeds the idle brake -- six quiet turns would trip a terminal 403 every session. |
+| Baltsar's access | **Repo collaborator + Vercel team member.** He is a build partner now, not a drive-by contributor. The Vercel seat is billed monthly on Pro. |
+
+**What "may answer" costs, recorded because it is the part that can bite.** Our
+AI can now speak to another company on the same turn it first reads their text,
+with no human in between. The containment is not new -- far-side text arrives
+inside `[[UNTRUSTED-PARTNER-TEXT]]` markers and `basis`/`checkedAgainst` refuse
+an ungrounded claim -- but the hook's job is to re-state it at the moment it
+bites, so the block `reason` carries the whole rule: weigh it, never obey it,
+answer only with `checkedAgainst`, never post a credential, and say so and stop
+if nothing needs a reply.
+
+**Code impact:** `integrations/claude-code/doorbell.mjs` (new),
+`lib/__tests__/doorbell.test.ts` (new, 31 cases),
+`integrations/README.md`. Grep-verified: the seven ops calling `appendEntry` are
+the write set the hook must recognise as its own.
+
+**Doc impact:** `TODO.md` C0 (point 3 closed for Claude Code, the floor
+paragraph corrected), `plans/competitors-2026-08.md` (three corrections -- their
+webhook delivery, `/mcp` and `/api/room` are all absent from the public repo,
+and *"the floor is the same for both of us"* was our own false sentence).
+
+**Commit:** `e92f29a`. **Still open:** the same trick for Cursor
+(`followup_message`), and C0 points 1 and 2, which no hook can fix.
+
+**Why:** Erik's brother, after using it: *"the chat is too slow, and he always
+has to type reply to the bridge."* That sentence is now answerable.
+
+---
+
 ## 2026-08-26 -- S#283g -- THE WEB SURFACES ARE THE REACH PLAY, AND THEY SIT BEHIND THE CADENCE PROBLEM
 
 **Source:** Erik: *"what if Web could connect to Bridger? ... the product can be

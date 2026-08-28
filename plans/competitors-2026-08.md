@@ -16,7 +16,7 @@
 
 | claim | status |
 |---|---|
-| `agent-room-alkl/agent-room` exists, features as described | **VERIFIED** — repo, README, npm, live site all checked |
+| `agent-room-alkl/agent-room` exists, features as described | **PARTLY WRONG, corrected S#284 by cloning it.** The repo, npm and live site are real. But "features as described" was read off their README, not their code: the **webhook wake-up delivery half, the HTTP `/mcp` endpoint and the `/api/room` REST surface are all absent from the public repo**, while the live service serves all three. Turn discipline and the Stop hook ARE fully published. See the reading list below. |
 | npm usage figures | **VERIFIED** via npmjs API |
 | `steviebuilds/agent-room`, `cch123/open-agent-room`, `agree-able/room-mcp`, `kdowswell/agent-room` | **VERIFIED to exist**, descriptions match; contents NOT read |
 | ACP merged into A2A, Aug 2025, "do not implement" | **NOT verified** — his word, and he has been accurate |
@@ -36,7 +36,8 @@
 | theirs | ours |
 |---|---|
 | **Turn discipline** — `open` / `sequential` / `moderator` reply modes | nothing. This IS Erik's "balance between different models" |
-| **Webhook wake-up** — HMAC-signed POST wakes registered resident agents instead of polling | C0, unbuilt. Our `listen --exec` is the same idea from the local side |
+| **Webhook wake-up** — HMAC-signed POST wakes registered resident agents instead of polling | still nothing, and **deliberately**: it only wakes agents that are already daemons with a gateway, and their delivery code is not in the public repo anyway (S#284). Our `listen --exec` is the same idea from the local side |
+| **Stop-hook wake-up** — keeps a Claude Code / Cursor turn from ENDING when a message lands | **MATCHED S#284** — `integrations/claude-code/`, `e92f29a`. This is the one that actually removes the nudge, and it is the half of their `apps/mcp/src/hook.ts` that is fully published. Cursor's `followup_message` half is still theirs alone |
 | **Evidence-gated task board** — claimed, submitted with evidence, **verified by a DIFFERENT agent** before it counts as done | nothing |
 | **Project memory** — durable project id, injects prior context across rooms | A10, parked |
 | **Report export** — a room becomes minutes / an ADR / a PR description | `pull`, roughly |
@@ -96,11 +97,33 @@ the competition.
    protocol spec. Read it against ours before touching C0.
 2. **Their turn-discipline implementation** (`open` / `sequential` / `moderator`).
    This is the top of our list, solved, in readable MIT code.
-3. **Their webhook wake-up path** — `packages/upstash-client`, the HMAC-signed
-   POST and the registered-resident model. Note what it does NOT solve: it wakes
-   agents that are already daemons with a gateway. It cannot make Claude Code or
-   Cursor start a turn any more than we can. **The floor is the same for both of
-   us; they simply ship the part that is reachable.**
+3. ~~**Their webhook wake-up path**~~ — **NOT READABLE, and the "same floor"
+   claim was wrong. Both corrected S#284 by cloning the repo.**
+
+   **(a) The delivery half is not published.** `packages/upstash-client/src/webhooks.ts`
+   registers, unregisters and lists — that is all. There is no HMAC, no POST, no
+   `AGENT_ROOM_WEBHOOK_ALLOW_HTTP`, no drop-after-20-failures, none of the headers
+   their `OPENCLAW.md` documents in operational detail. Searched the whole tree
+   with `grep -ril` on `webhook`, `hmac` and `createHmac`.
+
+   **(b) Nor is the server edge.** There is no HTTP `/mcp` route and no
+   `/api/room` (which their own `room.sh` posts to); `vercel.json` sends
+   everything outside `/api/` to the SPA, and `api/` holds five functions —
+   upload, install, report-og, report-page, delete-room-blobs. Live
+   `www.agent-room.com/mcp` answers `tools/list` regardless. So their README's
+   *"the hosted instance at agent-room.com is this repo deployed on Vercel +
+   Upstash, nothing more"* is **not true of the repo as published.** The state
+   logic is open; the edge is withheld. Worth knowing next to our own posture —
+   `/api/about` publishes the running commit and `VERIFY.md` hands over the
+   command that proves it.
+
+   **(c) "The floor is the same for both of us" is FALSE, and it was our own
+   sentence.** Their webhook cannot wake Claude Code. But their **`Stop` hook**
+   can, and it is fully published (`apps/mcp/src/hook.ts`) — it does not start a
+   turn, it stops one from ending. We shipped ours at S#284
+   (`integrations/claude-code/`, `e92f29a`). What is still unbuilt on our side
+   is the Cursor half of that same file: `{followup_message}` on Cursor's stop
+   hook, enqueued as the next user message.
 4. **`packages/shared` tool-call recovery** — repairing tool calls a model emits
    as plain text. Small, real, and the kind of thing only field use teaches.
 5. `steviebuilds/agent-room` for the local-first take.
