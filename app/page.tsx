@@ -1199,7 +1199,9 @@ function Create({ onMinted, onCancel }: { onMinted: (m: Minted) => void; onCance
         ? "Name your side."
         : !them
           ? "Name their side."
-          : null;
+          : you.trim().toLowerCase() === them.trim().toLowerCase()
+            ? "Give the two sides different names — the record uses the label to say who wrote."
+            : null;
   /**
    * A8. Where you stand, BEFORE you try.
    *
@@ -1490,6 +1492,37 @@ interface InviteLink {
   linkExpiresInMinutes: number;
   tokenExpiresInDays: number;
   replacedPreviousLink: boolean;
+  expiresAt: string;
+}
+
+function formatInviteRemaining(ms: number): string {
+  if (ms <= 0) return "expired";
+  const total = Math.floor(ms / 1000);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  if (h > 0) return `${h}h ${String(m).padStart(2, "0")}m ${String(s).padStart(2, "0")}s`;
+  return `${m}m ${String(s).padStart(2, "0")}s`;
+}
+
+function InviteCountdown({ expiresAt }: { expiresAt: string }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [expiresAt]);
+  const end = Date.parse(expiresAt);
+  const remaining = Number.isFinite(end) ? end - now : 0;
+  const expired = remaining <= 0;
+  return (
+    <time
+      className={`bx-invite-countdown${expired ? " expired" : ""}`}
+      dateTime={expiresAt}
+      title={expiresAt}
+    >
+      {expired ? "expired — mint a new one" : `${formatInviteRemaining(remaining)} left`}
+    </time>
+  );
 }
 
 function TokenBox({
@@ -1514,7 +1547,7 @@ function TokenBox({
    * also the exact artefact a partner's AI is right to refuse: Trigvanta's
    * Claude declined precisely that in S#275 and its reasoning was correct.
    *
-   * A `/j/<code>` link is not a credential. It dies in minutes, it mints exactly
+   * A `/j/<code>` link is not a credential. It dies in hours, it mints exactly
    * one token, and it hands the far side the whole protocol as a document. The
    * mechanism has existed since S#276 and was reachable only from the CLI, which
    * is to say: not reachable by anyone who arrived at this page.
@@ -1538,7 +1571,7 @@ function TokenBox({
    *
    * It carries in memory, NOT in sessionStorage. The link mints a credential, so
    * persisting it would put a token-bearing URL on disk next to the viewer token
-   * for no gain -- a reload half an hour later would find it expired anyway.
+   * for no gain -- a reload after the fuse burns would find it expired anyway.
    */
   /**
    * THE LINK EXISTS BEFORE YOU ASK FOR IT (S#283, Erik).
@@ -1570,7 +1603,9 @@ function TokenBox({
   }, [isSolo]);
 
   async function makeInviteAndEnter() {
-    const link = await makeInvite();
+    // A live URL is already the door. Reminting here was how two links looked
+    // current at once: the button said "Open the room" and still superseded.
+    const link = invite ?? (await makeInvite());
     if (link) onWatch(minted.viewerToken, link);
   }
 
@@ -1586,21 +1621,30 @@ function TokenBox({
           Authorization: `Bearer ${minted.slots[0].token}`,
           "Content-Type": "application/json",
         },
-        // FOUR HOURS, not the server's 30-minute default (S#283). That default
-        // has now killed three invites unredeemed -- it is tuned for "paste it
-        // and they click now", while the real flow is "message a human, wait
-        // for a human". The TOKEN it mints still lasts days: two clocks, two
-        // jobs, and only the link's fuse is protecting a credential sitting in
-        // somebody's chat log.
-        body: JSON.stringify({ op: "invite", ttlMinutes: 240 }),
+        // Server default is hours (I1). Do not override it here: the two clocks
+        // are the link fuse and the token lifetime, and only the fuse is ours
+        // to lengthen. Token TTL stays the operation default.
+        body: JSON.stringify({ op: "invite" }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
         setInviteError(body.error ?? `The server said ${res.status}.`);
         return null;
       }
-      setInvite(body as InviteLink);
-      return body as InviteLink;
+      const minutes = Number(body.linkExpiresInMinutes) || 0;
+      const link: InviteLink = {
+        joinUrl: String(body.joinUrl ?? ""),
+        forLabel: String(body.forLabel ?? ""),
+        linkExpiresInMinutes: minutes,
+        tokenExpiresInDays: Number(body.tokenExpiresInDays) || 0,
+        replacedPreviousLink: Boolean(body.replacedPreviousLink),
+        expiresAt:
+          typeof body.expiresAt === "string" && body.expiresAt
+            ? body.expiresAt
+            : new Date(Date.now() + minutes * 60_000).toISOString(),
+      };
+      setInvite(link);
+      return link;
     } catch {
       setInviteError("Could not reach the bridge server.");
       return null;
@@ -1610,13 +1654,22 @@ function TokenBox({
   }
 
   const inviteMessage = invite
-    ? `Join our integration bridge for "${minted.room.topic}":
+    ? `Paste this URL into your agent / Claude Desktop:
 
 ${invite.joinUrl}
 
-Give that URL to your AI. It returns a working token and the whole protocol in
-one document — nothing to install, no account, nothing to configure. The link is
-live for ${invite.linkExpiresInMinutes} minutes.`
+This URL is ONE seat. A second model that fetches it joins as the same side, not the other company.
+
+Claude Desktop:
+Settings → Connectors → Add custom connector
+URL: ${minted.endpoint}
+Then in chat: fetch the join URL and follow the protocol.
+
+Live for ${
+      invite.linkExpiresInMinutes >= 120
+        ? `${Math.round(invite.linkExpiresInMinutes / 60)} hours`
+        : `${invite.linkExpiresInMinutes} minutes`
+    }.`
     : "";
 
   const antigravity = useMemo(
@@ -1739,10 +1792,13 @@ It names the commit it is running and answers without a token.`;
         <div className="bx-handoff">
           <div className="bx-handoff-head">
             <div>
-              <h2>1 · Send this link to them</h2>
+              <h2>
+                {invite
+                  ? `1 · Current link for ${invite.forLabel}`
+                  : "1 · Send this link to them"}
+              </h2>
               <p className="fine">
-                {/* One line. The reasoning lives in VERIFY.md, not above a link. */}
-                Their AI opens it and joins. Nothing to install.
+                Paste this URL into your agent / Claude Desktop.
               </p>
             </div>
             <button
@@ -1759,6 +1815,11 @@ It names the commit it is running and answers without a token.`;
 
           {invite ? (
             <div className="bx-invite">
+              {invite.replacedPreviousLink ? (
+                <p className="bx-invite-replaced" role="status">
+                  The previous link for this seat no longer works. This is the current one.
+                </p>
+              ) : null}
               <code className="bx-invite-url">{invite.joinUrl}</code>
               <div className="bx-invite-actions">
                 <CopyButton value={invite.joinUrl} strong>
@@ -1767,15 +1828,16 @@ It names the commit it is running and answers without a token.`;
                 <CopyButton value={inviteMessage}>copy message</CopyButton>
               </div>
               <p className="fine">
-                {/* Nobody divides by 60 to find out whether they have time to send a link. */}
-                For <strong>{invite.forLabel}</strong>. Live for{" "}
-                {invite.linkExpiresInMinutes >= 120
-                  ? `${Math.round(invite.linkExpiresInMinutes / 60)} hours`
-                  : `${invite.linkExpiresInMinutes} minutes`}
-                ; the token it mints lasts {invite.tokenExpiresInDays} days.
-                {invite.replacedPreviousLink
-                  ? " The previous link for this seat has stopped working."
-                  : null}
+                One current URL for <strong>{invite.forLabel}</strong>.{" "}
+                <InviteCountdown expiresAt={invite.expiresAt} />
+                . The token it mints lasts {invite.tokenExpiresInDays} days.
+                A second model on this same URL is the same seat, not the other side.
+              </p>
+              <p className="bx-invite-desktop">
+                <strong>Claude Desktop.</strong> Settings → Connectors → Add custom
+                connector. URL: <code>{minted.endpoint}</code>
+                <br />
+                Then in chat: fetch the join URL and follow the protocol.
               </p>
             </div>
           ) : null}
@@ -2680,8 +2742,8 @@ function RoomView({
         THE INVITE, WHERE IT BELONGS.
         A link is a property of a room that is waiting for its second party, not
         of the one screen that happened to create it. Shown only while `invite`
-        is in memory, which is only just after creating a room -- the point at
-        which the other side definitionally has not joined.
+        is in memory AND the peer has not joined. After they redeem, waiting is
+        a lie; a trust room is two seats.
 
         There is no GENERATE button here, and that is a real limit rather than an
         oversight: this view authenticates with the read-only VIEWER token, and
@@ -2689,14 +2751,27 @@ function RoomView({
         refuses. Re-issuing later is a participant action -- the CLI, or an rpc
         call with the side token.
       */}
-      {invite && (
+      {invite && data?.room.peer.joinedAt == null && (
         <div className="bx-room-invite">
           <div>
-            <strong>Waiting for {invite.forLabel}.</strong> Send them this — it is live for{" "}
-            {invite.linkExpiresInMinutes} minutes.
+            <strong>Waiting for {invite.forLabel}.</strong> Paste this URL into
+            your agent / Claude Desktop. This URL is one seat — a second model
+            that fetches it is the same side, not the other company.{" "}
+            <InviteCountdown expiresAt={invite.expiresAt} />
+            {invite.replacedPreviousLink
+              ? " Previous link for this seat no longer works."
+              : null}
           </div>
           <code>{invite.joinUrl}</code>
           <CopyButton value={invite.joinUrl}>copy link</CopyButton>
+        </div>
+      )}
+      {invite && data?.room.peer.joinedAt != null && data.room.kind !== "solo" && (
+        <div className="bx-room-invite">
+          <div>
+            <strong>Both seats are here.</strong> A trust room is two parties.
+            Another model needs a new room, or a solo room if they are yours.
+          </div>
         </div>
       )}
 

@@ -60,7 +60,7 @@ import {
 } from "./room-registry";
 import {
   INVITE_REREAD_SECONDS,
-  INVITE_TTL_SECONDS,
+  INVITE_TTL_MINUTES,
   PASTE_TOKEN_TTL_SECONDS,
   mintInviteReplacing,
 } from "./invites";
@@ -429,6 +429,29 @@ function fieldGuidance(trail: string): { guidance?: string } {
   return advice ? { guidance: advice } : {};
 }
 
+/**
+ * Idle-status copy. `unread` is only the other side, which is correct for the
+ * brake and false as English: a status with latestSeq past your cursor after
+ * you wrote is not "nothing new". Dogfood 2026-08-27: the operator asked
+ * whether anyone had written; status said stop; read found the note.
+ */
+export function idleStatusGuidance(status: {
+  unread: number;
+  latestSeq: number;
+  cursor: number;
+}): string {
+  if (status.unread === 0 && status.latestSeq > status.cursor) {
+    return (
+      "The other side has not written since your last check. The ledger has " +
+      "entries past your cursor — including your own — which is not news from them. " +
+      "Do not poll. Stop and report; you will see their reply when you next resume."
+    );
+  }
+  return (
+    "Nothing new since your last check. Do not poll — stop and report; you will see it when you next resume work."
+  );
+}
+
 export async function opStatus(ctx: OpContext) {
   const status = await getStatus(ctx.store, ctx.room, ctx.token);
   const trail = await noteOp(ctx.store, ctx.token.id, "s");
@@ -453,8 +476,7 @@ export async function opStatus(ctx: OpContext) {
     ...(idle > 0
       ? {
           quietChecksInARow: idle,
-          guidance:
-            "Nothing new since your last check. Do not poll — stop and report; you will see it when you next resume work.",
+          guidance: idleStatusGuidance(status),
         }
       : // The brake's guidance is louder and more urgent, so it wins the slot.
         // Field advice only fills a gap; it never argues with a live warning.
@@ -1354,7 +1376,7 @@ export async function opInvite(
   // and you already hold that seat's credential, so it grants nothing new.
   const side = args.side ?? otherSide(ctx.token.side);
 
-  const ttlMinutes = clampInt(args.ttlMinutes, 5, 24 * 60, INVITE_TTL_SECONDS / 60);
+  const ttlMinutes = clampInt(args.ttlMinutes, 5, 24 * 60, INVITE_TTL_MINUTES);
   const tokenDays = clampInt(args.tokenDays, 1, 90, PASTE_TOKEN_TTL_SECONDS / 86400);
 
   const { code, expiresAt, replaced } = await mintInviteReplacing(

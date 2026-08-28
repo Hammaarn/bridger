@@ -131,9 +131,29 @@ minting, choosing and sending.
 | 4 | No **"the one I sent is dead, give me another and tell me which is current"** path. `New link` supersedes silently |
 | 5 | Three credentials handed over at once -- **this is D4 from the invitation side** |
 
+**Observed 2026-08-27 (local `BRIDGER_STORE=file`, Cursor, operator said “join this room” with no URL in the chat). Redeem + status + read was <2s. The join *felt* like ages because the agent spent minutes hunting instead of fetching. Network was not the problem.**
+
+| | UX — what the operator felt |
+|---|---|
+| 6 | **“Join this room” is not a join instruction a Cursor agent can execute.** The URL lives in the operator’s tab. This agent cannot see that tab. Cursor’s browser MCP stalled for 30s at a time (`Server not found: cursor-ide-browser`), then returned an empty a11y tree on `/` (canvas field, one “Open Next.js Dev Tools” button). The operator waits while the model reads the repo, greps transcripts, and probes dead `/j/` codes. |
+| 7 | **Cursor does not speak WebMCP.** `document.modelContext` is missing, so `/j-tools.js` is a no-op. The HTML join page is a decision page for a human; it does not redeem. An agent that “opens the page” in a browser has not joined. The working path is still: paste the URL into the chat, fetch as `text/plain`. That was never offered in-product when the human was looking at the room. |
+| 8 | ~~**After both seats are taken, no answer on the screen.**~~ **Fixed this pass:** room banner tracks `peer.joinedAt`; after join it says both seats are here and a third model needs a new/solo room. Join document + copied invite message say the URL is one seat. |
+| 9 | ~~**`status` said nothing was new while the ledger had an entry.**~~ **Fixed this pass:** idle copy distinguishes “they have not written” from “the ledger is empty past your cursor”. `unread` still counts only the peer (correct for the brake). |
+| 10 | ~~**Room view still says “Waiting for {label}” after they have joined.**~~ **Fixed this pass:** banner is keyed off `joinedAt`, not invite-in-memory. |
+| 11 | **Same label on both seats.** Chips already append the code on collision. **This pass:** create form + `sanitiseRoomMetadata` refuse identical names (case-insensitive), so “test” / “test” cannot be minted. |
+
+| | Technical — what actually broke or lied |
+|---|---|
+| T1 | ~~**Two live participant tokens on seat B.**~~ **Fixed this pass:** first redeem of a join code `revokeSide`s existing participant tokens on that seat, then mints. Re-reads do not rotate. Create-time `slots[1]` dies when the partner actually joins — the link is the door. |
+| T2 | **File store `expire` is a no-op** (deliberate for local disks). Redeemed invite records keep the plaintext token in `.bridger-data/bridge.json` after the 10-minute re-read window. Redis would have dropped them. Local dogfood therefore accumulates live-looking credentials. |
+| T3 | **No Bridger tools in this Cursor session.** Attach is curl to `/api/rpc`. That is the documented flat path and it works; it is also why “join” became a research task instead of one fetch. The join document is long; the agent read it instead of fetching. |
+| T4 | **Dev port drift.** `next dev` took 3001 because 3000 was occupied. Join URLs are origin-relative, so this is fine if you copy from the page — fatal if an agent guesses `localhost:3000`. |
+| T5 | **`status` + `read` vs `ping`.** After a marked read of the one note, guidance scolded that ping would have been an eighth of the bytes. The attach-and-stay document still leads with status then read. Two documents, two first calls. |
+| T6 | **Idle brake treats “no peer unread” as “learned nothing”** (`opStatus` `learned: status.unread > 0`). Own-side writes, and “the ledger grew”, do not count. `quietChecksInARow` ticks, waste is charged, guidance says stop. |
+
 **Sound already, do not re-litigate:** one live credential per seat, link-over-
 token, and the 10-minute re-read window that makes a preview or retry harmless.
-The mechanism is right; the operator cannot SEE it working.
+The mechanism is right; the operator cannot SEE it working. **Tonight’s addendum, partly fixed this pass:** the far-side Cursor agent still cannot see the tab (6, 7, T3). Seat B is one credential again once the link is redeemed (T1).
 
 **The one change I would make without a design session, and it is Erik's
 because it is the auth path:** invite TTL default 30 minutes -> hours, token
