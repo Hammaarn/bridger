@@ -20,7 +20,8 @@
 | npm usage figures | **VERIFIED** via npmjs API |
 | `steviebuilds/agent-room`, `cch123/open-agent-room`, `agree-able/room-mcp`, `kdowswell/agent-room` | **VERIFIED to exist**, descriptions match; contents NOT read |
 | ACP merged into A2A, Aug 2025, "do not implement" | **NOT verified** — his word, and he has been accurate |
-| "AgentRoom" arXiv paper, 24 Aug 2026, CRDT + `room_claim` | **one arXiv query returned nothing.** That is a search that found nothing, NOT evidence the paper does not exist. Re-check with a better query before relying on it either way |
+| "AgentRoom" arXiv paper, 24 Aug 2026, CRDT + `room_claim` | **VERIFIED S#284 — it exists, and the earlier "found nothing" was the query's fault, exactly as suspected.** `arXiv:2608.23740`, *"AgentRoom: Concurrent Multi-Agent Coding in a CRDT-Backed Shared Workspace"*, Cho & Lee, published 2026-08-24, cs.AI/cs.SE. **Not a competitor, and worth reading anyway** — it is one team's coding agents editing a CRDT-merged shared FILESYSTEM, with file-level claim/status/broadcast exposed as MCP tools. No second party, no trust boundary, no provenance; a research prototype, not a product. Its own conclusion is the useful part and it points at C0: *"Coordination, not parallelism or CRDT-merge, bears the load."* |
+| ACP merged into A2A, Aug 2025, "do not implement" | **VERIFIED S#284.** IBM's ACP (which powered BeeAI) merged into A2A under the Linux Foundation; BeeAI now runs on A2A. Google donated A2A to the LF. His word was good, again. |
 
 ---
 
@@ -83,6 +84,14 @@ last push         2026-08-01 (26 days before this was written)
 | `agree-able/room-mcp` | 23 | 2026-01-04 | rooms for MCP clients to coordinate; **8 months stale** |
 | `cch123/open-agent-room` | 23 | 2026-04-30 | (no description) |
 | `kdowswell/agent-room` | 1 | 2026-04-26 | mission-control dashboard for parallel coding agents, runs locally |
+
+**[S#284] One row in the circulated version of this list is a double count.**
+`agent-room-mcp` was listed as a separate project ("local file-backed room log +
+task board"). It is not one: it is **Agent Room's own npm package** — the npm
+description reads *"MCP server for Agent Room — multi-agent meeting rooms"*, and
+the repo's README publishes `apps/mcp` under exactly that name. The local
+file-backed description belongs to `steviebuilds/agent-room`, which is already
+its own row. So the category is four projects, not five.
 
 **The honest shape: five projects, the largest has 49 stars, three are stale.**
 That is a category of small experiments, not a market with an incumbent. His
