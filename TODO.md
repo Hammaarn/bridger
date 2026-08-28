@@ -183,7 +183,7 @@ almost nothing: the link mints exactly once and supersedes on re-mint.
 | # | What | Why |
 |---|---|---|
 | 9 | **F1 in a real room, and D3's live test** | The plan stage has never been touched by a far side, and its DEFAULT partner state is plan mode. |
-| 10 | **Repo permalinks, from the far side** | Shipped and server-proven; no partner has ever declared a repo. |
+| 10 | **Repo permalinks, from the far side** | Shipped and server-proven. **No partner has ever declared a repo, and S#284 found out why: the control did not exist for a human.** It does now (V3) -- so this row is finally a partner question rather than a product gap. |
 | 11 | **B1's adversarial half**, B2, B4 | Still owed. Room `0c7a12ba09d2` is open and side B's token is still unused. |
 
 ---
@@ -300,7 +300,8 @@ before anyone writes code.
 | 21 | **F4 housekeeping** | Room `d437fff5b423` still needs a fresh invite code. |
 | **V1** | **[!!] `documented` — the fourth state `checkedAgainst` is missing** | See below. A citation proves a claim is *described*, never that it *works* at our scope. |
 | **V2** | **Merkle + gossiped heads, against `cannotVerify` #1** | See below. Our two-ness makes split-view detection nearly free. |
-| **V3** | **Repo declaration is invisible — that is why nobody has ever done it** | See below. It is an MCP argument on `identify` and nothing in the UI mentions it. |
+| ~~**V3**~~ | ~~Repo declaration is invisible~~ | **DONE S#284.** The control is in the room, participant-only. |
+| **V4** | **[!!] Trigvanta has cited NOTHING — 7 of 7 sources are ours** | Surfaced by the evidence index the hour it shipped. `perSide` has no `a` row at all. Partner problem or onboarding problem is your read; it is a number now, not a feeling. |
 
 ---
 
@@ -382,7 +383,7 @@ resolver; it closes a hole that `bridger verify` already mitigates.**
 
 ---
 
-## V3. REPO DECLARATION IS INVISIBLE, AND THAT IS THE WHOLE REASON NOBODY DOES IT
+## V3. ~~REPO DECLARATION IS INVISIBLE~~ -- BUILT S#284
 
 Row 10 has said for three sessions that repo permalinks are *"shipped and
 server-proven; no partner has ever declared a repo."* Found S#284, and it is not
@@ -403,6 +404,42 @@ write becomes a link the other side can open.*
 Cheap, and it is the precondition for everything else in this lane: a declared
 repo at a pinned sha is what turns *"this file does not have line 613"* from a
 heuristic into a closed-world fact (`plans/citation-verification-2026-08.md`).
+
+**BUILT S#284.** `RepoDeclaration` in the room view, participant-only because
+`opIdentify` calls `requireWrite` -- a watch pass has no identity to declare.
+The copy states what nothing verifies: not that you own the repo, and **not
+that it is public**. A private repo hands your partner links they cannot open,
+which is theatre this product must not ship, and no server-side check can tell
+the difference without fetching. **Still unseen by human eyes** -- like the wake
+toggle, it typechecks and builds and nobody has looked at it.
+
+### THE CLASSIFIER DEFECT THIS LANE UNCOVERED, and it took three passes
+
+Shipping the evidence index exposed a live provenance bug within the hour, and
+each fix exposed the next. Worth keeping as a shape, not just a changelog:
+
+1. **`URL_RE` was searched anywhere at any size**, so prose that merely
+   *mentioned* a domain became a "web source" -- four of seven live citations.
+   The harm was not the label: `isUnlocated` fires only on `unlocated`, so those
+   long vague citations **escaped the weak flag** while an honest three-word
+   *"the codebase"* got flagged. The vaguest citations in the room rendered as
+   *stronger* than the modest ones.
+2. **Requiring dominance then let domains fall through to `FILE_RE`**, which
+   reads `.com` as an extension -- so `kernbot.com` entered the integration
+   surface as a file in a partner's repository. The identical false fact the
+   url rule existed to prevent, reintroduced by fixing the url rule.
+3. **Excluding web TLDs could not win either**, because there are over a
+   thousand and `headless.design` was not on the list. The rule is structural
+   now: a separator-less token needs a recognised SOURCE extension to be a file.
+
+**The lesson, and it is the reusable one:** every one of those three was found
+by reading the LIVE record after deploying, never by a test. The suite caught
+two of my over-corrections -- anchoring, and judging by the first match -- but
+it could not have found the original defect, because the defect was in what the
+suite considered correct. `plans/citation-verification-2026-08.md` Finding 2
+argued deterministic matching beats LLM judging; this is the same argument one
+layer down: **a deterministic rule is only as good as the strings you have
+actually run it over.**
 
 ---
 
