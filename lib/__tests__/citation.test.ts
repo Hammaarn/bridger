@@ -262,6 +262,32 @@ describe("[!!] a citation that MENTIONS a domain is prose, not a web source (S#2
     assert.equal(classifyCitation("see tribunaldelasaguas.org for the ordinances").kind, "url");
   });
 
+  it("[!!] a domain that no longer dominates must not become a FILE either", () => {
+    // The regression this fix ITSELF shipped, caught by reading the live index
+    // an hour later: `kernbot.com` appeared in the integration surface as a
+    // file in somebody's repository. A bare domain has exactly the shape of a
+    // path with an extension, so once the url rule stopped claiming it, FILE_RE
+    // did -- reproducing the identical false fact the url rule exists to stop.
+    // FILE_RE now excludes web TLDs, so the guarantee no longer depends on
+    // which rule happens to run first.
+    const c = classifyCitation(
+      "Local runs against kernbot.com and the dev server with mock=1, durations read from the log afterwards",
+    );
+    assert.equal(c.kind, "unlocated");
+    assert.equal(c.path, undefined, "a domain must never enter the file surface");
+  });
+
+  it("NEGATIVE CONTROL: real source files are untouched by that exclusion", () => {
+    for (const [s, expected] of [
+      ["lib/store.ts", "file"],
+      ["package.json", "file"],
+      ["app/globals.css", "file"],
+      ["Read before writing: lib/characters/elitist.ts (identity line)", "file"],
+    ] as const) {
+      assert.equal(classifyCitation(s).kind, expected, `${s} must stay ${expected}`);
+    }
+  });
+
   it("NEGATIVE CONTROL: coverage is measured across ALL urls, not the first", () => {
     // The five-domain regression string scores 8% on its first match and ~43%
     // on the total. Judged on the first alone it falls back to "whole file" --
