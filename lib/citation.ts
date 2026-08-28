@@ -76,9 +76,17 @@ export const KIND_ORDER: CitationKind[] = [
   "none",
 ];
 
-/** Reads as a shell command, HTTP call, or endpoint someone actually ran. */
+/**
+ * Reads as a shell command, HTTP call, or endpoint someone actually ran.
+ *
+ * `gh`, `rg`, `grep`, `cargo` and `pytest` added S#284: a real citation in the
+ * live room read `gh repo view --json visibility ... on Hammaarn/judgemysite`,
+ * which is unmistakably a command that was run, and it fell through to be
+ * graded a "web source" because the sentence later contained a URL. A tool this
+ * codebase uses constantly was simply missing from the list.
+ */
 const COMMAND_RE =
-  /^\s*(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\s+\/|^\s*(npm|npx|pnpm|yarn|git|curl|docker|psql|node|python|tsc|make|bash|sh)\b|^\s*\$\s+/i;
+  /^\s*(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\s+\/|^\s*(npm|npx|pnpm|yarn|git|gh|curl|docker|psql|node|python|pytest|cargo|rg|grep|tsc|make|bash|sh)\b|^\s*\$\s+/i;
 
 /** A bare hex sha, 7-40 chars. Guarded so `deadbeef.ts` is not a commit. */
 const COMMIT_RE = /^\s*[0-9a-f]{7,40}\s*$/i;
@@ -114,12 +122,58 @@ const FILE_RE = /(^|\s)([\w./\\@-]*[\w@-]\.[A-Za-z0-9]{1,12})(\s|$|,|;)/;
  * `.ts` is deliberately absent even though Tonga exists.
  *
  * The trailing `(?![\w-])` stops `example.company` from matching `example.com`.
+ *
+ * ── [!!] AND THE MATCH MUST DOMINATE. (S#284, found live in the real room.) ─
+ *
+ * This pattern used to be searched ANYWHERE in the string and accepted at any
+ * size, so a citation that merely *mentioned* a domain became a "web source".
+ * Four of the seven citations in the live Northwind room were misclassified
+ * this way — prose describing commands and production runs, graded as web
+ * sources because a sentence happened to contain `headless.design`.
+ *
+ * **The mislabel was not the harm.** `isUnlocated()` fires only on
+ * `unlocated`, so those long vague citations ESCAPED the `weak` flag — while
+ * an honest three-word `"the codebase"` got flagged. The vaguest citations in
+ * the room were rendering as *stronger* than the modest ones: a gesture
+ * presented as a pointer, which is the exact failure this module exists to
+ * prevent (S#271), living inside the classifier itself.
+ *
+ * **Anchoring alone was too blunt, and the existing suite caught it.** The
+ * test for `"see tribunaldelasaguas.org for the ordinances"` is right that a
+ * short phrase around a domain is still a web source — you can go and look.
+ * So the test is POSITION OR DOMINANCE: the URL either starts the citation, or
+ * makes up a meaningful share of it. A domain wrapped in four words is a
+ * source; a domain buried in a two-hundred-character paragraph is prose, and
+ * prose is `unlocated`, which is honest and correctly weak.
+ *
+ * **And the share is measured across ALL the URLs, not the first one — which
+ * the suite also caught.** The original regression string (entry `ABF-A-002`)
+ * lists FIVE domains across 230 characters of prose about web research. Judged
+ * on its first match alone it scores 8% and falls back to "whole file", which
+ * is precisely the false fact this rule was written to stop. Judged on total
+ * coverage it scores ~43% and is correctly a web source. The honest question is
+ * *"how much of this citation is web addresses"*, not *"is the first one big"*.
+ *
+ * The threshold is a knob and is named rather than hidden. It separates the
+ * real cases by a wide margin — the live misclassifications sat near 8%, the
+ * legitimate ones at 43% and 53% — so its exact value is not load-bearing.
  */
 const WEB_TLDS = "com|org|net|edu|gov|mil|int|info|io|dev|app|ai|xyz|eu|uk|nl|se|de|fr";
 const URL_RE = new RegExp(
   `(?:https?://|www\\.)[^\\s,;]+|(?:[a-z0-9-]+\\.)+(?:${WEB_TLDS})(?![\\w-])`,
   "i",
 );
+
+/** Share of the citation web addresses must occupy when one does not start it. */
+const URL_DOMINANCE = 0.3;
+
+/** Total characters of the citation taken up by web addresses. */
+function urlCoverage(text: string): number {
+  const all = new RegExp(URL_RE.source, "gi");
+  let covered = 0;
+  for (const m of text.matchAll(all)) covered += m[0].length;
+  return covered;
+}
 
 /**
  * Classify a `checkedAgainst` string.
@@ -164,8 +218,13 @@ export function classifyCitation(raw: string | null | undefined): Citation {
   // AFTER the locator, BEFORE the file. After, so `lib/store.ts:41` stays the
   // more specific `line` rather than being read as a host. Before, so a bare
   // domain is not claimed by `FILE_RE` and mislabelled "whole file".
+  // Position OR dominance — see URL_RE. A citation that merely mentions a
+  // domain in passing is prose, and must fall through to `unlocated` so that
+  // `weak` fires on it.
   const url = URL_RE.exec(text);
-  if (url) return { kind: "url", raw, path: url[0] };
+  if (url && (url.index === 0 || urlCoverage(text) / text.length >= URL_DOMINANCE)) {
+    return { kind: "url", raw, path: url[0] };
+  }
 
   const file = FILE_RE.exec(text);
   if (file) return { kind: "file", raw, path: file[2] };
