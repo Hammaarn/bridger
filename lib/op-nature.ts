@@ -118,6 +118,12 @@ export const OP_NATURE: Record<string, OpNature> = {
     idempotent: true,
     summary: "Destroys the room and its record. The only operation here that removes rather than appends.",
   },
+  webhook: {
+    writes: true,
+    idempotent: true,
+    summary:
+      "Register a public https endpoint to be POSTed when the OTHER side writes. Wakes a process that is already listening; it cannot make a language model start a turn.",
+  },
 };
 
 /** MCP annotation object for one op, built from the single source above. */
