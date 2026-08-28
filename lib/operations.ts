@@ -65,10 +65,19 @@ import {
   mintInviteReplacing,
 } from "./invites";
 import {
+  WebhookRejected,
+  listWebhooks,
+  redactWebhook,
+  registerWebhook,
+  unregisterWebhook,
+  type RoomWebhook,
+} from "./webhooks";
+import {
   BLOCKED_CALL_DISCOUNT,
   BLOCKED_CALL_MS,
   MAX_EMPTY_WAIT_STREAK,
   MAX_IDLE_STREAK,
+  MAX_WEBHOOK_FAILURES,
   WASTE_BUDGET_BYTES,
   SEQ_KEY,
   type Store,
@@ -1404,6 +1413,80 @@ export async function opInvite(
       (replaced
         ? " The previous unredeemed link for this seat was replaced and no longer works."
         : ""),
+  };
+}
+
+/**
+ * Register, remove or inspect this seat's wake-up hook.
+ *
+ * Scoped to YOUR OWN seat in every direction: you register a URL for yourself,
+ * you may only remove your own, and you are told whether the peer has one
+ * without being told where it points — their endpoint is their infrastructure,
+ * and the useful fact is only that they will be woken. That fact changes how
+ * you write: a partner who gets woken can be asked a question, where a partner
+ * who does not should be handed the question AND the answer you would give it.
+ *
+ * A viewer cannot register one. A read-only credential that could make the
+ * server POST somewhere would be a write dressed as a watch.
+ */
+export async function opWebhook(
+  ctx: OpContext,
+  args: { action?: "register" | "remove" | "status"; url?: string; secret?: string },
+) {
+  const action = args.action ?? "status";
+  const mine = (h: RoomWebhook) => h.side === ctx.token.side;
+
+  if (action === "register") {
+    if (ctx.token.role === "viewer") {
+      throw new OperationRefused(
+        "A read-only pass cannot register a webhook — that would make the server act on a watcher's behalf.",
+        true,
+      );
+    }
+    let result;
+    try {
+      result = await registerWebhook(ctx.store, ctx.room.id, {
+        side: ctx.token.side,
+        url: String(args.url ?? ""),
+        secret: args.secret,
+      }, ctx.now);
+    } catch (e) {
+      if (e instanceof WebhookRejected) throw new OperationRefused(e.message, true);
+      throw e;
+    }
+    return {
+      registered: redactWebhook(result.hook),
+      // Shown exactly once, like a minted token.
+      secret: result.secret,
+      replacedPrevious: result.replaced,
+      signature: "Every delivery carries X-Bridger-Signature: sha256=<hex HMAC of the raw body>, computed with this secret. Reject anything that does not verify.",
+      payload: "Metadata only — event, room, seq, type, side, at. Never a title or a body: read the room yourself with your own credential.",
+      guidance:
+        "Store the secret now; it is not shown again. Your endpoint must be public https, and we do not follow redirects. " +
+        `After ${MAX_WEBHOOK_FAILURES} consecutive failed deliveries the hook is dropped and you re-register. ` +
+        "This wakes a process that is already listening. It cannot make a language model start a turn -- nothing can.",
+    };
+  }
+
+  if (action === "remove") {
+    const removed = await unregisterWebhook(ctx.store, ctx.room.id, { side: ctx.token.side });
+    return {
+      removed,
+      guidance: removed
+        ? "Removed. Nothing will be POSTed to it again."
+        : "You had no webhook registered, so nothing changed.",
+    };
+  }
+
+  const hooks = await listWebhooks(ctx.store, ctx.room.id);
+  const own = hooks.find(mine);
+  return {
+    yours: own ? redactWebhook(own) : null,
+    // Deliberately a boolean. Their URL is theirs.
+    peerHasWebhook: hooks.some((h) => !mine(h)),
+    guidance: own
+      ? "Your endpoint is registered and will be POSTed on the other side's writes -- never on your own."
+      : "You have no webhook. Register one only if your agent is a process that is already listening at a public https URL; a Claude Code or Cursor session is not, and wants integrations/claude-code/ instead.",
   };
 }
 

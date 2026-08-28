@@ -5,6 +5,72 @@ Append-only, newest first. **DECISIONS wins on direction** — where this file a
 
 ---
 
+## 2026-08-28 -- S#284b -- BRIDGER MAKES OUTBOUND REQUESTS NOW, AND THE PAYLOAD CARRIES NO CONTENT
+
+**Source:** Erik: *"can we make Bridger wake you and make that an option for
+users inside the chat-rooms? Like a toggle button."* I recommended a presence
+toggle instead and argued the webhook helps nobody either side currently has;
+he chose the webhook. Recorded because the reasoning against it is still the
+thing to re-read if this ever looks like a mistake.
+
+**Reverses:** the property that this server makes NO outbound requests. Until
+now `grep -rn "fetch(" lib/ app/` returned only browser-side calls.
+
+**Scope:** a new `webhook` op on both transports, a toggle in the room, and one
+rewritten claim on `/api/about`.
+
+### What it does and does not do
+
+It POSTs to an endpoint a seat registers, when the OTHER side writes. **It
+cannot make a language model start a turn** — that is unchanged and unchangeable,
+and both the tool description and the UI copy lead with it, because the word
+"wake" invites exactly the wrong assumption. It wakes a process that is already
+listening. Claude Code and Cursor are not such processes; the copy sends those
+readers to `integrations/claude-code/` instead.
+
+### The three things that are non-negotiable in this feature
+
+1. **Metadata only.** `event, room, seq, type, side, at`. Never a title, never a
+   body. The far side consented to US reading their text, not to it being POSTed
+   to a URL they have never seen — so a leaked hook discloses THAT something
+   happened, never what. Same doorbell principle as the stop hook.
+2. **The SSRF guard, checked at delivery and not only at registration.** A name
+   that was public an hour ago can point at `169.254.169.254` now. Redirects are
+   never followed, because a 302 defeats every check above it.
+3. **Your own write never wakes you** — otherwise a room feeds on its own tail.
+
+### What it costs, measured rather than asserted
+
+One Redis command per room per minute per instance, not per write: the hook list
+is cached (`WEBHOOK_CACHE_MS`), because a per-write `get` would hand back a chunk
+of the S#283 write-path work (post: 10 commands -> 6). Pinned in
+`webhooks.test.ts` — 1 cold, 0 for five more writes in the window. The price is a
+registration taking up to a minute to start firing from other instances.
+
+### The honest costs, all published rather than discovered
+
+The webhook secret is stored in PLAINTEXT (an HMAC needs the key; a hash cannot
+make one) — the second credential here that is not a `sha256`, and `/api/about`
+now says so. DNS rebinding between our resolve and our connect is not closed,
+because `fetch` exposes no pinned-address connection; `SECURITY.md` item 7
+invites that attack specifically.
+
+**The limit I could not build around, and it is worth knowing:** the room view
+usually authenticates with a read-only WATCH pass, and a viewer must not be able
+to make the server POST anywhere. So the toggle is a control for a participant
+token and STATE for a viewer. The peer's row is always a boolean, never their
+URL — their endpoint is their infrastructure.
+
+**Code impact:** `lib/webhooks.ts`, `lib/after.ts` (new); dispatch at the single
+`appendEntry` seam; `opWebhook`; `webhook` on `/api/rpc` and MCP;
+`WakeToggle` in `app/page.tsx`; `/api/about` `permissions.outboundRequests` +
+two new `cannotVerify` entries. **Doc impact:** `SECURITY.md` item 7.
+
+**Tests:** 26, over half of them the URL guard, each block carrying a negative
+control so "refuses everything" cannot pass as working security. 485 total.
+
+---
+
 ## 2026-08-28 -- S#284 -- THE NOTICE COST IS GONE ON CLAUDE CODE, AND A WOKEN TURN MAY ANSWER
 
 **Source:** Erik, after reading `agent-room-alkl/agent-room` (MIT) with me.

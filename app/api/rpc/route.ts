@@ -38,6 +38,7 @@ import { auditRequest, gate, operationRefusalStatus, refusalResponse } from "@/l
 import {
   OperationRefused,
   opInvite,
+  opWebhook,
   WAIT_MAX_SECONDS,
   opAnswer,
   opAsk,
@@ -119,6 +120,19 @@ const OPS = {
       tokenDays: z.number().int().min(1).max(90).optional(),
     }),
     run: opInvite,
+  },
+  /**
+   * Register a URL for this seat to be POSTed when the OTHER side writes. The
+   * only operation that makes this service call outward; see `lib/webhooks.ts`
+   * for the guard that surrounds it.
+   */
+  webhook: {
+    schema: z.object({
+      action: z.enum(["register", "remove", "status"]).optional(),
+      url: z.string().max(2000).optional(),
+      secret: z.string().min(8).max(200).optional(),
+    }),
+    run: opWebhook,
   },
   read: {
     schema: z.object({

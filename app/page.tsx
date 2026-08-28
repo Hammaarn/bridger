@@ -2064,6 +2064,184 @@ It names the commit it is running and answers without a token.`;
   );
 }
 
+/**
+ * WAKE — the one control that makes this service call outward.
+ *
+ * THE HONEST LIMIT IS THE FIRST THING IT SAYS, because the word "wake" invites
+ * exactly the wrong assumption. This POSTs to an endpoint that is ALREADY
+ * LISTENING. It cannot make a language model start a turn; nothing can, and a
+ * server that could would be able to burn its caller's quota at will. A Claude
+ * Code or Cursor session is not a listening process, and the copy sends those
+ * readers to the client-side stop hook rather than letting them register an
+ * endpoint they do not have.
+ *
+ * TWO CREDENTIALS SEE THIS DIFFERENTLY, and that is not a bug to paper over.
+ * This view is usually opened with a read-only watch pass, and a viewer must
+ * not be able to make the server POST anywhere — `opWebhook` refuses it. So a
+ * viewer sees STATE and no controls; a participant token gets the toggle. The
+ * peer's row is always a boolean, never their URL: their endpoint is their
+ * infrastructure, and the only fact that changes how you write is whether they
+ * will be woken at all.
+ */
+function WakeToggle({ token, canWrite }: { token: string; canWrite: boolean }) {
+  const [state, setState] = useState<{
+    yours: { url: string; failCount: number; lastStatus: string | null } | null;
+    peerHasWebhook: boolean;
+  } | null>(null);
+  const [open, setOpen] = useState(false);
+  const [url, setUrl] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [secret, setSecret] = useState<string | null>(null);
+  const [unavailable, setUnavailable] = useState(false);
+
+  const call = useCallback(
+    async (body: Record<string, unknown>) => {
+      const res = await fetch("/api/rpc", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ op: "webhook", ...body }),
+      });
+      // The flat transport is flag-gated. If it is off, this control simply is
+      // not available rather than reporting a fault the reader cannot act on.
+      if (res.status === 404) {
+        setUnavailable(true);
+        return null;
+      }
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.error ?? "That did not work.");
+      return json;
+    },
+    [token],
+  );
+
+  const refresh = useCallback(async () => {
+    try {
+      const j = await call({ action: "status" });
+      if (j) setState({ yours: j.yours ?? null, peerHasWebhook: Boolean(j.peerHasWebhook) });
+    } catch {
+      /* a wake control that cannot read its own state stays quiet */
+    }
+  }, [call]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  if (unavailable || !state) return null;
+
+  const on = Boolean(state.yours);
+
+  async function register() {
+    setBusy(true);
+    setErr(null);
+    try {
+      const j = await call({ action: "register", url: url.trim() });
+      if (j) {
+        setSecret(j.secret ?? null);
+        setOpen(false);
+        setUrl("");
+        await refresh();
+      }
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove() {
+    setBusy(true);
+    setErr(null);
+    try {
+      await call({ action: "remove" });
+      setSecret(null);
+      await refresh();
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="bx-wake">
+      <div className="bx-wake-row">
+        <span className={`bx-wake-led ${on ? "on" : ""}`} aria-hidden />
+        <strong>Wake my agent</strong>
+        <span className="bx-wake-state">
+          {on ? "registered" : "off"}
+          {state.yours && state.yours.failCount > 0
+            ? ` · ${state.yours.failCount} failed ${state.yours.failCount === 1 ? "delivery" : "deliveries"}`
+            : ""}
+        </span>
+        {canWrite && (
+          <button
+            type="button"
+            className="bx-wake-btn"
+            disabled={busy}
+            onClick={() => (on ? void remove() : setOpen((v) => !v))}
+          >
+            {on ? "turn off" : open ? "cancel" : "turn on"}
+          </button>
+        )}
+      </div>
+
+      <p className="bx-wake-note">
+        {on
+          ? "We POST to your endpoint when the other side writes — never on your own writes, and metadata only: never a title or a body."
+          : "Bridger POSTs to an endpoint you register when the other side writes. It wakes a process that is already listening; it cannot make a model start a turn. If you are Claude Code or Cursor, install the stop hook in integrations/claude-code/ instead."}
+        {" "}
+        <span className="bx-wake-peer">
+          {state.peerHasWebhook
+            ? "Their side is registered, so they will be woken."
+            : "Their side is not registered — write as though nobody is watching for it."}
+        </span>
+      </p>
+
+      {!canWrite && (
+        <p className="bx-wake-note bx-wake-ro">
+          You are watching with a read-only pass, so this is state rather than a
+          control. Registering makes the server act on your behalf, which a watch
+          pass deliberately cannot do.
+        </p>
+      )}
+
+      {open && canWrite && (
+        <div className="bx-wake-form">
+          <input
+            type="url"
+            value={url}
+            placeholder="https://your-gateway.example/hooks/bridger"
+            onChange={(e) => setUrl(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && url.trim()) void register(); }}
+          />
+          <button type="button" className="bx-wake-btn" disabled={busy || !url.trim()} onClick={() => void register()}>
+            register
+          </button>
+          <span className="bx-wake-note">
+            Public https only. Loopback, private ranges and the cloud metadata
+            address are refused, and redirects are never followed.
+          </span>
+        </div>
+      )}
+
+      {/* Shown once, like a minted token, and never fetched back. */}
+      {secret && (
+        <div className="bx-wake-secret">
+          <strong>Signing secret — shown once.</strong> Every delivery carries{" "}
+          <code>X-Bridger-Signature: sha256=&lt;hex HMAC of the raw body&gt;</code>.
+          Reject anything that does not verify.
+          <code className="bx-wake-key">{secret}</code>
+          <CopyButton value={secret}>copy secret</CopyButton>
+        </div>
+      )}
+
+      {err && <div className="error">{err}</div>}
+    </div>
+  );
+}
+
 // ── view: room (three panels) ────────────────────────────────────
 
 function RoomView({
@@ -2774,6 +2952,8 @@ function RoomView({
           </div>
         </div>
       )}
+
+      {data && <WakeToggle token={token} canWrite={canWrite} />}
 
       {error && <div className="error" style={{ margin: "12px 22px" }}>{error}</div>}
 

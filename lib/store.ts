@@ -225,6 +225,44 @@ export const COUNTER_KEY = (roomId: string, code: string, letter: string) =>
   `${NS}:room:${roomId}:n:${code}:${letter}`;
 
 /**
+ * Outbound wake-up hooks for a room. One JSON array; see `lib/webhooks.ts`.
+ *
+ * Registration is rare and low-stakes, so the read-modify-write on this single
+ * key is accepted rather than pulling in a compare-and-set loop. It expires
+ * with the room like everything else.
+ */
+export const WEBHOOKS_KEY = (roomId: string) => `${NS}:room:${roomId}:webhooks`;
+
+/** At most this many wake-up hooks per room, across both seats. */
+export const MAX_WEBHOOKS_PER_ROOM = 4;
+
+/**
+ * Consecutive failed deliveries before a hook is dropped.
+ *
+ * A dead endpoint must not be retried forever: every attempt is an outbound
+ * request this service pays for in latency and in the small risk any outbound
+ * request carries. Twenty is generous enough to survive a deploy window.
+ */
+export const MAX_WEBHOOK_FAILURES = 20;
+
+/** How long one delivery attempt may take before it is abandoned. */
+export const WEBHOOK_TIMEOUT_MS = 4000;
+
+/**
+ * How long an instance may reuse its cached view of a room's hooks.
+ *
+ * The list is read on EVERY append, and a per-write `get` would undo a chunk of
+ * the write-path work at S#283 (post: 10 commands -> 6). Cached, the cost is one
+ * command per room per minute per instance instead of one per write.
+ *
+ * The price, stated rather than glossed: a hook registered against one instance
+ * can take up to this long to start firing from another. Registration busts the
+ * local cache immediately, so it is only ever the OTHER instances that lag, and
+ * a wake-up that arrives a minute late is a delay rather than a fault.
+ */
+export const WEBHOOK_CACHE_MS = 60_000;
+
+/**
  * Server-side buffer ceiling. Local `bridger/` folders hold the permanent
  * record, so trimming the oldest entries here loses nothing that was pulled.
  */

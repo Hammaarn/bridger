@@ -58,6 +58,8 @@ import {
 } from "./room-registry";
 import { scanForSecrets, secretRefusal } from "./secrets";
 import { openQuestionIds, wasReopened } from "./question-state";
+import { afterResponse } from "./after";
+import { dispatchWake } from "./webhooks";
 
 // ── shapes ───────────────────────────────────────────────────────
 
@@ -333,6 +335,20 @@ export async function appendEntry(
   await store.rpush(ENTRIES_KEY(room.id), JSON.stringify(chained));
   await store.ltrim(ENTRIES_KEY(room.id), -MAX_ENTRIES, -1);
   await touchRoom(store, room.id);
+
+  /**
+   * Wake the other side's registered process, if it has one.
+   *
+   * Here for the same reason the credential scan and the idle-brake reset are
+   * here: every write funnels through this function, and a dispatch copied into
+   * seven handlers is a dispatch that drifts. Scheduled rather than awaited —
+   * one seat's webhook must never add latency to the other seat's write. A room
+   * with no hooks costs one cached read (see `WEBHOOK_CACHE_MS`) and returns.
+   */
+  afterResponse(() =>
+    dispatchWake(store, room.id, { seq, type: input.type, side: token.side, ts: chained.ts }, now),
+  );
+
   return chained;
 }
 

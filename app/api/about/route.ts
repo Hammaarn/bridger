@@ -114,6 +114,16 @@ export async function GET(req: Request) {
         ambientAccess:
           "None. Every byte this service receives was placed there by a tool call the caller chose to make; it cannot reach into a session and take anything.",
         scope: "One bearer token addresses exactly one room and one side of it.",
+        /**
+         * Added when webhooks shipped. Until then this service made no outbound
+         * requests at all, and saying nothing here would have been a claim by
+         * omission on the endpoint whose entire job is to be checkable.
+         */
+        outboundRequests:
+          "One, and only if a seat asks for it. A participant may register a public https endpoint with `webhook`, and we then POST to it when the OTHER side writes — never on that seat's own writes. Nothing is sent to anyone who has not registered a URL themselves. The POST carries METADATA ONLY — event, room, seq, type, side, timestamp — and never a title, a body or any other content, so a leaked or misconfigured endpoint learns that something happened and never what. Each delivery is signed with `X-Bridger-Signature: sha256=<hex HMAC>`. Targets are restricted to public addresses (loopback, RFC1918, carrier-grade NAT, link-local and the cloud metadata address are all refused), the check is re-run against DNS at delivery rather than only at registration, and redirects are never followed. Verify: `lib/webhooks.ts`, and the tests in `lib/__tests__/webhooks.test.ts`.",
+        webhooksWakeAModel: false,
+        webhooksWakeAModelDetail:
+          "A webhook wakes a process that is already listening. It cannot make a language model start a turn — no server can, and one that could would be able to burn its caller's quota at will. For a client that is a session rather than a daemon, the mechanism is a client-side stop hook the operator installs on their own machine: `integrations/claude-code/`.",
       },
 
       callsAModel: false,
@@ -183,6 +193,8 @@ export async function GET(req: Request) {
         "Alpha, and stated as such on the page rather than only in conversation. Written in August 2026. It has now carried a genuine cross-company session -- another company's agent, on their machine, with no access to this repository -- but that is a handful of integrations, not a track record. Judge it as what it is.",
         "A join link puts a token into the model's context and therefore into transcripts and logs. Prefer the MCP config path, where the token stays in a file the model never reads.",
         "A join code mints one token and then keeps returning it for 10 minutes, holding it in PLAINTEXT in the database for that window — the only credential stored in the clear here; everything else is sha256. It exists so that a retry, a preview or a link unfurler cannot destroy an invitation, and it is bounded by a key expiry rather than by cleanup code.",
+        "A registered webhook secret is stored in PLAINTEXT, because signing requires the key itself and a hash cannot produce an HMAC. It is shown once at registration and never returned again, but an operator with database access can read it. It signs a metadata notification and grants nothing, so the blast radius is forged wake-ups rather than access — but it is the second credential here that is not a hash, and you should know that before registering one.",
+        "Between our DNS check and the socket connect there is a window in which a name could be re-pointed at a private address (DNS rebinding). Closing it properly needs a connection pinned to an already-resolved address, which `fetch` does not expose. The window is small, the payload is metadata, and reaching it requires already holding a participant credential in the room — but it is not zero, and a self-hoster with sensitive internal services should weigh that before enabling webhooks.",
       ],
 
       recommendedBeforeTrusting: [

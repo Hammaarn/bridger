@@ -57,6 +57,7 @@ import { CITATION_MAX, createStore, type Store } from "@/lib/store";
 import {
   OperationRefused,
   opInvite,
+  opWebhook,
   WAIT_MAX_SECONDS,
   WAIT_DEFAULT_SECONDS,
   opAnswer,
@@ -480,6 +481,44 @@ const handler = createMcpHandler(
         }),
       },
       async (args, ctx) => run(() => opInvite(ctxFrom(ctx), args)),
+    );
+
+    /**
+     * THE ONLY TOOL THAT MAKES THIS SERVICE CALL OUTWARD.
+     *
+     * The description leads with what it CANNOT do, because the name invites
+     * exactly the wrong assumption. A webhook wakes a process that is already
+     * listening. It cannot make a language model start a turn -- no server can,
+     * and a server that could would be able to burn its caller's quota at will.
+     * An agent reading this in Claude Code or Cursor should be steered to the
+     * client-side stop hook instead of registering an endpoint it does not have.
+     */
+    server.registerTool(
+      "bridger_webhook",
+      {
+        annotations: annotationsFor("webhook"),
+        title: "Wake a listening process when the other side writes",
+        description:
+          "Register a public https endpoint that Bridger POSTs whenever the OTHER side writes — never on your own writes. IT CANNOT MAKE A MODEL START A TURN: it wakes a process that is already running and listening (a gateway bot, a CI runner, a daemon). If you are Claude Code or Cursor you are NOT such a process — use the client-side stop hook in integrations/claude-code/ instead, which keeps your turn from ending. The delivery carries METADATA ONLY (event, room, seq, type, side, at) and never a title or body, so read the room yourself with your own credential. Each POST is signed: X-Bridger-Signature: sha256=<hex HMAC of the raw body>. Call with no arguments to see whether you and your peer have one registered.",
+        inputSchema: z.object({
+          action: z
+            .enum(["register", "remove", "status"])
+            .optional()
+            .describe("Default `status`. `register` replaces your seat's existing hook; `remove` deletes only your own."),
+          url: z
+            .string()
+            .max(2000)
+            .optional()
+            .describe("Public https endpoint. Loopback, private ranges and the cloud metadata address are refused, and redirects are not followed."),
+          secret: z
+            .string()
+            .min(8)
+            .max(200)
+            .optional()
+            .describe("Signing secret. One is generated and shown ONCE if you do not supply it."),
+        }),
+      },
+      async (args, ctx) => run(() => opWebhook(ctxFrom(ctx), args)),
     );
 
     server.registerTool(

@@ -38,6 +38,17 @@ Ranked by how much we would learn, not by how likely we think they are.
 6. **Budget exhaustion.** The limits protect the *caller*, because their tokens
    burn in their own session. **Can you make an agent loop that our idle brake
    and terminal refusals do not stop?**
+7. **[!!] Wake-up webhooks — the newest surface and the one we most want broken.**
+   This is the only place the server makes an outbound request, and the target
+   URL comes from a caller. `lib/webhooks.ts` refuses non-https, credentials in
+   the URL, loopback, RFC1918, carrier-grade NAT, link-local, the cloud metadata
+   address and v4-mapped IPv6 forms of all of those; it re-resolves the hostname
+   at DELIVERY rather than only at registration; and it never follows redirects.
+   **What gets past that?** Specifically: a DNS name you control that resolves
+   differently between our check and our connect; an encoding of a private
+   address our parser reads as public; a redirect chain we honour by accident.
+   The payload is metadata only, so the prize is a request from our egress
+   address rather than data — tell us if you can make it more than that.
 
 ## What is already known and written down
 
@@ -55,6 +66,14 @@ us nothing new:
   the only credential stored in the clear; everything else is `sha256`.
   `VERIFY.md` §7 states the trade in full.
 - The "data, not instructions" banner is advisory, not a boundary.
+- A registered webhook secret is stored in PLAINTEXT, because producing an HMAC
+  requires the key and a hash cannot. It is shown once at registration and never
+  returned. It signs a metadata notification and grants no access, so the blast
+  radius of losing one is forged wake-ups, not entry to a room — but it is the
+  second credential here that is not a `sha256`, and `/api/about` says so.
+- DNS rebinding between our resolve and our connect is not closed, because
+  `fetch` does not expose a pinned-address connection. Stated in
+  `/api/about`'s `cannotVerify`, and item 7 above invites exactly that attack.
 
 ## What we will not do
 
