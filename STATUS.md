@@ -12,6 +12,47 @@ not.
 
 ---
 
+## S#285 — THE CATEGORY READ AS CODE, AND TWO REAL GAPS CLOSED
+
+Autonomous session, Erik asleep and having approved the sequence.
+
+**The correction worth carrying:** `competitors-2026-08.md` called Agent Room's
+turn discipline "an answer key" for C0. That was read off their README. The code
+says it is an **N-agent contention arbiter** — lead/supplement, round-robin,
+hard deadline caps — and we have two sides that strictly alternate. It solves a
+problem we do not have. Same shape as the S#284 lesson: the defect was in what
+we considered correct, and only reading the actual thing found it.
+
+Full adoption list: `plans/category-audit-s285.md` — five repos cloned and read,
+plus **Slock** (`@botiverse/raft-daemon`, closed source, **no licence field —
+all rights reserved**, patterns only). Slock is **not a competitor**: its
+engineering is live agent-workspace migration between machines, and rooms are a
+surface on top.
+
+**Shipped.** `lib/secrets.ts` closes two real gaps found by auditing Slock —
+a credential in a URL **query string** (we caught `user:pass@host` and missed
+`?token=…`, which is the hazard our own `/api/about` already warns about for
+join links) and **case-insensitive** credential assignments (`api_key = "…"`
+passed before). The 20-character value floor is what keeps this safe to widen
+and is now documented as load-bearing.
+
+**`--wait` on `ask`/`answer`/`decide`/`post`** — write and block for their reply
+in one command, adopted from `steviebuilds/agent-room` (MIT). The point is not
+convenience: the turn never ENDS between the write and the wait, which is C0
+point 2. Safe by construction — `waitForNew` filters to `otherSide(token.side)`,
+so our own write cannot satisfy our own wait.
+
+**522 tests, tsc 0, build 0.** +10 cases, 4 of them negative controls.
+
+**NOT VERIFIED, and it is a real gap:** `--wait` has never been exercised
+end-to-end against a live room. The token is expired, and the local file-store
+route failed for an unrelated reason worth knowing — **`FileStore` is
+read-modify-write over one JSON file, so a dev server and a CLI writing
+concurrently clobber each other.** The server's audit append destroyed the room
+the CLI had just created. Not a defect in this change; a limit of the local
+store under two processes. `cmdWait` itself is a pure extraction and its
+behaviour is unchanged by construction.
+
 ## S#284 — THE NOTICE COST IS GONE, AND THE PRODUCT GREW AN OUTBOUND CALL
 
 Twelve commits, `60d21b6` → `1a33ea4`.

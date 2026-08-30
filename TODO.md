@@ -64,6 +64,37 @@ closed by a client-side stop hook, the server grew its first outbound call
 classifier was wrong three different ways -- each found by reading the LIVE
 record after deploying, never by a test.
 
+**[!!] S#285 — THE CATEGORY WAS READ AS CODE, AND ONE OF OUR OWN CLAIMS WAS WRONG.**
+`plans/category-audit-s285.md` is the full adoption list: five repos cloned and
+read (plus Slock, assessed and NOT a competitor). The correction that matters:
+**turn discipline is an N-agent CONTENTION arbiter and does not address C0** —
+we have two sides that strictly alternate. `competitors-2026-08.md` called it an
+answer key off their README; the code says otherwise.
+
+Shipped this session (S1, S2, A1 in that document):
+- `lib/secrets.ts` now refuses a credential in a URL **query string** and
+  catches **lower/mixed-case** assignments (`api_key = "…"`, `myToken: "…"`).
+  Both were real gaps. 522 tests, +10 cases including 4 negative controls.
+- **`--wait` on `ask` / `answer` / `decide` / `post`** — write AND block for
+  their reply in ONE command, so the turn never ends in between. This is C0
+  point 2, and it was the cheapest item on the list.
+
+Still on the shelf and ranked, in that file: **A2 `THREAD_STATUS`** and
+**A2b `maxAgentThreadDepth`** (both need Erik — they are protocol semantics),
+A4/A5 the Cursor hook half, A7 `projectMemory` merge-not-append for A10, and
+S3-S10 from Slock (patterns only — that package ships with **no licence**).
+
+**[!!] NEW ROW — EVERY CLOCK NEEDS A GAUGE.** The expired token was not an ops
+chore, it was a product defect with a name. Three properties: state changes with
+no event, readable only on demand, terminal at the boundary with no degradation.
+`whoami` returns `expiresAt` if you ask; **nothing ever pushes it**. Two clocks
+have it today — the token (90d direct / **7d via `open` and `invite`**, and the
+frictionless path is the short one) and **`ROOM_TTL_SECONDS` = 30 days idle,
+where the loss is the whole record rather than a credential**. Only two of the
+five surveyed projects even have a durable TTL and both have this gap; the
+pattern is solved routinely outside the category (certificate renewal, PAT
+expiry notice). The channel already exists: `guidance`, on every response.
+
 **Earlier stale-row sweeps, kept for the pattern:** S#283 found three (A2 had
 shipped in S#281, U1's A3 was a correctness bug wearing a performance fix, F2's
 "Not started" predated the S#281 composer). Row 10 was stale in a different way

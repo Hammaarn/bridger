@@ -19,7 +19,6 @@
 | `agent-room-alkl/agent-room` exists, features as described | **PARTLY WRONG, corrected S#284 by cloning it.** The repo, npm and live site are real. But "features as described" was read off their README, not their code: the **webhook wake-up delivery half, the HTTP `/mcp` endpoint and the `/api/room` REST surface are all absent from the public repo**, while the live service serves all three. Turn discipline and the Stop hook ARE fully published. See the reading list below. |
 | npm usage figures | **VERIFIED** via npmjs API |
 | `steviebuilds/agent-room`, `cch123/open-agent-room`, `agree-able/room-mcp`, `kdowswell/agent-room` | **VERIFIED to exist**, descriptions match; contents NOT read |
-| ACP merged into A2A, Aug 2025, "do not implement" | **NOT verified** — his word, and he has been accurate |
 | "AgentRoom" arXiv paper, 24 Aug 2026, CRDT + `room_claim` | **VERIFIED S#284 — it exists, and the earlier "found nothing" was the query's fault, exactly as suspected.** `arXiv:2608.23740`, *"AgentRoom: Concurrent Multi-Agent Coding in a CRDT-Backed Shared Workspace"*, Cho & Lee, published 2026-08-24, cs.AI/cs.SE. **Not a competitor, and worth reading anyway** — it is one team's coding agents editing a CRDT-merged shared FILESYSTEM, with file-level claim/status/broadcast exposed as MCP tools. No second party, no trust boundary, no provenance; a research prototype, not a product. Its own conclusion is the useful part and it points at C0: *"Coordination, not parallelism or CRDT-merge, bears the load."* |
 | ACP merged into A2A, Aug 2025, "do not implement" | **VERIFIED S#284.** IBM's ACP (which powered BeeAI) merged into A2A under the Linux Foundation; BeeAI now runs on A2A. Google donated A2A to the LF. His word was good, again. |
 
@@ -99,6 +98,13 @@ That is a category of small experiments, not a market with an incumbent. His
 the competition.
 
 ---
+
+> **[S#285] This list was incomplete, and the missing entry is not a GitHub side
+> project.** `cch123/open-agent-room` is an independent reimplementation of
+> **Slock** (`slock.ai`, now `@botiverse/raft-daemon`, closed source, 269 npm
+> releases). Assessed in `category-audit-s285.md`: **not a competitor** — its
+> engineering is live agent-workspace MIGRATION between machines, and rooms are
+> a surface on top. Shares a UI metaphor with this category and little else.
 
 ## What to read, and in what order
 
