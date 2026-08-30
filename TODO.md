@@ -1,6 +1,6 @@
 # TODO — Bridger
 
-## START HERE — rewritten at the close of S#282 (2026-08-25)
+## START HERE — rewritten at the close of S#284 (2026-08-30)
 
 **Three commands before you believe anything in this file:**
 
@@ -17,11 +17,18 @@ git -C . log --oneline -5                          # what shipped last
 **The canonical host is `bridger.nexus` as of S#283.** `bridger-nu.vercel.app`
 still serves the same deployment and is not going away.
 
-**[!!] THE TOP ITEM IS C0 -- THE CADENCE PROBLEM.** Erik gaveled it at the S#283
-close: nothing else moves until two AIs can carry a project through its phases
-without a human typing "reply to the bridge" at every step. The web-surface
-reach idea and A10 both sit behind it. It is NOT a latency problem -- the
-transport is milliseconds; the conversation is human-clocked.
+**[!!] C0 IS STILL THE TOP ITEM, BUT IT LOST A THIRD OF ITSELF IN S#284.**
+Erik gaveled it at the S#283 close: nothing else moves until two AIs can carry a
+project through its phases without a human typing "reply to the bridge" at every
+step. It is NOT a latency problem -- the transport is milliseconds; the
+conversation is human-clocked.
+
+**Point 3, the notice cost, is CLOSED for Claude Code** (`integrations/claude-code/`,
+`e92f29a`) -- and the reasoning that called it structural was half wrong. Nothing
+can make a model START a turn; a client can decline to END one. **Points 1 and 2
+are untouched and are now the whole item:** how much work a turn CARRIES, and how
+many turns a conversation NEEDS. No hook can fix either. The web-surface reach
+idea and A10 still sit behind them.
 
 **[!!] Before any argument about position or moat:
 `plans/landscape-2026-08.md`** (protocols: MCP / WebMCP / A2A) **and
@@ -33,17 +40,34 @@ rules, and the two hours S#283 spent analysing the wrong standard because nobody
 ran a search. **A2A is the one that matters** -- Linux Foundation, 150+ orgs, in
 production, browser-free -- and Bridger's posture against it is LAYER, not rival.
 
-**413 tests, tsc 0, tree clean.**
+**512 tests, tsc 0, build 0, tree clean.**
 
-**S#283 was an AUTONOMOUS pass over the solo list.** The write path got 38%
-cheaper, purge stopped leaving a document behind, and two "never seen" items
-were seen. What it did NOT do is anything a partner or Erik has to decide --
-that list is at the top of this file and it got shorter by two.
+**[!!] THE FIRST THING TO DO NEXT SESSION IS NOT IN THIS FILE.** The token in
+`~/.claude.json` is **expired** -- `code: "expired"`, `terminal: true`, on BOTH
+transports, so the MCP tools deregister and `/api/rpc` 401s. Nothing about the
+room is lost; the record is not the credential. Fix it before anything else:
 
-**Three rows in this file were stale and are now marked:** A2 had already
-shipped in S#281, U1's A3 was a correctness bug wearing a performance fix, and
-F2's "Not started" predates the S#281 composer. Nothing had been secretly
-implemented beyond those -- every other open row was re-read against the code.
+```bash
+npm run bridger -- rotate --room e4db579a5fad --side b
+# then paste into ~/.claude.json -> projects[...].mcpServers.bridger.headers.Authorization
+```
+
+**Two things shipped in S#284 have NEVER BEEN SEEN BY A HUMAN.** The wake toggle
+and the repo control both typecheck, build and pass their gates -- and nobody has
+looked at either. `shipping-quality#34` says that is not done. There is also a
+`Stop` hook registered in `~/.claude/settings.json` that has **never fired in a
+real session**, because hook registrations are cached until a restart.
+
+**S#284 in one line:** PR #1 merged (first outside contribution), C0 point 3
+closed by a client-side stop hook, the server grew its first outbound call
+(`webhook`), the evidence index moved where agents can read it, and the citation
+classifier was wrong three different ways -- each found by reading the LIVE
+record after deploying, never by a test.
+
+**Earlier stale-row sweeps, kept for the pattern:** S#283 found three (A2 had
+shipped in S#281, U1's A3 was a correctness bug wearing a performance fix, F2's
+"Not started" predated the S#281 composer). Row 10 was stale in a different way
+and S#284 found out why -- see V3.
 
 ---
 

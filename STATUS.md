@@ -1,6 +1,6 @@
 # STATUS — Bridger
 
-**True as of 2026-08-25, close of S#283.** `DECISIONS.md` wins on direction;
+**True as of 2026-08-30, close of S#284.** `DECISIONS.md` wins on direction;
 `ARCHITECTURE.md` wins on how it works; `TODO.md` is what is left; this file is
 what is *true right now*.
 
@@ -9,6 +9,126 @@ what is *true right now*.
 actually answered. The S#280 copy of this line named a commit that was already
 stale within a day — which is exactly why the command is here and the number is
 not.
+
+---
+
+## S#284 — THE NOTICE COST IS GONE, AND THE PRODUCT GREW AN OUTBOUND CALL
+
+Twelve commits, `60d21b6` → `1a33ea4`.
+
+**PR #1 merged — the first outside contribution.** Erik's brother (`Baltsar`)
+opened it from a fork; the only failing check was Vercel's fork-deploy
+authorisation, never the code. It fixes a real seat-integrity bug: the mint
+screen and the redeem path each issued a live credential, so two agents on one
+`/j/` URL both wrote as side B. Verified before merge — re-reads cannot reach
+the new `revokeSide`, revoke-then-issue fails safe, the identical-label
+rejection is create-only so the live two-"claude" room is unaffected, and there
+are **zero new dependencies**. He is now a repo collaborator (invite pending his
+accept); a Vercel seat remains Erik's dashboard action and a billed Pro seat.
+
+### [!!] C0 POINT 3 IS CLOSED, AND THE FLOOR WAS NOT WHERE WE SAID
+
+`TODO.md` recorded the cadence problem as structural: *"nothing can make a
+language model start a turn."* True of a SERVER, and generalised one step too
+far. **A client can decline to go to sleep.** A Claude Code `Stop` hook keeps
+the CURRENT turn from ending — operator's machine, operator's quota — so the
+quota-safety argument the floor rested on is untouched.
+
+`integrations/claude-code/doorbell.mjs`. It calls `GET /api/since` (2 Redis
+commands, no daily cap, no room cap, no idle brake) and, on news, emits
+`{"decision":"block"}` telling the session to read the bridge with the tools it
+already holds. **A doorbell, not a mail carrier** — it never carries far-side
+text, so partner words always arrive through the tool that wraps them in
+containment markers.
+
+Two defects found by RUNNING it rather than reading it: a fresh install
+announced the room's entire history as news (it now bootstraps from the head),
+and our own reply rang our own doorbell, because `/api/since` reports the ROOM
+seq and is not side-aware. The transcript settles the second — if this turn
+called one of the seven ops that append, the bump is ours.
+
+**Not yet verified: it has never fired in a real session.** Hook registrations
+are cached at session start, so it needs a restart.
+
+### THE SERVER MAKES OUTBOUND REQUESTS NOW — the `webhook` op
+
+Erik's call, over my recommendation, and the argument against is preserved in
+`DECISIONS.md` S#284b: a webhook wakes a process that is ALREADY LISTENING, and
+neither side of our live room is one. It cannot make a model start a turn.
+
+Three properties it does not get to trade away. **Metadata only** — never a
+title or a body, because the far side consented to us READING their text, not
+to it being POSTed to a URL they have never seen. **The SSRF guard re-runs at
+delivery**, not only at registration, and redirects are never followed. And
+**your own write never wakes you**.
+
+`/api/about` stopped claiming this service makes no outbound calls, and gained
+two `cannotVerify` entries it would have been dishonest to omit: the signing
+secret is stored in plaintext because an HMAC needs the key, and DNS rebinding
+between our resolve and our connect is not closed. `SECURITY.md` item 7 invites
+that attack by name.
+
+### THE EVIDENCE INDEX MOVED TO WHERE BOTH PARTIES CAN SEE IT
+
+It lived in `app/page.tsx`, so the human WATCHING a room could see what its
+agreement rests on and the agents WRITING that agreement could not. Now
+`lib/evidence.ts`, one implementation, with two things the flat list never had:
+**which side** rested on what, and **the integration surface** — the same
+evidence grouped by FILE, which is the unit a plan gets written in. New
+`evidence` op on both transports, cheaper than reading every entry and
+aggregating them yourself.
+
+**[!!] It immediately surfaced that Trigvanta has cited NOTHING.** `perSide` has
+no `a` row at all: 7 of 7 sources and every file in the surface are ours. Raised
+as `TODO.md` V4.
+
+### THE CLASSIFIER DEFECT IT UNCOVERED — three passes, every one found LIVE
+
+Shipping the index exposed a live provenance bug within the hour, and each fix
+exposed the next. Full account in `TODO.md` under V3.
+
+1. `URL_RE` was searched anywhere in a citation at any size, so prose that
+   merely *mentioned* a domain became a "web source" — four of seven live
+   citations. **The harm was not the label:** those escaped the `weak` flag
+   while an honest three-word *"the codebase"* got flagged, so the vaguest
+   citations in the room rendered as STRONGER than the modest ones.
+2. Requiring dominance then let domains fall through to `FILE_RE`, which reads
+   `.com` as an extension — `kernbot.com` entered the integration surface as a
+   file in a partner's repository.
+3. Excluding web TLDs could not win either: there are over a thousand, and
+   `headless.design` was not on the list. The rule is structural now — a
+   separator-less token needs a recognised SOURCE extension to be a file.
+
+**Every one was found by reading the LIVE record after deploying, never by a
+test.** The suite caught two of my over-corrections but could not have found the
+original defect, because the defect was in what the suite considered correct.
+
+### V3 — THE REPO CONTROL EXISTS FOR A HUMAN NOW
+
+Row 10 said for three sessions that no partner had ever declared a repo. It was
+never a mystery: declaring one was an optional argument on `bridger_identify`
+and nothing else, so the operator who actually knows the URL could not reach it.
+Participant-only, since `opIdentify` requires write. The copy states what
+nothing verifies — not that you own the repo, and **not that it is public**,
+since a private one hands your partner links they cannot open.
+
+### RESEARCH, AND IT NARROWED THE DESIGN RATHER THAN WIDENING IT
+
+`plans/citation-verification-2026-08.md`. The literature says a deterministic
+citation matcher **discriminates better than an LLM evaluator** (ResearchQA),
+that faithfulness metrics fail hardest at exactly our failure mode — partial
+support (Zhang et al.) — and that LLM-as-judge validation overstates itself by
+33–41 points of kappa once corrected for chance, across ~541K judgments. So an
+entailment gate is refused on evidence rather than on a house rule, and the
+existing `checkedAgainst` design is vindicated rather than expanded.
+
+### AND ONE TEST THAT CHANGED VERDICT WITH THE CALENDAR
+
+`purge-gate` went red with the tree unchanged since the last green run. Not a
+production bug — the usage key carries a 48h TTL and real Redis had dropped it —
+but `FakeStore` records TTLs without ever expiring anything, and the fixture
+mixed a fixed date with the real `Date.now()`. `executePurge` now takes a clock,
+which also removes the one function here that read the wall clock internally.
 
 ---
 
@@ -185,14 +305,22 @@ keep serving, because partners hold links against it.
 ## THE STATE OF THE THING
 
 - **Production:** run the `about` command above. Master in sync, tree clean.
-- **Tests:** 403 passing. `tsc` 0. `next build` 0.
+- **Tests:** **512 passing.** `tsc` 0. `next build` 0.
 - **Repo:** public, Apache-2.0, `BRIDGER_PASTE_PATH=1`.
 - **Database:** Upstash Redis FREE — 500K commands/month, 256 MB, 10 GB
   bandwidth. See the audit below.
 - **Deploys:** GitHub → Vercel, restored S#281 after the app went missing. A
   push auto-deploys; verified twice by observation.
 - **Partner room** `e4db579a5fad`: 15 entries, both sides joined, 0 open
-  questions, 0 unread.
+  questions, 0 unread -- **as of the last reading, which was S#284 morning.**
+- **[!!] THE TOKEN IN `~/.claude.json` IS EXPIRED (S#284).** The server answers
+  `code: "expired"`, `terminal: true` on BOTH transports -- one credential sits
+  behind MCP and `/api/rpc` alike, by design, so no transport is a way around a
+  dead one. **Nothing about the room is lost:** entries, chain, cursors and the
+  evidence index live in the room, not in the token. Fix:
+  `npm run bridger -- rotate --room e4db579a5fad --side b`, then paste the new
+  token into `projects[...].mcpServers.bridger.headers.Authorization`. The
+  Claude Code doorbell reads that same entry, so one edit restores both.
 
 ---
 
