@@ -108,7 +108,11 @@ describe("purge leaves nothing of the room behind", () => {
       status: "ok",
     });
 
-    await executePurge(store, made.room);
+    // The SAME clock the fixture was built with. Passing the real one made
+    // this test time-dependent: the day-window in `executePurge` stopped
+    // reaching the fixture's date three days later, and a green test turned
+    // red with nothing in the repo having changed.
+    await executePurge(store, made.room, now);
     return { store, roomId: made.room.id };
   }
 
@@ -127,6 +131,67 @@ describe("purge leaves nothing of the room behind", () => {
     assert.ok(
       !allKeys(store as never).includes(PLAN_KEY(roomId)),
       "a purged room must not leave its plan document on the server",
+    );
+  });
+
+  it("[!!] executePurge uses the clock it is GIVEN, not the wall clock", async () => {
+    // The pin for the S#284 change. Before it, this function read Date.now()
+    // internally -- the one outlier in a codebase that threads `now` through
+    // everything -- and the cost was a suite that went green for three days
+    // and then red with nothing in the repo having changed.
+    const { FakeStore } = await import("./fake-store");
+    const { createRoom, authorize, clearRegistryCache } = await import("../room-registry");
+    const { executePurge } = await import("../purge");
+    const { ROOM_USAGE_KEY } = await import("../store");
+    clearRegistryCache();
+
+    const born = new Date("2026-01-02T10:00:00.000Z");
+    const store = new FakeStore();
+    const made = await createRoom(store, {
+      topic: "old",
+      ownerLabel: "Acme",
+      peerLabel: "Northwind",
+      now: born,
+    });
+    // Charging on `born` is what writes the dated per-room usage key.
+    await authorize(store, { presentedToken: made.ownerToken, now: born });
+    const dated = ROOM_USAGE_KEY(made.room.id, "2026-01-02");
+    assert.ok(
+      allKeys(store as never).includes(dated),
+      "the counter never fired -- this test would measure nothing",
+    );
+
+    await executePurge(store, made.room, born);
+    assert.ok(!allKeys(store as never).includes(dated), "purge must honour the clock it was handed");
+  });
+
+  it("and outside that window it is REDIS that clears them, not purge", async () => {
+    // Stated rather than hidden. The day-window walks back four days from
+    // `now`; a usage key older than that is left for its own 48h TTL, which
+    // the fake deliberately does not model. So this asserts the real contract
+    // -- purge enumerates a bounded window -- instead of pretending to a
+    // completeness the fake cannot demonstrate.
+    const { FakeStore } = await import("./fake-store");
+    const { createRoom, authorize, clearRegistryCache } = await import("../room-registry");
+    const { executePurge } = await import("../purge");
+    const { ROOM_USAGE_KEY } = await import("../store");
+    clearRegistryCache();
+
+    const born = new Date("2026-01-02T10:00:00.000Z");
+    const muchLater = new Date("2026-06-30T10:00:00.000Z");
+    const store = new FakeStore();
+    const made = await createRoom(store, {
+      topic: "old",
+      ownerLabel: "Acme",
+      peerLabel: "Northwind",
+      now: born,
+    });
+    await authorize(store, { presentedToken: made.ownerToken, now: born });
+    await executePurge(store, made.room, muchLater);
+
+    assert.ok(
+      allKeys(store as never).includes(ROOM_USAGE_KEY(made.room.id, "2026-01-02")),
+      "documents the bound: in production this key expired 48h after it was written",
     );
   });
 

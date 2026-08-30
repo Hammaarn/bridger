@@ -96,7 +96,25 @@ export async function purgeState(store: Store, room: RoomRecord): Promise<PurgeS
  * Returns the keys removed, so the caller can show its work rather than assert
  * success.
  */
-export async function executePurge(store: Store, room: RoomRecord): Promise<string[]> {
+/**
+ * `now` is a PARAMETER, not a wall-clock read (S#284).
+ *
+ * It used to call `Date.now()` internally, which made this function the one
+ * outlier in a codebase that threads `now: Date` through `appendEntry`,
+ * `authorize`, `registerWebhook` and everything else. The cost showed up as a
+ * test that was green for three days and then red: `purge-gate.test.ts` builds
+ * a room at a fixed date and purged it against the real clock, so once the two
+ * drifted past the day-window below, a usage key the fixture wrote fell outside
+ * it. Nothing was wrong in production -- those keys carry a 48h TTL and real
+ * Redis had already dropped it -- but a test that changes verdict with the
+ * calendar is worth strictly less than no test, because you cannot tell which
+ * of its runs meant anything.
+ */
+export async function executePurge(
+  store: Store,
+  room: RoomRecord,
+  now: Date = new Date(),
+): Promise<string[]> {
   const keys: string[] = [
     ENTRIES_KEY(room.id),
     CONTRACT_KEY(room.id),
@@ -149,7 +167,7 @@ export async function executePurge(store: Store, room: RoomRecord): Promise<stri
    * because "purged" should not mean "mostly purged, the rest by Thursday".
    */
   const day = new Date(room.createdAt).getTime();
-  const nowMs = Date.now();
+  const nowMs = now.getTime();
   for (let back = 0; back <= 3; back++) {
     const d = new Date(Math.max(nowMs - back * 86_400_000, day));
     keys.push(ROOM_USAGE_KEY(room.id, utcDay(d)));
