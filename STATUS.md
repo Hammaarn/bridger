@@ -24,7 +24,16 @@ screen and the redeem path each issued a live credential, so two agents on one
 the new `revokeSide`, revoke-then-issue fails safe, the identical-label
 rejection is create-only so the live two-"claude" room is unaffected, and there
 are **zero new dependencies**. He is now a repo collaborator (invite pending his
-accept); a Vercel seat remains Erik's dashboard action and a billed Pro seat.
+accept), and **`master` is now branch-protected**: PRs required, 1 approval,
+force-push and deletion blocked, `enforce_admins: false` so Erik keeps pushing
+directly. **No Vercel seat, and that was a framing error of mine** — I offered
+"repo collaborator + Vercel team member" as one bundled option, which attached a
+recurring billed seat to a question that was only about GitHub. A seat buys
+nothing for pull requests: the preview-deploy friction comes from a branch
+living in a FORK, not from who is on the Vercel team, so a collaborator branch
+in this repo builds automatically and a fork PR needs one authorize click.
+Erik's correction, S#284: *"the repo is open source, he should be able to make
+pull requests and we just verify and accept since we own the codebase."*
 
 ### [!!] C0 POINT 3 IS CLOSED, AND THE FLOOR WAS NOT WHERE WE SAID
 
