@@ -939,7 +939,9 @@ async function cmdRead() {
 async function cmdAsk() {
   const title = positional(3, 'ask "<one-line question>" [--body "context"]');
   const d = await rpc("ask", { title, body: opt("--body") });
-  if (d) console.log(`\n  Asked ${d.posted?.id ?? ""} -- it is now their turn.\n`);
+  if (!d) return;
+  console.log(`\n  Asked ${d.posted?.id ?? ""} -- it is now their turn.\n`);
+  await maybeWaitAfterWrite();
 }
 
 async function cmdAnswer() {
@@ -953,10 +955,10 @@ async function cmdAnswer() {
     console.error("  [!] No --checked given. This answer will be recorded UNCHECKED.");
   }
   const d = await rpc("answer", { questionId, answer, checkedAgainst });
-  if (d) {
-    const note = checkedAgainst ? "" : " Recorded UNCHECKED.";
-    console.log(`\n  Answered ${questionId} as ${d.posted?.id ?? ""}.${note}\n`);
-  }
+  if (!d) return;
+  const note = checkedAgainst ? "" : " Recorded UNCHECKED.";
+  console.log(`\n  Answered ${questionId} as ${d.posted?.id ?? ""}.${note}\n`);
+  await maybeWaitAfterWrite();
 }
 
 async function cmdDecide() {
@@ -967,13 +969,17 @@ async function cmdDecide() {
     why: arg("--why"),
     checkedAgainst: opt("--checked"),
   });
-  if (d) console.log(`\n  Decision recorded. ${d.posted?.id ?? ""}\n`);
+  if (!d) return;
+  console.log(`\n  Decision recorded. ${d.posted?.id ?? ""}\n`);
+  await maybeWaitAfterWrite();
 }
 
 async function cmdPost() {
   const title = positional(3, 'post "<title>" [--body "..."]');
   const d = await rpc("post", { title, body: opt("--body"), checkedAgainst: opt("--checked") });
-  if (d) console.log(`\n  Posted ${d.posted?.id ?? ""}\n`);
+  if (!d) return;
+  console.log(`\n  Posted ${d.posted?.id ?? ""}\n`);
+  await maybeWaitAfterWrite();
 }
 
 async function cmdContract() {
@@ -1008,9 +1014,7 @@ async function cmdSignoff() {
  * an entire afternoon. A timeout is a normal result, not an error, and it is
  * reported as one -- an ambiguous refusal is what a machine reads as broken.
  */
-async function cmdWait() {
-  const follow = process.argv.includes("--follow");
-  const timeoutSeconds = Number(arg("--timeout", "45"));
+async function runWaitLoop(timeoutSeconds: number, follow: boolean) {
   for (;;) {
     const d = await rpc("wait", { timeoutSeconds });
     if (!d) return;
@@ -1025,6 +1029,42 @@ async function cmdWait() {
       return;
     }
   }
+}
+
+async function cmdWait() {
+  await runWaitLoop(Number(arg("--timeout", "45")), process.argv.includes("--follow"));
+}
+
+/**
+ * `--wait` on a WRITE — send and block in one command (S#285).
+ *
+ * Adopted from `steviebuilds/agent-room` (MIT), whose whole cadence answer is
+ * `send --wait 45`. The point is not convenience, it is that the turn never
+ * ENDS between the write and the wait. Two commands means the session finishes
+ * its turn, sleeps, and needs a human to start the next one to discover a
+ * reply that may already have arrived; one command holds the shell open across
+ * both. That is C0 point 2 -- fewer round trips -- and it costs the session
+ * nothing, because the shell does the waiting.
+ *
+ * Safe by construction: `waitForNew` filters to `otherSide(token.side)`
+ * (`lib/entries.ts`), so our own write can never satisfy our own wait.
+ *
+ * Accepts a bare `--wait` (45s default, matching `cmdWait`) or `--wait <secs>`.
+ * `--follow` re-arms it, exactly as it does for the standalone command.
+ */
+function waitFlagSeconds(): number | null {
+  const i = process.argv.indexOf("--wait");
+  if (i === -1) return null;
+  const next = process.argv[i + 1];
+  const n = next && !next.startsWith("--") ? Number(next) : NaN;
+  return Number.isFinite(n) && n > 0 ? n : 45;
+}
+
+async function maybeWaitAfterWrite() {
+  const seconds = waitFlagSeconds();
+  if (seconds === null) return;
+  console.log("  Waiting for them...");
+  await runWaitLoop(seconds, process.argv.includes("--follow"));
 }
 
 
@@ -1418,6 +1458,9 @@ const USAGE = `
     answer <QID> "<text>" [--checked "file.ts:41"]
     decide "<title>" --decision ".." --why ".." [--checked ".."]
     post "<title>" [--body ..]    a note that answers nothing
+      ^ ask/answer/decide/post all take [--wait [secs]] [--follow]:
+        write AND block for their reply in ONE command, so your turn never
+        ends in between. This is the cheapest way to cut a round trip.
     contract [--body ".." --note ".."]   read, or replace
     reopen <QID> --why ".."
     signoff [--note ".."]

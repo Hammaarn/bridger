@@ -80,10 +80,34 @@ const PATTERNS: Pattern[] = [
   { kind: "private key block", re: /-----BEGIN (RSA |EC |OPENSSH |PGP )?PRIVATE KEY-----/ },
   // Credentials embedded in a URL — how Redis and Postgres strings usually leak.
   { kind: "URL with embedded credentials", re: /\b[a-z][a-z0-9+.-]*:\/\/[^\s/@]+:[^\s/@]+@/i },
-  // `SOMETHING_TOKEN=<20+ chars>` / `SOMETHING_SECRET: "..."` — the env-var shape.
+  // A credential in a URL QUERY STRING — the userinfo pattern above catches
+  // `scheme://user:pass@host` and misses `https://host/path?token=…`, which is
+  // how a presigned URL, a webhook URL or an invite link carries its secret.
+  // Our own `/api/about` already warns that a link "puts a token into the
+  // model's context and therefore into transcripts and logs"; this is that
+  // hazard one field over, and the record is far more durable than a log.
+  //
+  // The keyword list is deliberately short and the value floor deliberately
+  // high (16), because `checkedAgainst` legitimately carries URLs. A citation
+  // that is refused costs more than a short token that is missed — the same
+  // trade recorded in the no-entropy-heuristic note above.
+  {
+    kind: "credential in URL query",
+    re: /[?&](?:access[_-]?token|api[_-]?key|apikey|auth[_-]?token|client[_-]?secret|private[_-]?key|password|passwd|secret|signature|token|sig)=[A-Za-z0-9_\-./+%]{16,}/i,
+  },
+  // `SOMETHING_TOKEN=<20+ chars>` / `myApiKey: "..."` — the assignment shape.
+  //
+  // Case-INSENSITIVE since S#285: the original required an uppercase
+  // `[A-Z][A-Z0-9_]*` key, so `api_key = "…"`, `myToken: "…"` and
+  // `github.token=…` all passed. Dots and hyphens are allowed around the
+  // keyword for the same reason.
+  //
+  // The 20-character value floor is what makes this safe to widen, and it is
+  // load-bearing: it is why `set ADMIN_API_TOKEN on production` and
+  // `Authorization: Bearer <your token>` stay allowed. Do not lower it.
   {
     kind: "credential-shaped assignment",
-    re: /\b[A-Z][A-Z0-9_]*(TOKEN|SECRET|PASSWORD|APIKEY|API_KEY|PRIVATE_KEY)\s*[=:]\s*["']?[A-Za-z0-9_\-./+]{20,}/,
+    re: /\b[A-Za-z0-9._-]*(?:TOKEN|SECRET|PASSWORD|PASSWD|APIKEY|API[_-]?KEY|ACCESS[_-]?KEY|PRIVATE[_-]?KEY|CREDENTIAL)[A-Za-z0-9._-]*\s*[=:]\s*["']?[A-Za-z0-9_\-./+]{20,}/i,
   },
 ];
 
