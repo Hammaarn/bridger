@@ -929,10 +929,12 @@ input.bx-bad {
    perspective PLANE, so it spans the viewport at every depth — the previous
    version was a mirrored 2D field whose dots bunched into the bottom-left
    corner and stopped, which is what Erik saw as "chopped and cut off". */
+/* Taller since S#285, because the band now carries a footer as well as the
+   wave. The wave keeps its full height; the footer sits in the added room. */
 .gate-foot {
   position: relative;
   width: 100%;
-  height: 260px;
+  height: 330px;
   overflow: hidden;
   border-top: 1px solid var(--line);
 }
@@ -955,11 +957,140 @@ input.bx-bad {
   pointer-events: none;
 }
 
-.panel h2 {
+/* THE FOOTER SITS OVER THE WAVE, SO IT BRINGS ITS OWN GROUND.
+
+   Legibility here cannot depend on what the field happens to be doing: the
+   glyphs move, and the brightest part of the band is exactly where the text
+   sits. So the row carries a scrim of its own rather than trusting the
+   horizon gradient above, which was tuned to soften an edge and not to
+   support type. Text over a live animation is a contrast problem that is
+   only solved by not leaving it to chance. */
+.site-foot {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 1;
+  padding: 46px 24px 26px;
+  /* The ramp reaches SOLID at 46%, and the text starts at 54% — measured, not
+     eyeballed. The first version faded to 88% at 42% and only hit full ink at
+     the very bottom, which put the subtitle on ~90% ground with live glyphs
+     legible straight through it. "Mostly opaque" is not a background. */
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    color-mix(in oklab, var(--ink-900) 55%, transparent) 16%,
+    color-mix(in oklab, var(--ink-900) 90%, transparent) 32%,
+    var(--ink-900) 46%
+  );
+}
+
+.site-foot-in {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 28px;
+  align-items: end;
+  justify-content: space-between;
+  width: 100%;
+  max-width: var(--measure);
+  margin: 0 auto;
+}
+
+.site-foot-id {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 240px;
+  max-width: 46ch;
+}
+
+.site-foot-name {
+  font-weight: 650;
   font-size: 15px;
-  font-weight: 600;
   letter-spacing: -0.01em;
-  margin-bottom: 6px;
+  color: var(--text);
+}
+
+.site-foot-sub {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+.site-foot-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  font-size: 12.5px;
+}
+
+.site-foot-nav a {
+  color: var(--text-dim);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.site-foot-nav a:hover {
+  color: var(--text);
+  border-bottom-color: var(--line-strong);
+}
+
+/* The same primary action as the hero, one size down. It is the last thing on
+   the page, not the first, so it should not shout at a reader who has already
+   decided to keep reading. */
+.site-foot-cta {
+  flex: 0 0 auto;
+  padding: 9px 18px;
+  font-size: 13.5px;
+}
+
+@media (max-width: 720px) {
+  .gate-foot {
+    height: 420px;
+  }
+
+  .site-foot-in {
+    align-items: start;
+  }
+}
+
+/* THE HEADING LADDER, and why this rung was missing (S#285).
+
+   A JudgeMySite review charged that the h2s here render at the same size as
+   body copy and differentiate on weight alone — 15px/600 against `body`'s
+   15px/400. Checked against production and it was exactly right: weight was
+   doing a job size should share, so a reader scanning for an entry point found
+   none.
+
+   The page already HAD a ladder and these two panels never joined it:
+
+       hero h1           clamp(2.3rem, 6.2vw, 4rem)     ~37 -> 64px
+       .bx-demo-head h2  clamp(26px, 3.4vw, 38px)
+       .panel h2         <- this rung, previously 15px
+       body                                             15px
+       .panel > .sub                                    13.5px
+
+   So the fix is a rung, not a rescale. The review proposed 27px from a generic
+   perfect-fourth scale; that is wrong for THIS page, because it would put these
+   two small side panels level with `.bx-demo-head h2` and invert the hierarchy
+   it was trying to repair. It also proposed a fixed px value on a page whose
+   display type is fluid throughout. Both corrected here.
+
+   The ceiling is the real constraint: this must read as a module heading and
+   never compete with a section heading. 22px at the top end leaves a clear gap
+   under 26px while giving a 1.47x step over body at desktop.
+
+   (Not made into `--text-*` tokens deliberately. An audit for this fix counted
+   TWENTY-ONE distinct font sizes between 9px and 17px on this page — a token
+   set covering two rules would imply a system that does not exist and hide the
+   real problem. That cleanup is its own job.) */
+.panel h2 {
+  font-size: clamp(19px, 1.7vw, 22px);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.25;
+  margin-bottom: 8px;
 }
 
 .panel > .sub {
@@ -986,8 +1117,13 @@ input.bx-bad {
 
 /* ── trust block ─────────────────────────────────────────────────── */
 
+/* S#285: this carried `font-size: 15px`, which has the SAME specificity as
+   `.panel h2` and is declared later — so it silently won, and the trust panel's
+   heading stayed at body size after the ladder fix landed on its sibling. Both
+   of the headings the review named are `.panel h2`; only one of them changed
+   until a measurement caught it. The size now comes from the one rule that
+   owns it. */
 .bx-trust h2 {
-  font-size: 15px;
   margin-bottom: 8px;
 }
 
@@ -3096,12 +3232,18 @@ input.bx-folder-name:focus {
   grid-column: 1 / -1;
 }
 
+/* Same charge one level down, and here the review's PREMISE was wrong while its
+   direction was right (S#285). It claimed the card body is 15px, so the heading
+   had "no size step" at all. The body is `13.5px` — there was a step, it was
+   just too small to read as one (1.11x). 17px makes it 1.26x, which is a step a
+   reader can see without the card grid growing a row. */
 .bx-checks h3 {
   grid-column: 1;
   grid-row: 1;
   margin: 0;
-  font-size: 15px;
-  letter-spacing: -0.01em;
+  font-size: 17px;
+  line-height: 1.3;
+  letter-spacing: -0.015em;
 }
 
 .bx-checks > li > p {
