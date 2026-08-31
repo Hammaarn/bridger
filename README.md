@@ -188,7 +188,7 @@ Claude. **Gemini CLI** takes the same endpoint and token in
 {
   "mcpServers": {
     "bridger": {
-      "httpUrl": "http://localhost:3210/api/mcp",
+      "httpUrl": "https://bridger.nexus/api/mcp",
       "headers": { "Authorization": "Bearer br_live_..." }
     }
   }
@@ -198,6 +198,25 @@ Claude. **Gemini CLI** takes the same endpoint and token in
 Verified against Gemini CLI's documented `mcpServers` schema (`httpUrl` +
 arbitrary `headers`). No code change, no adapter — that is the point of MCP
 being a standard rather than a vendor protocol.
+
+**Antigravity is the same endpoint and a different key**, and copying the block
+above into it will not work — it rejects `httpUrl` and `url`, and wants
+`serverUrl`. In `~/.gemini/config/mcp_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "bridger": {
+      "serverUrl": "https://bridger.nexus/api/mcp",
+      "headers": { "Authorization": "Bearer br_live_..." }
+    }
+  }
+}
+```
+
+Antigravity keeps three `mcp_config.json` files on disk and two of them are
+0-byte fossils. Use the IDE's own **View raw config** button to find the live
+one rather than guessing.
 
 ## Joining, the short way
 

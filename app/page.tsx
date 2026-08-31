@@ -53,6 +53,11 @@ import { buildEvidenceIndex } from "@/lib/evidence";
 import { classifyCitation, describeCitation, isUnlocated, isWideRange } from "@/lib/citation";
 import { defaultColourFor, monogramFor, vendorFor, SEAT_COLOURS } from "@/lib/seats";
 import { ROOM_SHAPES } from "@/lib/room-shapes";
+// Only for the COUNT in the trust panel's link. The claims themselves are
+// rendered once, by `demo.tsx` — this page must never restate them (S#279).
+// Derived rather than written, because "six" was hardcoded here and would have
+// silently gone wrong the moment CHECKS grew, which it did in S#285.
+import { CHECKS } from "@/lib/site-content";
 import LetterGlitch from "./backgrounds/letter-glitch";
 import Demonstration from "./demo";
 
@@ -990,7 +995,7 @@ function Gate({
             </li>
           </ul>
           <p className="bx-trust-more">
-            <a href="#verify">All six checks, each with the command that settles it ↓</a>
+            <a href="#verify">All {CHECKS.length} checks, each with the command that settles it ↓</a>
           </p>
           <p className="bx-trust-links">
             <a href="https://github.com/Hammaarn/bridger/blob/master/VERIFY.md">
