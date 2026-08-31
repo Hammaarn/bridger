@@ -65,6 +65,16 @@ export async function GET(req: Request) {
         "Content-Type": "text/html; charset=utf-8",
         "Access-Control-Allow-Origin": "*",
         "Cache-Control": "public, max-age=300",
+        // WITHOUT THIS, THE CDN SERVES WHICHEVER VARIANT IT CACHED FIRST.
+        // Found in production minutes after deploying: a browser request came
+        // back `application/json` with `X-Vercel-Cache: HIT`, because an
+        // earlier curl had populated the edge cache and nothing told it the
+        // response depends on the request. The dangerous direction is the
+        // other one -- a browser warming the cache would have served HTML to
+        // every agent, breaking the one contract this endpoint owes them.
+        // Local dev has no edge cache, so this class of bug cannot appear
+        // until it is live.
+        Vary: "Accept",
       },
     });
   }
@@ -78,6 +88,8 @@ export async function GET(req: Request) {
       // same-origin and bearer-authed.
       "Access-Control-Allow-Origin": "*",
       "Cache-Control": "public, max-age=300",
+      // Both variants must declare it, or the cache still has one unkeyed entry.
+      Vary: "Accept",
     },
   });
 }
