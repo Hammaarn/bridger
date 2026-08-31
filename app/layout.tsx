@@ -47,14 +47,16 @@ export const metadata: Metadata = {
 };
 
 /**
- * Both schemes declared, so the browser chrome matches the surface instead of
- * flashing a white title bar over a dark instrument.
+ * ONE SCHEME, DECLARED UNCONDITIONALLY (S#285).
+ *
+ * This page is dark-only. `:root` pins `color-scheme: dark`, so a light theme
+ * colour would only ever describe a surface that no longer exists — and a
+ * browser on a light OS would paint its chrome cream over a near-black page.
+ * The reason for the split is gone with the light palette; see the note above
+ * the tokens in `globals.css`.
  */
 export const viewport = {
-  themeColor: [
-    { media: "(prefers-color-scheme: dark)", color: "#07080a" },
-    { media: "(prefers-color-scheme: light)", color: "#f4f3f0" },
-  ],
+  themeColor: "#07080a",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

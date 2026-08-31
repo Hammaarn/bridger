@@ -53,6 +53,11 @@ import { buildEvidenceIndex } from "@/lib/evidence";
 import { classifyCitation, describeCitation, isUnlocated, isWideRange } from "@/lib/citation";
 import { defaultColourFor, monogramFor, vendorFor, SEAT_COLOURS } from "@/lib/seats";
 import { ROOM_SHAPES } from "@/lib/room-shapes";
+// Only for the COUNT in the trust panel's link. The claims themselves are
+// rendered once, by `demo.tsx` — this page must never restate them (S#279).
+// Derived rather than written, because "six" was hardcoded here and would have
+// silently gone wrong the moment CHECKS grew, which it did in S#285.
+import { CHECKS } from "@/lib/site-content";
 import LetterGlitch from "./backgrounds/letter-glitch";
 import Demonstration from "./demo";
 
@@ -921,7 +926,20 @@ function Gate({
           one is the quiet middle between them, so it is the one that reacts.
         */}
         <div className="gate-mid">
-          <LetterGlitch className="bg-mid" showWord={false} pointer intensity={0.14} glitchMs={150} />
+          {/*
+            The wrapper is not decoration. It spans the module and carries the
+            edge fade, while the canvas inside it is viewport-height and sticky
+            — so opening a step cannot resize the field. See `.bg-mid-layer`.
+          */}
+          <div className="bg-mid-layer">
+            <LetterGlitch
+              className="bg-mid"
+              showWord={false}
+              pointer
+              intensity={0.14}
+              glitchMs={150}
+            />
+          </div>
         <div className="gate-body">
         <section className="panel">
           <h2>Already have a token?</h2>
@@ -990,7 +1008,7 @@ function Gate({
             </li>
           </ul>
           <p className="bx-trust-more">
-            <a href="#verify">All six checks, each with the command that settles it ↓</a>
+            <a href="#verify">All {CHECKS.length} checks, each with the command that settles it ↓</a>
           </p>
           <p className="bx-trust-links">
             <a href="https://github.com/Hammaarn/bridger/blob/master/VERIFY.md">
@@ -1024,6 +1042,49 @@ function Gate({
             wordWidth={0.7}
             intensity={0.78}
           />
+          {/*
+            A REAL FOOTER, because the wave was never one (S#285).
+
+            A JudgeMySite review charged that the page "simply stops" — no footer
+            region, no closure, no repeat of the primary action. I argued back
+            that the mirrored wave IS the terminus and was wrong: the shipped
+            markup was a lone `<canvas aria-hidden="true">`, so to a screen
+            reader the page genuinely ended at the operator disclosure, and to
+            anyone who had read this far there was nowhere to go.
+
+            The wave stays — it was doing the visual half correctly. What was
+            missing is the informational half: what this is, who runs it, where
+            to check it, and one way back to the only action on the page.
+
+            The button calls the SAME `onCreate` as the hero. The review's own
+            proposed footer shipped a `<button>` with no handler, which is worse
+            than no footer: a dead primary action teaches a reader the page is a
+            mockup.
+          */}
+          <footer className="site-foot">
+            <div className="site-foot-in">
+              <div className="site-foot-id">
+                <span className="site-foot-name">Bridger</span>
+                <span className="site-foot-sub">
+                  A shared, append-only record two teams’ AI sessions read and write.
+                  Operated by Erik Hammarström, Stockholm · Apache-2.0
+                </span>
+              </div>
+
+              <nav className="site-foot-nav" aria-label="About this service">
+                <a href="https://github.com/Hammaarn/bridger">Source</a>
+                <a href="https://github.com/Hammaarn/bridger/blob/master/VERIFY.md">
+                  How to verify it
+                </a>
+                <a href="/api/about">What this server is</a>
+                <a href="/llms.txt">llms.txt</a>
+              </nav>
+
+              <button type="button" className="bx-primary site-foot-cta" onClick={onCreate}>
+                <span>Open a new room</span>
+              </button>
+            </div>
+          </footer>
         </div>
       </div>
     </main>

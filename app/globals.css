@@ -37,7 +37,10 @@
  * not. Same failure as the gate page claiming tamper-evidence was unbuilt.)
  *
  * ACCESSIBILITY IS A CONSTRAINT, NOT A PASS AT THE END. Every text pair below
- * clears WCAG AA in both schemes, the motion stops dead under
+ * clears WCAG AA — in the one scheme this page now has, dark, since S#285
+ * retired the light palette; the 20/20 AA measurement recorded in STATUS for
+ * S#277 covered both, and the dark half of it still stands. The motion stops
+ * dead under
  * `prefers-reduced-motion`, focus is always visible, targets are thumb-sized,
  * and the three-panel room REFLOWS on a phone rather than shrinking. A record
  * you cannot read is not a record.
@@ -45,6 +48,23 @@
 
 /* ── tokens ──────────────────────────────────────────────────────── */
 
+/* DARK ONLY, AND THAT IS A DECISION RATHER THAN AN OMISSION (S#285, Erik).
+
+   A light palette existed and passed contrast, but it was a token INVERSION,
+   not a design. Everything this page's visual language does adds LIGHT TO
+   DARKNESS: the field's hot-cell calibration assumes black, and the cursor wake
+   and the click ripple both work by BRIGHTENING — which on cream removes
+   contrast instead of adding it. So the one mode that was never designed was
+   also the mode most of the page's motion could not work in.
+
+   `TODO.md` decision 1 offered three ways out — pin dark, design light properly,
+   or ship both behind a toggle. Erik took the first. The alternative was not
+   "a light mode" but "a second design, forever", on a surface whose whole job
+   is to be read once by a stranger deciding whether to trust it.
+
+   `color-scheme: dark` here is what makes it stick: form controls, scrollbars
+   and the browser's own UA styles follow it, so a visitor on a light OS gets
+   the page as designed rather than white inputs on near-black. */
 :root {
   color-scheme: dark;
 
@@ -150,51 +170,6 @@
   --sc-slate: #b8c2cc;
   --sc-gold: #e8d5a0;
 }
-
-@media (prefers-color-scheme: light) {
-  :root {
-    color-scheme: light;
-
-    /* Warm paper rather than clinical white — carried forward deliberately from
-       the previous design, which had this part right. */
-    --ink-900: #f4f3f0;
-    --ink-800: #ffffff;
-    --ink-700: #faf9f6;
-    --ink-600: #eeece7;
-    --ink-500: #e5e2db;
-
-    --line: rgba(0, 0, 0, 0.1);
-    --line-strong: rgba(0, 0, 0, 0.2);
-
-    --text: #16181c;
-    --text-dim: #5a6070;
-    --text-faint: #646a76;
-
-    --side-a: #2b5c8f;
-    --side-b: #8a5220;
-
-    --seal: #8f5415;
-    --focus: #0b6b93;
-    --alarm: #b03a28;
-
-    --glyph: 40, 55, 80;
-    --side-a-rgb: 28, 84, 150;
-    --side-b-rgb: 150, 82, 20;
-    --spark: 143, 84, 21;
-    --grid-dot: rgba(0, 0, 0, 0.07);
-
-    --lift: 0 1px 0 rgba(255, 255, 255, 0.8), 0 12px 30px -20px rgba(0, 0, 0, 0.35);
-
-    /* Seat palette, light rendering. Same ids, darker values -- see :root. */
-    --sc-azure: #2b5c8f;
-    --sc-moss: #2f6b45;
-    --sc-plum: #5c3a78;
-    --sc-clay: #8a4436;
-    --sc-slate: #4a5560;
-    --sc-gold: #7a6420;
-  }
-}
-
 /* ── reset + base ────────────────────────────────────────────────── */
 
 *,
@@ -765,9 +740,10 @@ input.bx-bad {
    sides meeting, which is the product. It is NOT `--seal` -- colour on this
    page means provenance, and a button is not a citation.
 
-   The label is dark on light in both states and in both themes, because the
-   rest fill and the flood are both light values from the same token set, so
-   there is no colour flash to time and nothing to fail contrast mid-transition. */
+   The label is dark on light in both states, because the rest fill and the
+   flood are both light values from the same token set, so there is no colour
+   flash to time and nothing to fail contrast mid-transition. (This used to say
+   "and in both themes"; there is one theme as of S#285.) */
 .hero-actions .bx-primary {
   position: relative;
   overflow: hidden;
@@ -953,10 +929,12 @@ input.bx-bad {
    perspective PLANE, so it spans the viewport at every depth — the previous
    version was a mirrored 2D field whose dots bunched into the bottom-left
    corner and stopped, which is what Erik saw as "chopped and cut off". */
+/* Taller since S#285, because the band now carries a footer as well as the
+   wave. The wave keeps its full height; the footer sits in the added room. */
 .gate-foot {
   position: relative;
   width: 100%;
-  height: 260px;
+  height: 330px;
   overflow: hidden;
   border-top: 1px solid var(--line);
 }
@@ -979,11 +957,140 @@ input.bx-bad {
   pointer-events: none;
 }
 
-.panel h2 {
+/* THE FOOTER SITS OVER THE WAVE, SO IT BRINGS ITS OWN GROUND.
+
+   Legibility here cannot depend on what the field happens to be doing: the
+   glyphs move, and the brightest part of the band is exactly where the text
+   sits. So the row carries a scrim of its own rather than trusting the
+   horizon gradient above, which was tuned to soften an edge and not to
+   support type. Text over a live animation is a contrast problem that is
+   only solved by not leaving it to chance. */
+.site-foot {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 1;
+  padding: 46px 24px 26px;
+  /* The ramp reaches SOLID at 46%, and the text starts at 54% — measured, not
+     eyeballed. The first version faded to 88% at 42% and only hit full ink at
+     the very bottom, which put the subtitle on ~90% ground with live glyphs
+     legible straight through it. "Mostly opaque" is not a background. */
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    color-mix(in oklab, var(--ink-900) 55%, transparent) 16%,
+    color-mix(in oklab, var(--ink-900) 90%, transparent) 32%,
+    var(--ink-900) 46%
+  );
+}
+
+.site-foot-in {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 28px;
+  align-items: end;
+  justify-content: space-between;
+  width: 100%;
+  max-width: var(--measure);
+  margin: 0 auto;
+}
+
+.site-foot-id {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 240px;
+  max-width: 46ch;
+}
+
+.site-foot-name {
+  font-weight: 650;
   font-size: 15px;
-  font-weight: 600;
   letter-spacing: -0.01em;
-  margin-bottom: 6px;
+  color: var(--text);
+}
+
+.site-foot-sub {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+.site-foot-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  font-size: 12.5px;
+}
+
+.site-foot-nav a {
+  color: var(--text-dim);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.site-foot-nav a:hover {
+  color: var(--text);
+  border-bottom-color: var(--line-strong);
+}
+
+/* The same primary action as the hero, one size down. It is the last thing on
+   the page, not the first, so it should not shout at a reader who has already
+   decided to keep reading. */
+.site-foot-cta {
+  flex: 0 0 auto;
+  padding: 9px 18px;
+  font-size: 13.5px;
+}
+
+@media (max-width: 720px) {
+  .gate-foot {
+    height: 420px;
+  }
+
+  .site-foot-in {
+    align-items: start;
+  }
+}
+
+/* THE HEADING LADDER, and why this rung was missing (S#285).
+
+   A JudgeMySite review charged that the h2s here render at the same size as
+   body copy and differentiate on weight alone — 15px/600 against `body`'s
+   15px/400. Checked against production and it was exactly right: weight was
+   doing a job size should share, so a reader scanning for an entry point found
+   none.
+
+   The page already HAD a ladder and these two panels never joined it:
+
+       hero h1           clamp(2.3rem, 6.2vw, 4rem)     ~37 -> 64px
+       .bx-demo-head h2  clamp(26px, 3.4vw, 38px)
+       .panel h2         <- this rung, previously 15px
+       body                                             15px
+       .panel > .sub                                    13.5px
+
+   So the fix is a rung, not a rescale. The review proposed 27px from a generic
+   perfect-fourth scale; that is wrong for THIS page, because it would put these
+   two small side panels level with `.bx-demo-head h2` and invert the hierarchy
+   it was trying to repair. It also proposed a fixed px value on a page whose
+   display type is fluid throughout. Both corrected here.
+
+   The ceiling is the real constraint: this must read as a module heading and
+   never compete with a section heading. 22px at the top end leaves a clear gap
+   under 26px while giving a 1.47x step over body at desktop.
+
+   (Not made into `--text-*` tokens deliberately. An audit for this fix counted
+   TWENTY-ONE distinct font sizes between 9px and 17px on this page — a token
+   set covering two rules would imply a system that does not exist and hide the
+   real problem. That cleanup is its own job.) */
+.panel h2 {
+  font-size: clamp(19px, 1.7vw, 22px);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.25;
+  margin-bottom: 8px;
 }
 
 .panel > .sub {
@@ -1010,8 +1117,13 @@ input.bx-bad {
 
 /* ── trust block ─────────────────────────────────────────────────── */
 
+/* S#285: this carried `font-size: 15px`, which has the SAME specificity as
+   `.panel h2` and is declared later — so it silently won, and the trust panel's
+   heading stayed at body size after the ladder fix landed on its sibling. Both
+   of the headings the review named are `.panel h2`; only one of them changed
+   until a measurement caught it. The size now comes from the one rule that
+   owns it. */
 .bx-trust h2 {
-  font-size: 15px;
   margin-bottom: 8px;
 }
 
@@ -2620,19 +2732,51 @@ input.bx-folder-name:focus {
 
 /* The cursor-wake field. Same width/height note as `.bg-sheet`: a <canvas> is a
    replaced element, so `inset: 0` alone leaves it at its intrinsic 300x150. */
-.bg-mid {
+/* THE FIELD IS NO LONGER SIZED BY THE CONTENT IN FRONT OF IT (S#285).
+
+   The bug: `.bg-mid` was `inset: 0; height: 100%` of `.gate-mid`, and
+   `.gate-mid` CONTAINS the accordion. `.bx-step-body` animates
+   `grid-template-rows: 0fr -> 1fr` over 220ms, so opening a step changed the
+   module's height on every frame of that transition -- and the canvas's
+   ResizeObserver answered each one with a full `build()`: a fresh cell object
+   per grid square, ~24k of them at full width, plus a `dilate()` pass. Opening
+   one step also closes another, so two transitions overlap. That is a dozen-plus
+   full grid reallocations inside a fifth of a second, which is the lag Erik saw.
+
+   The fix is structural rather than a debounce: a background has no business
+   resizing because the text in front of it moved. The LAYER still spans the
+   module (so the S#282 extent is unchanged -- gate-body + bx-demo, stopping
+   above the footer, and it still carries the edge fade), but the CANVAS inside
+   it is viewport-height and sticky, so its pixel dimensions never change while
+   you scroll or open a step. The layer is a plain div; resizing it costs
+   nothing.
+
+   The mask lives on the LAYER, not the canvas. On the canvas it would fade at
+   the top and bottom of the SCREEN and follow you down the page like a
+   vignette; on the layer it stays where it belongs, at the module's edges. */
+.bg-mid-layer {
   position: absolute;
   inset: 0;
-  width: 100%;
-  height: 100%;
   z-index: 0;
   pointer-events: none;
+  overflow: clip;
   /* Fades out at the edges so the module has no hard boundary against the
      sections above and below, which carry no field. In PX rather than %: the
      module is tall and a percentage fade scaled with it, which is how the
      field came to look like it stopped halfway down the section. */
   mask-image: linear-gradient(to bottom, transparent, #000 90px, #000 calc(100% - 90px), transparent);
   -webkit-mask-image: linear-gradient(to bottom, transparent, #000 90px, #000 calc(100% - 90px), transparent);
+}
+
+.bg-mid {
+  position: sticky;
+  top: 0;
+  display: block;
+  width: 100%;
+  /* svh, not vh: on mobile the URL bar collapsing would otherwise be a resize,
+     which is the exact class of event this change exists to stop. */
+  height: 100svh;
+  pointer-events: none;
 }
 
 /* THE REACTIVE MIDDLE: the token form, the trust panel and the demonstration.
@@ -2643,8 +2787,9 @@ input.bx-folder-name:focus {
 
 /* Everything that is not the field sits above it — the same rule `.sheet` makes
    for `.bg-sheet`, and for the same reason: without it the content renders
-   behind its own background and the accordion is unclickable. */
-.gate-mid > *:not(.bg-mid) {
+   behind its own background and the accordion is unclickable.
+   S#285: the exclusion is now the LAYER, since the canvas moved inside it. */
+.gate-mid > *:not(.bg-mid-layer) {
   position: relative;
   z-index: 1;
 }
@@ -3087,12 +3232,18 @@ input.bx-folder-name:focus {
   grid-column: 1 / -1;
 }
 
+/* Same charge one level down, and here the review's PREMISE was wrong while its
+   direction was right (S#285). It claimed the card body is 15px, so the heading
+   had "no size step" at all. The body is `13.5px` — there was a step, it was
+   just too small to read as one (1.11x). 17px makes it 1.26x, which is a step a
+   reader can see without the card grid growing a row. */
 .bx-checks h3 {
   grid-column: 1;
   grid-row: 1;
   margin: 0;
-  font-size: 15px;
-  letter-spacing: -0.01em;
+  font-size: 17px;
+  line-height: 1.3;
+  letter-spacing: -0.015em;
 }
 
 .bx-checks > li > p {

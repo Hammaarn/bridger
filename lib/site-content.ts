@@ -77,8 +77,14 @@ export const STEPS: Step[] = [
       '    -H "Content-Type: application/json" \\',
       `    -d '{"topic":"Orders API","you":"Acme","them":"Northwind"}'`,
     ],
+    // S#285: this printed `ROOM_REDACTED_B`, which is a REAL room -- the live
+    // JudgeMySite x Northwind bridge, per TODO.md. Same class as the Northwind
+    // NAME incident recorded at the top of this file: that was fixed and a real
+    // room id was left sitting two sections below it, on the same page. A room
+    // id is not a credential, but publishing a partner's room in our marketing
+    // copy is not ours to do. Synthetic and shape-correct (12 hex).
     returns: [
-      '{ "room": { "id": "ROOM_REDACTED_B", … },',
+      '{ "room": { "id": "0a1b2c3d4e5f", … },',
       '  "slots": [ { "side": "a", "code": "ACM", "token": "br_live_…" },',
       '             { "side": "b", "code": "NWD", "token": "br_live_…" } ] }',
     ],
@@ -164,7 +170,16 @@ export const CHECKS: Check[] = [
   {
     claim: "No model is called",
     detail: "Seven dependencies, and not one of them a provider SDK.",
-    cmd: "npm ls --omit=dev --depth=0",
+    // S#285: this cited `npm ls --omit=dev --depth=0`, which does NOT print the
+    // number this claim states. A real tree carries extraneous packages (sharp
+    // and its napi runtime arrived that way here), so the command printed NINE
+    // rows, two of them flagged `extraneous`, and exited non-zero -- a reader
+    // checking us gets a mismatch and a failure code on the very first claim.
+    // That is invariant 15 a third time on this file (S#279 step 01, S#282
+    // step 02). `/api/about` was already citing the deterministic form; the two
+    // surfaces now cite the same one, and it reads package.json rather than the
+    // installed tree, so no local install state can move it.
+    cmd: 'node -p "Object.keys(require(\'./package.json\').dependencies)"',
   },
   {
     claim: "It requests no permissions",
@@ -177,9 +192,23 @@ export const CHECKS: Check[] = [
   },
   {
     claim: "Tokens are hashed, expire, and die on demand",
+    // S#285: this said "One exception". There are TWO, and the second arrived
+    // with the webhook in S#284 -- `/api/about` disclosed it and this page was
+    // not updated to match, so the more prominent surface carried the smaller
+    // number. Both are now named here.
     detail:
-      "Seconds, from the operator’s terminal. One exception, stated rather than left to be found: a join code holds its token in the clear for a few minutes so a link preview cannot destroy an invitation.",
+      "Seconds, from the operator’s terminal. Two exceptions, stated rather than left to be found: a join code holds its token in the clear for a few minutes so a link preview cannot destroy an invitation, and a registered webhook secret is stored in the clear because signing needs the key itself — a hash cannot produce an HMAC.",
     cmd: "npm run bridger -- revoke --side b",
+  },
+  {
+    // S#285: the page had NOTHING about outbound requests while `/api/about`
+    // carried a full disclosure and two `cannotVerify` entries. This file calls
+    // itself "the one home of the trust argument", so a material trust property
+    // living only in a JSON endpoint contradicts its own stated purpose — and
+    // it is the property a reader is least likely to guess at.
+    claim: "One outbound request, and only if a seat asks for it",
+    detail:
+      "Register an https endpoint and we POST to it when the OTHER side writes — never on your own writes, and never to anyone who has not registered a URL themselves. Metadata only: event, room, seq, type, side, timestamp. Never a title, never a body, so a leaked endpoint learns that something happened and never what.",
   },
   {
     claim: "It runs entirely on your own machine",

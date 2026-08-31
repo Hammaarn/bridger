@@ -94,11 +94,50 @@ describe("credential scanning — known shapes only", () => {
     "see https://bridger-nu.vercel.app/api/mcp",
     "set ADMIN_API_TOKEN on production (do not commit it)",
     "the header is Authorization: Bearer <your token>",
+    // S#285 — the widened patterns must not start refusing ordinary URLs.
+    // A query string is not itself suspicious; a CREDENTIAL-shaped parameter is.
+    "https://github.com/Hammaarn/bridger/compare/master...s285?expand=1",
+    "https://bridger.nexus/api/export?since=41",
+    "the deploy is at https://vercel.com/x/y/deployments?state=READY",
+    // Below the 16-char value floor, deliberately: see the note in secrets.ts.
+    "https://example.com/cb?token=short",
   ];
 
   for (const text of allowed) {
     it(`does NOT fire on provenance: "${text.slice(0, 40)}"`, () => {
       assert.deepEqual(scanForSecrets({ checkedAgainst: text }), []);
+    });
+  }
+
+  /**
+   * S#285 — the two gaps found by auditing Slock (`@botiverse/raft-daemon`).
+   * Patterns re-implemented, not copied: that package ships with no licence.
+   *
+   * Fixtures assembled with `j` for the reason at the top of this file.
+   */
+  const widened: Array<[string, string]> = [
+    [
+      "credential in URL query",
+      j("https://example.com/cb?access_", "token=", "aB3dE5fG7hJ9kL1mN3pQ5rS7tU9v"),
+    ],
+    ["credential in URL query", j("https://api.example.com/v1?api_", "key=", "aB3dE5fG7hJ9kL1mN3pQ5rS7")],
+    [
+      "credential in URL query",
+      j("https://blob.example.com/f.tgz?sig", "nature=", "aB3dE5fG7hJ9kL1mN3pQ5rS7tU9vW1xY"),
+    ],
+    // Lowercase and mixed-case assignments — all three passed before S#285.
+    ["credential-shaped assignment", j("api_", "key = \"", "aB3dE5fG7hJ9kL1mN3pQ5rS7tU9v\"")],
+    ["credential-shaped assignment", j("myTo", "ken: '", "aB3dE5fG7hJ9kL1mN3pQ5rS7tU9v'")],
+    ["credential-shaped assignment", j("github.to", "ken=", "aB3dE5fG7hJ9kL1mN3pQ5rS7tU9v")],
+  ];
+
+  for (const [kind, text] of widened) {
+    it(`catches ${kind}: "${text.slice(0, 34)}..."`, () => {
+      const hits = scanForSecrets({ body: text });
+      assert.ok(
+        hits.some((h) => h.kind === kind),
+        `expected ${kind}, got ${JSON.stringify(hits.map((h) => h.kind))}`,
+      );
     });
   }
 

@@ -778,9 +778,42 @@ export default function LetterGlitch({
     };
     scheme?.addEventListener?.("change", onScheme);
 
+    /**
+     * COALESCED TO ONE REBUILD PER FRAME, AND SKIPPED WHEN THE GRID DID NOT MOVE.
+     *
+     * `build()` is not cheap — it reallocates the bitmap and then one object per
+     * grid cell, ~24k of them on a full-width field, plus a `dilate()` pass. It
+     * used to run straight off the observer, so anything that changed this
+     * element's box repeatedly ran it repeatedly: a CSS height transition in the
+     * same container fired it every frame for the length of the transition
+     * (S#285, the accordion).
+     *
+     * Two guards, both cheap. A rAF gate collapses several observations in one
+     * frame into a single rebuild. Then, if the cell geometry is unchanged and
+     * the backing store already matches, there is nothing to rebuild at all —
+     * sub-cell jitter and DPR-identical reflows become free.
+     *
+     * The structural fix for the accordion is in CSS (`.bg-mid-layer`); this is
+     * the belt to that pair of braces, and it applies to every instance.
+     */
+    let roRaf = 0;
     const ro = new ResizeObserver(() => {
-      build();
-      if (reduced?.matches) still();
+      if (roRaf) return;
+      roRaf = requestAnimationFrame(() => {
+        roRaf = 0;
+        const rect = canvas.getBoundingClientRect();
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        const nw = Math.max(1, Math.round(rect.width));
+        const nh = Math.max(1, Math.round(rect.height));
+        const sameGrid =
+          Math.max(1, Math.ceil(nw / CELL_W)) === cols &&
+          Math.max(1, Math.ceil(nh / cellH)) === rows;
+        const sameBitmap =
+          canvas.width === Math.round(nw * dpr) && canvas.height === Math.round(nh * dpr);
+        if (sameGrid && sameBitmap) return;
+        build();
+        if (reduced?.matches) still();
+      });
     });
     ro.observe(canvas);
 
@@ -878,6 +911,7 @@ export default function LetterGlitch({
     return () => {
       stop();
       ro.disconnect();
+      if (roRaf) cancelAnimationFrame(roRaf);
       io.disconnect();
       document.removeEventListener("visibilitychange", onVis);
       reduced?.removeEventListener?.("change", onMotion);
