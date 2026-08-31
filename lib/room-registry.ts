@@ -3,7 +3,7 @@
  *
  * PORTED, NOT INVENTED
  * --------------------
- * This is a port of `roastmydev/lib/external/key-registry.ts`, which has been
+ * This is a port of JudgeMySite's key registry, which has been
  * in production since S#266. The properties carried over deliberately, each
  * because it was learned the hard way there:
  *

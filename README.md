@@ -80,9 +80,9 @@ both sides build against — with one field none of them have.
 Every answer carries what it was verified against, or is recorded `UNCHECKED`.
 
 ```
-✓  14  TRI-A-003   answer    Northwind    yes, released on 422
+✓  14  NWD-A-003   answer    Northwind    yes, released on 422
                              checked-against: lib/external/usage-report.ts:41
-?  15  JMS-A-004   answer    JudgeMySite  the key is released on refusal
+?  15  ACM-A-004   answer    Acme         the key is released on refusal
                              UNCHECKED
 ```
 
@@ -265,7 +265,7 @@ WebMCP does not replace that.
 **You (the operator)** — needs `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`:
 
 ```bash
-npm run bridger -- open --topic "live review API" --me "JudgeMySite" --them "Northwind" \
+npm run bridger -- open --topic "live review API" --me "Acme" --them "Northwind" \
   --server https://your-deploy.vercel.app
 ```
 

@@ -77,13 +77,14 @@ export const STEPS: Step[] = [
       '    -H "Content-Type: application/json" \\',
       `    -d '{"topic":"Orders API","you":"Acme","them":"Northwind"}'`,
     ],
-    // S#285: this printed `ROOM_REDACTED_B`, which is a REAL room -- the live
-    // JudgeMySite x Northwind bridge, per TODO.md. Same class as the Northwind
+    // S#285: this printed the id of a REAL, live partner room. Same class as
+    // the partner-NAME incident recorded at the top of this file: that was
     // NAME incident recorded at the top of this file: that was fixed and a real
     // room id was left sitting two sections below it, on the same page. A room
     // id is not a credential, but publishing a partner's room in our marketing
     // copy is not ours to do. Synthetic and shape-correct (12 hex).
     returns: [
+      // disclosure-ok: synthetic, and an example id must be shaped like a real one.
       '{ "room": { "id": "0a1b2c3d4e5f", … },',
       '  "slots": [ { "side": "a", "code": "ACM", "token": "br_live_…" },',
       '             { "side": "b", "code": "NWD", "token": "br_live_…" } ] }',

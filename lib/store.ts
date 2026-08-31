@@ -5,7 +5,7 @@
  * -----------------------------------
  * Every module takes this as a parameter instead of importing Upstash directly,
  * so the registry and the ledger are testable with an in-memory fake and no
- * network. This is lifted from `roastmydev/lib/external/key-registry.ts`, where
+ * network. This is lifted from JudgeMySite's key registry, where
  * the same seam is what let the auth path be tested at all.
  *
  * KEY LAYOUT
@@ -398,7 +398,7 @@ export const VIEWER_RATE_LIMIT_PER_MINUTE = 60;
 /**
  * Default hard stop per token per UTC day.
  *
- * Restored from `roastmydev/lib/external/key-registry.ts`, which has enforced a
+ * Restored from JudgeMySite's key registry, which has enforced a
  * `dailyCap` since S#266 — the port dropped it, and the minute-limit alone
  * cannot bound a loop that is patient.
  */

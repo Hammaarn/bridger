@@ -53,3 +53,9 @@ next-env.d.ts
 .local/
 .vercel
 .upstash-cost-probe.mts
+
+# Local-only, never published. The disclosure name list would otherwise
+# publish exactly the names it protects; the settings file grants tool
+# permissions and belongs to this machine, not to the repo.
+.disclosure-names.local.json
+.claude/settings.local.json

@@ -10,7 +10,8 @@
     "start": "next start",
     "test": "tsx --test lib/__tests__/*.test.ts",
     "typecheck": "tsc --noEmit",
-    "check": "npm run typecheck && npm run test",
+    "check": "npm run typecheck && npm run test && npm run check:disclosure",
+    "check:disclosure": "node scripts/check-disclosure.mjs",
     "bridger": "tsx cli/bridger.ts"
   },
   "bin": {
