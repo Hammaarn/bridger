@@ -926,7 +926,20 @@ function Gate({
           one is the quiet middle between them, so it is the one that reacts.
         */}
         <div className="gate-mid">
-          <LetterGlitch className="bg-mid" showWord={false} pointer intensity={0.14} glitchMs={150} />
+          {/*
+            The wrapper is not decoration. It spans the module and carries the
+            edge fade, while the canvas inside it is viewport-height and sticky
+            — so opening a step cannot resize the field. See `.bg-mid-layer`.
+          */}
+          <div className="bg-mid-layer">
+            <LetterGlitch
+              className="bg-mid"
+              showWord={false}
+              pointer
+              intensity={0.14}
+              glitchMs={150}
+            />
+          </div>
         <div className="gate-body">
         <section className="panel">
           <h2>Already have a token?</h2>

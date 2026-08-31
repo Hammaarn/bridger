@@ -5,6 +5,78 @@ Append-only, newest first. **DECISIONS wins on direction** — where this file a
 
 ---
 
+## 2026-08-31 -- S#285 -- DARK ONLY. THE LIGHT PALETTE IS REMOVED, NOT HIDDEN
+
+**Source:** Erik: *"can we remove the light version of the page. We'll go dark
+theme only."* This resolves `TODO.md` open decision 1, which had been sitting
+with three options since S#282.
+
+**Reverses:** S#282b, which put light mode to Erik as a decision and kept it
+shipping in the meantime. It also supersedes my own recommendation there and in
+this session's TODO — I argued for **C** (dark by default plus a toggle). Erik
+took **A** (pin dark), and A is the better call: a toggle does not avoid the
+cost, it only defers it, because the toggle still owes a second design. The
+second design WAS the cost.
+
+**Scope:** the `@media (prefers-color-scheme: light)` token block, the dual
+`themeColor`, and three comments that described two schemes.
+
+### Why A rather than C, in the terms the page itself sets
+
+Light was never a design here; it was a token inversion that passed contrast.
+Everything this page's visual language does adds **light to darkness** — the
+field's hot-cell calibration assumes black, and the cursor wake and click ripple
+both work by BRIGHTENING, which on cream *removes* contrast instead of adding
+it. So the mode nobody designed was also the mode most of the page's motion
+could not work in. Keeping it behind a toggle would have shipped that
+indefinitely rather than for a while.
+
+### The JudgeMySite verdict is the occasion, and it is NOT the evidence
+
+Erik ran bridger.nexus through JudgeMySite's Elitist judge the same morning.
+**Grade B**, six charges. He flagged the confound himself before I could: the
+judge only ever saw the LIGHT rendering, which is the one nobody designed.
+
+Four charges are theme-independent and survive: the **type scale is not a scale**
+(h2 subheads render 15px/600 against 15px/400 body — weight doing a job size
+should share, same again for the six verify-card h3s), and **`/api/about` is
+served raw into the browser** in Times New Roman with no `lang`, while the
+landing page links it three times as a document a cautious human should read.
+Those are real and they are now the open design items.
+
+Two charges are PLAUSIBLY light-mode artifacts and are explicitly not being
+actioned on this evidence: *"hero background noise fights the headline"* and
+*"the page has no visual terminus — no footer"*. The page does have a terminus
+— `.gate-foot` runs a mirrored field carrying the wordmark — and a field that
+works by brightening is close to invisible on cream, which would explain a
+reader reporting that the page simply stops. **This is a hypothesis. The judge
+has not been re-run against dark**, and it should be before either charge is
+accepted or dismissed.
+
+**Code impact** (grep-verified, not recalled):
+- `app/globals.css` — the 43-line `@media (prefers-color-scheme: light)` block
+  deleted; a new note at `:root` records why dark is pinned rather than default;
+  two stale comments corrected ("both schemes", "in both themes").
+- `app/layout.tsx` — `themeColor` collapsed from a two-entry media array to the
+  single `#07080a`. A light theme colour would have painted cream browser chrome
+  over a near-black page.
+- `grep -rn "prefers-color-scheme"` over `app/` and `lib/` now returns exactly
+  one hit, `letter-glitch.tsx:774`, a listener that rebuilds on an OS scheme
+  change. It can no longer produce a colour change and is left in place as
+  harmless; it is the one loose end.
+
+**Verified:** the SERVED stylesheet (69,421 bytes) contains **zero** occurrences
+of `prefers-color-scheme`, with `07080a` present in the same fetch as a negative
+control so the zero is not an empty response. There is no light rule left to
+trigger, under any OS preference.
+
+**Doc impact:** `TODO.md` decision 1 struck through and marked decided.
+Historical entries in this file and in `STATUS.md` that describe light mode as
+live are LEFT ALONE — they are history, and the S#277 "20/20 AA both schemes"
+measurement was true when it was made.
+
+---
+
 ## 2026-08-28 -- S#284b -- BRIDGER MAKES OUTBOUND REQUESTS NOW, AND THE PAYLOAD CARRIES NO CONTENT
 
 **Source:** Erik: *"can we make Bridger wake you and make that an option for
