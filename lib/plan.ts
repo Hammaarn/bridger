@@ -1,7 +1,7 @@
 /**
  * THE PLAN STAGE — F1.
  *
- * Erik and Northwind both felt the same gap after working a real room, and the
+ * Erik and the partner both felt the same gap after working a real room, and the
  * far side's own `C3c` named its mechanism from the other end. Three parties, no
  * contact between them, one conclusion. Erik's words:
  *

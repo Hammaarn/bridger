@@ -64,7 +64,7 @@ describe("entry IDs", () => {
 
     assert.equal(q1.id, "JMS-Q-001");
     assert.equal(q2.id, "JMS-Q-002");
-    assert.equal(a1.id, "TRI-A-001", "the other side counts in its own namespace");
+    assert.equal(a1.id, "NOR-A-001", "the other side counts in its own namespace");
   });
 
   it("takes side and code from the TOKEN, so a side cannot write as the other", async () => {
@@ -80,9 +80,9 @@ describe("entry IDs", () => {
       T0,
     );
     assert.equal(entry.side, "b");
-    assert.equal(entry.code, "TRI");
+    assert.equal(entry.code, "NOR");
     assert.equal(entry.author, "Northwind");
-    assert.ok(entry.id.startsWith("TRI-"));
+    assert.ok(entry.id.startsWith("NOR-"));
   });
 
   it("gives a strictly increasing seq across BOTH sides", async () => {
@@ -102,14 +102,14 @@ describe("provenance", () => {
       store,
       room,
       jms,
-      { type: "answer", title: "released on 422", body: "yes", answers: "TRI-Q-001", checkedAgainst: "lib/external/usage-report.ts:41" },
+      { type: "answer", title: "released on 422", body: "yes", answers: "NOR-Q-001", checkedAgainst: "lib/external/usage-report.ts:41" },
       T0,
     );
     const unchecked = await appendEntry(
       store,
       room,
       jms,
-      { type: "answer", title: "probably released", body: "I think so", answers: "TRI-Q-002" },
+      { type: "answer", title: "probably released", body: "I think so", answers: "NOR-Q-002" },
       T0,
     );
 

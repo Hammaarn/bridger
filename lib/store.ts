@@ -129,7 +129,7 @@ export const INVITE_KEY = (code: string) => `${NS}:invite:${code.toUpperCase()}`
  *
  * Without it the two collapse, and the message a partner sees is "check you
  * copied the whole line" — which sends them hunting a typo that does not exist,
- * and is one of the two things that convinced Northwind's agent the service was
+ * and is one of the two things that convinced the first partner's agent the service was
  * broken.
  */
 export const INVITE_SPENT_KEY = (code: string) => `${NS}:invite:spent:${code.toUpperCase()}`;

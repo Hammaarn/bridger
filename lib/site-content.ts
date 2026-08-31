@@ -27,7 +27,7 @@
  * EXAMPLE NAMES ARE FICTIONAL, DELIBERATELY.
  *
  * `Acme` and `Northwind` are the standard placeholder companies. This used to
- * read `Northwind` -- a REAL partner -- and it was live on the landing page and
+ * named a REAL partner -- and it was live on the landing page and
  * in /llms.txt, which put another company's name in our marketing copy without
  * anyone asking them. Erik caught it S#279 while looking at the create form's
  * pre-filled suggestions, which had the same problem one layer up: they were our
@@ -37,7 +37,7 @@
  * THE CANONICAL HOST. Changed to `bridger.nexus` S#283.
  *
  * **`bridger-nu.vercel.app` STILL SERVES and must keep serving.** Partners hold
- * tokens and join links against it and the live Northwind room's history cites
+ * tokens and join links against it and the live partner room's history cites
  * it, so it stays attached in Vercel as a second hostname on the SAME
  * deployment -- verified by both hosts reporting one `deploymentId` from
  * `/api/about`. This is an ADD, never a replace, and nothing redirects.

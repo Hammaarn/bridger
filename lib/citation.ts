@@ -188,7 +188,7 @@ const HAS_SEPARATOR = /[/\\]/;
  *
  * This pattern used to be searched ANYWHERE in the string and accepted at any
  * size, so a citation that merely *mentioned* a domain became a "web source".
- * Four of the seven citations in the live Northwind room were misclassified
+ * Four of the seven citations in the live partner room were misclassified
  * this way — prose describing commands and production runs, graded as web
  * sources because a sentence happened to contain `headless.design`.
  *

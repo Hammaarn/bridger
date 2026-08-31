@@ -481,7 +481,7 @@ export function deriveCode(label: string): string {
   }
   // One word: prefer its internal capitals when there are at least two
   // ("JudgeMySite" -> JMS), otherwise just take the first three letters
-  // ("Northwind" -> TRI). Requiring TWO capitals is the fix for a real bug:
+  // ("Northwind" -> NOR). Requiring TWO capitals is the fix for a real bug:
   // a single leading capital used to yield "T" and pad to "TXX".
   const caps = words[0].replace(/[^A-Z]/g, "");
   return initialsOf(caps.length >= 2 ? caps : words[0]);

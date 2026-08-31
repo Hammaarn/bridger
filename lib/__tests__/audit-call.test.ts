@@ -71,6 +71,7 @@ describe("the audit log records SUCCESSES, not only denials", () => {
     const store = new FakeStore();
     const row: AuditEntry = {
       ts: "2026-08-12T10:00:00.000Z",
+      // disclosure-ok: synthetic fixture, not a room id.
       tokenId: "abc123def456",
       roomId: "room_1",
       side: "a",
@@ -89,6 +90,7 @@ describe("the audit log records SUCCESSES, not only denials", () => {
     store.failAll();
     await writeAudit(store, {
       ts: "2026-08-12T10:00:00.000Z",
+      // disclosure-ok: synthetic fixture, not a room id.
       tokenId: "abc123def456",
       roomId: "room_1",
       side: "a",

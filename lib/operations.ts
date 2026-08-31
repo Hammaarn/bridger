@@ -1350,7 +1350,7 @@ export async function opPing(ctx: OpContext) {
  * way to produce one. Its only handoff was the raw `br_live_...` token printed
  * on the minted screen, which means the recommended way to invite a partner was
  * to paste a live credential into a chat message. That is precisely the artefact
- * a partner's AI is right to refuse: Northwind's Claude declined exactly that in
+ * a partner's AI is right to refuse: the partner's Claude declined exactly that in
  * S#275 and its reasoning was correct. A `/j/<code>` URL is not a credential, it
  * is short-lived, and it hands over the whole protocol as text.
  *

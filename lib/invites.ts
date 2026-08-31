@@ -25,7 +25,7 @@
  * -------------------------------------------------------------------------
  * The original design deleted the code on first read. Exactly one token could
  * ever exist, which was right, but it was bought by making the SECOND read a
- * 404 — and that is what killed the first live customer demo. Northwind's agent
+ * 404 — and that is what killed the first live customer demo. the partner's agent
  * fetched the join document, got its token, fetched again (agents retry, and
  * they make confirming calls), got `not recognised`, concluded the service was
  * broken, and never used the credential it was already holding.

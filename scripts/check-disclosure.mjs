@@ -56,7 +56,14 @@ const SHIPPING = [
   /^NOTICE$/,
   /^AGENTS\.md$/,
   /^app\/.*\.(ts|tsx)$/,
-  /^lib\/(?!__tests__\/).*\.ts$/,
+  // Tests included DELIBERATELY, and they were not at first. The reasoning for
+  // excluding them was "nobody reads a test as instruction", which is true and
+  // beside the point: they are tracked, so they are published, and fixture data
+  // naming a real company is the same exposure as a README sample. The armed
+  // name check found 26 occurrences across 15 test files the moment the list
+  // was switched on -- a hole the tiering had created by reasoning about how a
+  // file is READ rather than whether it is PUBLISHED.
+  /^lib\/.*\.ts$/,
   /^cli\/.*\.ts$/,
   /^integrations\/.*$/,
   /^skill\/.*$/,

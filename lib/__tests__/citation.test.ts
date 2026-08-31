@@ -65,9 +65,9 @@ describe("citation — classification", () => {
 
 describe("citation — the traps", () => {
   it("an entry id is NOT a file citation", () => {
-    // `TRI-Q-003:1` has the shape of path:line. An id is not evidence, and
+    // `NOR-Q-003:1` has the shape of path:line. An id is not evidence, and
     // requiring a file extension is what keeps it out.
-    assert.equal(classifyCitation("TRI-Q-003:1").kind, "unlocated");
+    assert.equal(classifyCitation("NOR-Q-003:1").kind, "unlocated");
     assert.equal(classifyCitation("JMS-Q-001").kind, "unlocated");
   });
 
@@ -143,7 +143,7 @@ describe("citation — labels state WHAT WAS CITED, never a verdict on the answe
 });
 
 describe("citation — web sources, found by a real answer being graded 'whole file'", () => {
-  // THE ACTUAL REGRESSION, verbatim from entry ABF-A-002 on room ROOM_REDACTED_D.
+  // THE ACTUAL REGRESSION, verbatim from a real partner room.
   // It cited five news and archive domains and the record rendered it as
   // "whole file" — claiming a document in this repo. That is a false fact about
   // the string, which is the one thing this module promises not to state.
@@ -223,7 +223,7 @@ describe("citation — web sources, found by a real answer being graded 'whole f
 });
 
 describe("[!!] a citation that MENTIONS a domain is prose, not a web source (S#284)", () => {
-  // Found live, in the real Northwind room, the hour the evidence index
+  // Found live, in the real partner room, the hour the evidence index
   // shipped: four of seven citations were graded "web source" because a
   // sentence happened to contain a domain.
   //

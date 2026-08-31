@@ -76,7 +76,7 @@ describe("token secrecy", () => {
     assert.equal(owner.ok && owner.token.side, "a");
     assert.equal(peer.ok && peer.token.side, "b");
     assert.equal(owner.ok && owner.token.code, "JMS");
-    assert.equal(peer.ok && peer.token.code, "TRI");
+    assert.equal(peer.ok && peer.token.code, "NOR");
   });
 
   it("never lets two sides share an entry-ID namespace", async () => {
@@ -328,6 +328,7 @@ describe("viewer role", () => {
 
   it("a token minted before roles existed still writes — no silent downgrade", () => {
     const legacy = parseToken(
+      // disclosure-ok: synthetic fixture, not a room id.
       JSON.stringify({ id: "abc123456789", roomId: "r1", side: "a", label: "X", code: "XXX" }),
     );
     assert.equal(legacy?.role, "participant");
@@ -336,6 +337,7 @@ describe("viewer role", () => {
 
   it("a corrupted role value fails SAFE for the partner, not closed", () => {
     const weird = parseToken(
+      // disclosure-ok: synthetic fixture, not a room id.
       JSON.stringify({ id: "abc123456789", roomId: "r1", side: "a", role: "nonsense" }),
     );
     assert.equal(weird?.role, "participant", "only the exact string 'viewer' restricts");
@@ -367,7 +369,7 @@ describe("viewer role", () => {
 describe("deriveCode", () => {
   it("is deterministic and readable for the label shapes we expect", () => {
     assert.equal(deriveCode("JudgeMySite"), "JMS", "internal capitals win when there are >=2");
-    assert.equal(deriveCode("Northwind"), "TRI", "one capital is not an acronym — take 3 letters");
+    assert.equal(deriveCode("Northwind"), "NOR", "one capital is not an acronym — take 3 letters");
     assert.equal(deriveCode("acme corp"), "ACX");
     assert.equal(deriveCode("Big Red Widget Co"), "BRW");
     assert.equal(deriveCode(""), "XXX");
@@ -376,7 +378,7 @@ describe("deriveCode", () => {
   });
 
   it("disambiguates only when it must", () => {
-    assert.equal(disambiguateCode("JMS", "TRI"), "JMS", "distinct codes are left alone");
+    assert.equal(disambiguateCode("JMS", "NOR"), "JMS", "distinct codes are left alone");
     assert.equal(disambiguateCode("ACM", "ACM"), "ACB");
     assert.notEqual(disambiguateCode("ACM", "ACM"), "ACM");
   });

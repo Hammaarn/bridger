@@ -12,7 +12,7 @@ import { trailGuidance } from "../room-registry";
  */
 describe("field guidance — the habit the first real far side actually showed", () => {
   it("fires on the observed pattern: status and read, alternating, never ping", () => {
-    // Room `ROOM_REDACTED_C`, 2026-08-21: four questions answered with status+read
+    // A real room, 2026-08-21: four questions answered with status+read
     // five times each, an hour after we shipped a document pointing at ping.
     const advice = trailGuidance("srsrsr");
     assert.ok(advice, "the pattern that cost 8x the bytes should say so");

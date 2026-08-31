@@ -1585,7 +1585,7 @@ function TokenBox({
    * This screen's only way to invite anyone used to be the raw `br_live_...`
    * token below — so the recommended action was to paste a live credential into
    * a chat message, which is durable, forwardable and screenshot-able. It is
-   * also the exact artefact a partner's AI is right to refuse: Northwind's
+   * also the exact artefact a partner's AI is right to refuse: the partner's
    * Claude declined precisely that in S#275 and its reasoning was correct.
    *
    * A `/j/<code>` link is not a credential. It dies in hours, it mints exactly
