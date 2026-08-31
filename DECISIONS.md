@@ -44,14 +44,40 @@ served raw into the browser** in Times New Roman with no `lang`, while the
 landing page links it three times as a document a cautious human should read.
 Those are real and they are now the open design items.
 
-Two charges are PLAUSIBLY light-mode artifacts and are explicitly not being
-actioned on this evidence: *"hero background noise fights the headline"* and
-*"the page has no visual terminus — no footer"*. The page does have a terminus
-— `.gate-foot` runs a mirrored field carrying the wordmark — and a field that
-works by brightening is close to invisible on cream, which would explain a
-reader reporting that the page simply stops. **This is a hypothesis. The judge
-has not been re-run against dark**, and it should be before either charge is
-accepted or dismissed.
+**[CORRECTED SAME DAY, and the correction is mine.]** This entry first recorded
+two charges as "plausibly light-mode artifacts": the hero noise, and *"no visual
+terminus — no footer"*. I argued the page DOES have a terminus because
+`.gate-foot` runs a mirrored field carrying the wordmark.
+
+**Erik asked whether the judge had fabricated anything. It had not, and checking
+is what showed I had.** The shipped markup is
+`<div class="gate-foot"><canvas class="bg-foot" aria-hidden="true"></canvas></div>`
+— no semantic `<footer>`, no text, no link, no repeated action, and the canvas
+is explicitly `aria-hidden`, so to a screen reader the page really does end at
+the "we operate the server" paragraph. The charge is correct **in both themes**,
+and colour has nothing to do with it. A glitch field is not a footer.
+
+Every other checkable charge verified EXACTLY against production CSS:
+`.panel h2{font-size:15px;font-weight:600}` against `body{font-size:15px}`, and
+`.bx-checks h3{font-size:15px}`. It read real values off the real stylesheet.
+
+The one thing that does not hold is a FIX, not a finding: charge 2 offers
+"Option A: serve the endpoint as application/json and rely on the browser's
+built-in JSON viewer" — we already send `Content-Type: application/json`, so
+that half was proposed without checking the current state, and the "Times New
+Roman at 16px" description does not match what a browser does with that header.
+The finding underneath it stands: `/api/about` is linked three times as a
+document a cautious human should read and is served with no title, no `lang` and
+no presentation.
+
+Only the hero-noise charge remains genuinely unverified either way; it is a
+taste call, and I had no evidence for calling it a light artifact either.
+
+**The lesson worth keeping is not about the judge.** I have a stake in this page
+and Erik does not (behavioral#12), and the shape it took was defending our own
+work against outside criticism by reaching for a confound that was real but
+irrelevant. The confound — that the judge saw a rendering nobody designed — is
+true and still does not excuse a single one of these charges.
 
 **Code impact** (grep-verified, not recalled):
 - `app/globals.css` — the 43-line `@media (prefers-color-scheme: light)` block
