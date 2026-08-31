@@ -73,11 +73,9 @@ no presentation.
 Only the hero-noise charge remains genuinely unverified either way; it is a
 taste call, and I had no evidence for calling it a light artifact either.
 
-**The lesson worth keeping is not about the judge.** I have a stake in this page
-and Erik does not (behavioral#12), and the shape it took was defending our own
-work against outside criticism by reaching for a confound that was real but
-irrelevant. The confound — that the judge saw a rendering nobody designed — is
-true and still does not excuse a single one of these charges.
+**Operative note for next time:** the confound was real and irrelevant. When an
+outside critique lands, check the charge before reaching for the reason it might
+not apply — here that was one `curl` of the shipped markup.
 
 **Code impact** (grep-verified, not recalled):
 - `app/globals.css` — the 43-line `@media (prefers-color-scheme: light)` block
