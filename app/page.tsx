@@ -1042,6 +1042,49 @@ function Gate({
             wordWidth={0.7}
             intensity={0.78}
           />
+          {/*
+            A REAL FOOTER, because the wave was never one (S#285).
+
+            A JudgeMySite review charged that the page "simply stops" — no footer
+            region, no closure, no repeat of the primary action. I argued back
+            that the mirrored wave IS the terminus and was wrong: the shipped
+            markup was a lone `<canvas aria-hidden="true">`, so to a screen
+            reader the page genuinely ended at the operator disclosure, and to
+            anyone who had read this far there was nowhere to go.
+
+            The wave stays — it was doing the visual half correctly. What was
+            missing is the informational half: what this is, who runs it, where
+            to check it, and one way back to the only action on the page.
+
+            The button calls the SAME `onCreate` as the hero. The review's own
+            proposed footer shipped a `<button>` with no handler, which is worse
+            than no footer: a dead primary action teaches a reader the page is a
+            mockup.
+          */}
+          <footer className="site-foot">
+            <div className="site-foot-in">
+              <div className="site-foot-id">
+                <span className="site-foot-name">Bridger</span>
+                <span className="site-foot-sub">
+                  A shared, append-only record two teams’ AI sessions read and write.
+                  Operated by Erik Hammarström, Stockholm · Apache-2.0
+                </span>
+              </div>
+
+              <nav className="site-foot-nav" aria-label="About this service">
+                <a href="https://github.com/Hammaarn/bridger">Source</a>
+                <a href="https://github.com/Hammaarn/bridger/blob/master/VERIFY.md">
+                  How to verify it
+                </a>
+                <a href="/api/about">What this server is</a>
+                <a href="/llms.txt">llms.txt</a>
+              </nav>
+
+              <button type="button" className="bx-primary site-foot-cta" onClick={onCreate}>
+                <span>Open a new room</span>
+              </button>
+            </div>
+          </footer>
         </div>
       </div>
     </main>
