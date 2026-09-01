@@ -298,4 +298,49 @@ describe("finding the room this session is actually connected to", () => {
   it("a project with no bridger connector resolves to null", () => {
     assert.equal(resolveConnector({ projects: { "c:/A/B": { mcpServers: {} } } }, "c:/A/B"), null);
   });
+
+  it("[!!] BRIDGER_TOKEN wins -- the only way to say 'watch THIS room'", () => {
+    // S#286. The binding used to be INFERRED from a directory, so an operator
+    // working a room over the CLI could not point the hook at it at all. We
+    // spent an evening in a room the doorbell could not see, while it happily
+    // watched an older one and reported itself healthy.
+    const out = resolveConnector(cj, "c:/A/B", { BRIDGER_TOKEN: "br_live_env" });
+    assert.equal(out?.token, "br_live_env", "explicit must beat the connector");
+    assert.equal(out?.source, "env");
+  });
+
+  it("BRIDGER_SERVER is honoured, and /api/mcp is trimmed off either way", () => {
+    const out = resolveConnector(cj, "c:/A/B", {
+      BRIDGER_TOKEN: "br_live_env",
+      BRIDGER_SERVER: "https://other.example/api/mcp",
+    });
+    assert.equal(out?.base, "https://other.example");
+  });
+
+  it("[!!] a SUBDIRECTORY resolves to its project's connector", () => {
+    // The project key is wherever Claude Code was started. Any command run one
+    // level down used to resolve to nothing -- `--status` from the repo root
+    // and from repo/sub gave opposite answers, which is how this was found.
+    assert.equal(resolveConnector(cj, "c:/A/B/deep/nested")?.token, "br_live_zzz");
+  });
+
+  it("user scope is found when no project matches", () => {
+    // `claude mcp add --scope user` writes here, and this function was blind
+    // to it -- a correctly-installed connector that resolved to null.
+    const userScoped = { mcpServers: { bridger: { url: "https://u.example/api/mcp", headers: { Authorization: "Bearer br_live_user" } } } };
+    const out = resolveConnector(userScoped, "c:/nowhere");
+    assert.equal(out?.token, "br_live_user");
+    assert.equal(out?.source, "user");
+  });
+
+  it("NEGATIVE CONTROL: project scope still WINS over user scope", () => {
+    // Walking up must not overshoot into the global entry when the specific
+    // project has its own -- otherwise two rooms silently become one.
+    const both = { ...cj, mcpServers: { bridger: { url: "https://u.example/api/mcp", headers: { Authorization: "Bearer br_live_user" } } } };
+    assert.equal(resolveConnector(both, "c:/A/B")?.token, "br_live_zzz");
+  });
+
+  it("NEGATIVE CONTROL: an empty BRIDGER_TOKEN does not hijack the lookup", () => {
+    assert.equal(resolveConnector(cj, "c:/A/B", { BRIDGER_TOKEN: "   " })?.token, "br_live_zzz");
+  });
 });

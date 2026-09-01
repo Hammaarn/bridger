@@ -220,32 +220,64 @@ export function reasonText(count, from, to) {
 /**
  * Find the room this session is connected to.
  *
- * The token lives in the MCP connector entry in ~/.claude.json, never in a
- * file we wrote. Two things bite here and both are load-bearing:
+ * THREE SOURCES, MOST EXPLICIT FIRST. The old version had only the middle one,
+ * and every way it failed cost a missed nudge that looked like silence.
+ *
+ *   1. `BRIDGER_TOKEN` in the environment -- "watch THIS room", the same
+ *      contract the CLI already honours. Without it there was NO WAY to point
+ *      the doorbell at a room, because the binding was inferred from a
+ *      directory rather than stated. An operator working a room over the CLI,
+ *      or running two rooms at once, was invisible to it: S#286 spent an
+ *      evening in a room the hook could not see while it watched an older one.
+ *   2. The MCP connector in ~/.claude.json, walking UP from cwd. The project
+ *      key is the directory Claude Code was started in, so any command run
+ *      from a SUBDIRECTORY resolved to nothing at all -- `--status` from the
+ *      repo root and from `repo/` one level down gave opposite answers.
+ *   3. User scope (`mcpServers` at the top level), which a `--scope user`
+ *      install writes and which this function could not see at all.
+ *
+ * Two traps kept from the original, both still load-bearing:
  *   - the project key appears under BOTH drive-letter cases on Windows;
  *   - the connector's host is the one to use. The CLI's own default is a
  *     different hostname for the same deployment, and a hook that assumed it
  *     could be talking to a server this session never authenticated against.
+ *     The env path is the one exception, because setting BRIDGER_TOKEN is an
+ *     explicit choice of server by the operator, not an inference by us.
+ *
+ * `env` defaults to `{}` rather than `process.env` so the function stays pure
+ * and testable; `main` passes the real environment at the impure edge.
  */
-export function resolveConnector(claudeJson, cwd) {
-  const projects = claudeJson?.projects ?? {};
-  const norm = String(cwd).replace(/\\/g, "/");
-  const candidates = [
-    norm,
-    norm.charAt(0).toLowerCase() + norm.slice(1),
-    norm.charAt(0).toUpperCase() + norm.slice(1),
-  ];
-  for (const key of candidates) {
-    const entry = projects[key]?.mcpServers?.bridger;
+export function resolveConnector(claudeJson, cwd, env = {}) {
+  const fromEntry = (entry, source) => {
     const auth = entry?.headers?.Authorization;
-    const url = entry?.url;
-    if (typeof auth === "string" && typeof url === "string") {
-      const token = auth.replace(/^Bearer\s+/i, "").trim();
-      const base = url.replace(/\/api\/mcp\/?$/, "").replace(/\/$/, "");
-      if (token && base) return { token, base };
-    }
+    const url = entry?.url ?? entry?.httpUrl ?? entry?.serverUrl;
+    if (typeof auth !== "string" || typeof url !== "string") return null;
+    const token = auth.replace(/^Bearer\s+/i, "").trim();
+    const base = url.replace(/\/api\/mcp\/?$/, "").replace(/\/$/, "");
+    return token && base ? { token, base, source } : null;
+  };
+
+  const envToken = String(env.BRIDGER_TOKEN ?? "").trim();
+  if (envToken) {
+    const base = String(env.BRIDGER_SERVER ?? "https://bridger.nexus")
+      .replace(/\/api\/mcp\/?$/, "")
+      .replace(/\/$/, "");
+    return { token: envToken, base, source: "env" };
   }
-  return null;
+
+  const projects = claudeJson?.projects ?? {};
+  let dir = String(cwd).replace(/\\/g, "/").replace(/\/+$/, "");
+  while (dir) {
+    for (const key of [dir, dir.charAt(0).toLowerCase() + dir.slice(1), dir.charAt(0).toUpperCase() + dir.slice(1)]) {
+      const got = fromEntry(projects[key]?.mcpServers?.bridger, "project");
+      if (got) return got;
+    }
+    const cut = dir.lastIndexOf("/");
+    if (cut <= 0) break;
+    dir = dir.slice(0, cut);
+  }
+
+  return fromEntry(claudeJson?.mcpServers?.bridger, "user");
 }
 
 // ── impure edges ────────────────────────────────────────────────────────────
@@ -366,7 +398,7 @@ async function main() {
   if (!statusOnly && event !== undefined && event !== "Stop") process.exit(0);
 
   const claudeJson = JSON.parse(readFileSync(join(homedir(), ".claude.json"), "utf8"));
-  const conn = resolveConnector(claudeJson, process.cwd());
+  const conn = resolveConnector(claudeJson, process.cwd(), process.env);
   if (!conn) {
     if (statusOnly) console.log("no bridger MCP connector for this project in ~/.claude.json");
     process.exit(0);
@@ -383,7 +415,7 @@ async function main() {
   const now = Date.now();
 
   if (statusOnly) {
-    console.log(JSON.stringify({ server: conn.base, stateFile: file, killed, ...state }, null, 2));
+    console.log(JSON.stringify({ server: conn.base, boundBy: conn.source, stateFile: file, killed, ...state }, null, 2));
     process.exit(0);
   }
 
