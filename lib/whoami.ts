@@ -9,7 +9,7 @@
  * side and prove they are indistinguishable.
  */
 
-import { seat, type RoomRecord, type TokenRecord } from "./room-registry";
+import { seat, tokenDaysLeft, type RoomRecord, type TokenRecord } from "./room-registry";
 
 /** Reasons `authorize` can refuse. Kept structural so the union stays honest. */
 export type RefusalReason = string;
@@ -58,6 +58,17 @@ export interface WhoamiBody {
     role: string;
     canWrite: boolean;
     expiresAt: string | null;
+    /**
+     * Whole days of life left, or null for a token that never expires.
+     *
+     * [S#286] `expiresAt` alone was technically sufficient and practically
+     * useless: it is an ISO timestamp, and nothing -- no client, no hook, no
+     * human glancing at a JSON blob -- ever did the subtraction. A number that
+     * requires arithmetic before it means anything is not a warning.
+     */
+    daysLeft: number | null;
+    /** When traffic last renewed this token, or null if it never has. */
+    renewedAt: string | null;
   };
   peer: { side: string; label: string; code: string; agent: string | null; joined: boolean };
   next: string;
@@ -71,7 +82,15 @@ export interface WhoamiBody {
  * attacker nothing. `next` exists because a working token that leaves the
  * caller guessing is only half an answer.
  */
-export function whoamiBody(room: RoomRecord, token: TokenRecord): WhoamiBody {
+export function whoamiBody(
+  room: RoomRecord,
+  token: TokenRecord,
+  now: Date = new Date(),
+): WhoamiBody {
+  // FLOOR, not round: "1 day left" on a token with 1.9 days is the safe
+  // direction to be wrong in, and "0 days left" on one with hours is exactly
+  // what the reader needs to see.
+  const left = tokenDaysLeft(token, now);
   const peerSide = token.side === "a" ? "b" : "a";
   return {
     ok: true,
@@ -84,6 +103,8 @@ export function whoamiBody(room: RoomRecord, token: TokenRecord): WhoamiBody {
       role: token.role,
       canWrite: token.role !== "viewer",
       expiresAt: token.expiresAt,
+      daysLeft: left === null ? null : Math.floor(left),
+      renewedAt: token.renewedAt ?? null,
     },
     peer: {
       side: peerSide,

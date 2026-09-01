@@ -33,6 +33,9 @@ import {
   type SideId,
   readRoomActivity,
   seat,
+  seatsFor,
+  parseToken,
+  tokenDaysLeft,
   otherSide,} from "../lib/room-registry";
 import {
   AUDIT_LOG,
@@ -40,6 +43,9 @@ import {
   KILL_SWITCH,
   RATE_LIMIT_PER_MINUTE,
   ROOM_KEY,
+  ROOM_TOKENS_KEY,
+  TOKEN_KEY,
+  TOKEN_RENEW_WITHIN_DAYS,
   createStore,
 } from "../lib/store";
 import type { Entry } from "../lib/entries";
@@ -307,6 +313,154 @@ ${
   Shown ONCE — only hashes are stored. Lost one? \`bridger rotate --side a|b\`.
   Wrote ${ROOM_FILE} (contains no secret; safe to commit).
 `);
+}
+
+/**
+ * DOCTOR -- "is my credential alive, and if not, what exactly do I type?"
+ *
+ * A12, S#286. The recovery path was never technically hard: rotate, paste,
+ * restart. It was hard to BEGIN, because every step needed a fact the person
+ * with the problem did not have in front of them -- which room, which side,
+ * and whether the token was expired, revoked, or simply wrong. The session that
+ * discovers the failure is the one whose tools have just deregistered, so it
+ * cannot look any of it up either.
+ *
+ * Two independent halves, because the two audiences hold different secrets and
+ * either half is useful alone:
+ *
+ *   - **BRIDGER_TOKEN set** -> ask the live server about THAT credential. This
+ *     is the partner's half and needs no operator access at all.
+ *   - **Upstash credentials present** -> read the room's own token inventory.
+ *     This is the operator's half, and it is the one that answers "side b has
+ *     no live token" without anybody holding a working credential.
+ *
+ * It prints the exact next command either way. A diagnosis that ends in "ask
+ * your operator" is the thing this exists to replace.
+ */
+async function cmdDoctor() {
+  const local = readLocalRoomSafe();
+  const server = (arg("--server", local?.server ?? DEFAULT_SERVER)).replace(/\/$/, "");
+  const roomId = arg("--room", local?.roomId ?? "");
+  let anythingChecked = false;
+
+  console.log(`
+  bridger doctor -- ${server}`);
+
+  // ── half one: the credential this shell is actually holding ──────
+  const presented = process.env.BRIDGER_TOKEN;
+  if (presented) {
+    anythingChecked = true;
+    console.log(`
+  YOUR BRIDGER_TOKEN`);
+    try {
+      const res = await fetch(`${server}/api/whoami`, {
+        headers: { Authorization: `Bearer ${presented}` },
+      });
+      const body = (await res.json()) as {
+        ok?: boolean;
+        error?: string;
+        room?: { id: string; topic: string };
+        you?: { side: string; label: string; role: string; daysLeft: number | null; renewedAt: string | null };
+      };
+      if (body.ok && body.you && body.room) {
+        const { side, label, role, daysLeft, renewedAt } = body.you;
+        console.log(`    VALID -- room ${body.room.id}, side ${side} (${label}), role ${role}`);
+        console.log(
+          daysLeft === null
+            ? `    Never expires (a pre-S#275 token -- consider rotating it).`
+            : `    Expires in ${daysLeft} day(s).`,
+        );
+        console.log(
+          renewedAt
+            ? `    Last renewed by its own traffic on ${renewedAt.slice(0, 10)}.`
+            : `    Not yet renewed -- it will renew automatically once it drops below ${TOKEN_RENEW_WITHIN_DAYS} days.`,
+        );
+      } else {
+        console.log(`    DEAD -- ${body.error ?? `HTTP ${res.status}`}`);
+      }
+    } catch (err) {
+      console.log(`    Could not reach the server: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  } else {
+    console.log(`
+  YOUR BRIDGER_TOKEN
+    Not set in this shell, so there is nothing to check here.`);
+    console.log(`    Note this says NOTHING about the token in your MCP config -- that file`);
+    console.log(`    is read by your client, never by us. The room inventory below is the`);
+    console.log(`    reliable answer.`);
+  }
+
+  // ── half two: what the registry says the room actually has ───────
+  if (roomId && (process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL)) {
+    try {
+      const store = operatorStore();
+      const room = parseRoom(await store.get(ROOM_KEY(roomId)));
+      if (!room) {
+        console.log(`
+  ROOM ${roomId}
+    No such room.`);
+      } else {
+        anythingChecked = true;
+        const now = new Date();
+        console.log(`
+  ROOM ${room.id} -- ${room.topic}`);
+        const hashes = await store.smembers(ROOM_TOKENS_KEY(room.id));
+        const live: Record<string, number> = {};
+        const dead: Record<string, number> = {};
+        for (const hash of hashes) {
+          const rec = parseToken(await store.get(TOKEN_KEY(hash)));
+          if (!rec) continue;
+          const left = tokenDaysLeft(rec, now);
+          const isDead = !rec.active || (left !== null && left <= 0);
+          if (isDead) dead[rec.side] = (dead[rec.side] ?? 0) + 1;
+          else live[rec.side] = (live[rec.side] ?? 0) + 1;
+          const state = !rec.active ? "revoked" : left === null ? "no expiry" : left <= 0 ? "EXPIRED" : `${Math.floor(left)}d left`;
+          const renewed = rec.renewedAt ? `  (renewed ${rec.renewedAt.slice(0, 10)})` : "";
+          console.log(`    side ${rec.side}  ${rec.role.padEnd(12)} ${state}${renewed}`);
+        }
+        for (const sideId of seatsFor(room)) {
+          // THE CASE THAT ACTUALLY BIT US (S#286). A side can hold a live token
+          // AND a dead one at the same time -- rotation mints the new one and
+          // leaves the old record resolvable so its holder gets `revoked`
+          // rather than `unknown-token`. That is right, and it means "a live
+          // token exists" does NOT mean "the token in your config is the live
+          // one". Our own MCP config held the dead sibling for three sessions
+          // while `usage` cheerfully showed the room as healthy. Same shape as
+          // I1 defect 3: two credentials looked current and the wrong one
+          // travelled.
+          if (live[sideId] && dead[sideId]) {
+            console.log(`
+    [!] side ${sideId} has ${live[sideId]} live token(s) AND ${dead[sideId]} dead one(s).`);
+            console.log(`        A live token existing does NOT mean the one in your config is it.`);
+            console.log(`        If this side is failing to authenticate, you are holding the dead one:`);
+            console.log(`        npm run bridger -- rotate --room ${room.id} --side ${sideId}`);
+          }
+          if (!live[sideId]) {
+            console.log(`
+    [!!] side ${sideId} has NO live token. Mint one:`);
+            console.log(`         npm run bridger -- rotate --room ${room.id} --side ${sideId}`);
+            console.log(`         then paste it into your MCP config and RESTART the client.`);
+          }
+        }
+      }
+    } catch (err) {
+      console.log(`
+  ROOM ${roomId}
+    Could not read the registry: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  } else if (!roomId) {
+    console.log(`
+  ROOM
+    No room id. Pass --room <id>, or run from a directory with ${ROOM_FILE}.`);
+    console.log(`    \`npm run bridger -- usage\` lists the rooms this operator has.`);
+  }
+
+  if (!anythingChecked) {
+    console.log(`
+  Nothing could be checked. Set BRIDGER_TOKEN, or run this where the`);
+    console.log(`  operator's Upstash credentials are available, or pass --room.`);
+  }
+  console.log("");
 }
 
 async function cmdRotate() {
@@ -1433,6 +1587,11 @@ const USAGE = `
            THE WHOLE SETUP IN ONE COMMAND: your side connected, an invite LINK
            to send, and a read-only watch token. Nothing to paste anywhere.
            [--ttl-minutes 240] [--token-days 7] [--show-token]
+    doctor [--room <id>]                 IS MY CREDENTIAL ALIVE? Checks BRIDGER_TOKEN
+                                         against the live server AND the room's own
+                                         token inventory, then prints the exact
+                                         command to fix whatever is wrong. Start here
+                                         when the bridge stops answering.
     rotate --side a|b [--room <id>]      mint a fresh token, revoke the old one
     viewer --side a|b [--room <id>]      mint a READ-ONLY token (for a browser tab)
     answerer --side a|b [--room <id>]    mint a TWO-TOOL token -- ping + answer only.
@@ -1487,6 +1646,7 @@ const USAGE = `
 async function main() {
   switch (process.argv[2]) {
     case "open": return cmdOpen();
+    case "doctor": return cmdDoctor();
     case "rotate": return cmdRotate();
     case "viewer": return cmdViewer();
     case "answerer": return cmdAnswerer();

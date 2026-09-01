@@ -459,11 +459,80 @@ export const DEFAULT_ROOM_DAILY_CAP = 600;
  * sprint and still means an abandoned token in a config file stops working
  * within a quarter.
  *
- * The failure is legible when it comes: `/api/whoami` reports `expiresAt`
- * before a token dies, and the refusal for an expired token is terminal and
- * says to ask for a fresh one rather than retrying.
+ * [S#286] **AND FOR THREE MONTHS THIS NUMBER WAS UNREACHABLE.** The paragraph
+ * above argues that a 30-day token would "die in the middle of a healthy
+ * conversation, which converts a security default into an outage" -- and one
+ * function away, `issueToken` gave the token's RECORD exactly that fuse:
+ * `expire(TOKEN_KEY(hash), ROOM_TTL_SECONDS)`, 30 days, set once at mint and
+ * refreshed by nothing. `touchRoom` refreshes the room, its entries, its
+ * contract and the token SET; it never touched the token records themselves.
+ * So the record was evicted at 30 days no matter how busy the room was, and
+ * `authorize()` then answered `unknown-token` -- a refusal that does not say
+ * "rotate", it says "we have never heard of you". The 90 could not fire.
+ *
+ * Fixed by making the fuse a function of the expiry rather than a constant
+ * (`tokenRecordTtlSeconds`) and by RENEWING ON USE (`TOKEN_RENEW_WITHIN_DAYS`).
+ *
+ * The old last paragraph here claimed the failure was "legible" because
+ * `/api/whoami` reports `expiresAt` before a token dies. True, and it was never
+ * a signal: nothing called it. A pre-expiry warning that requires someone to
+ * ask a question they have no reason to ask is not a warning. What replaces it
+ * is `bridger doctor` (a pull the operator has a reason to run) and a refusal
+ * that names the exact command (`lib/refusals.ts`).
  */
 export const DEFAULT_TOKEN_TTL_DAYS = 90;
+
+/**
+ * Renew a token whose remaining life has fallen below this, on any call it
+ * makes. **This is what makes an in-use credential self-maintaining.**
+ *
+ * Erik, S#286: *"we need to make that token rotation a much easier step and
+ * possibly self-maintaining."* The rotation was never hard; it was that
+ * rotation produced a NEW STRING, which had to be pasted into `~/.claude.json`
+ * and the client restarted -- and MCP config is read at startup, so the session
+ * that discovers the need is structurally the one session that cannot apply the
+ * fix. Renewal changes the EXPIRY, not the string, so none of that happens.
+ *
+ * The security goal in the paragraphs above is untouched, and that is the whole
+ * reason this is safe: it was *"an abandoned token in a config file stops
+ * working within a quarter"*. An abandoned token makes no calls, so it renews
+ * nothing and dies on exactly the old clock. Only the ACTIVE case changes --
+ * which is the case that was failing.
+ *
+ * 30 of 90 means a token used at least once every 60 days never expires, and
+ * one write per token per ~60 days is not a database cost worth reasoning about
+ * (compare: the op trail writes on every call). It self-throttles without a
+ * timer, because the first renewal pushes the expiry back out of the window.
+ */
+export const TOKEN_RENEW_WITHIN_DAYS = 30;
+
+/**
+ * How far a token RECORD's Redis fuse must outlive the token's own `expiresAt`.
+ *
+ * THE INVARIANT, and it is the one this file got wrong: **a token record must
+ * always outlive the credential it describes.** Otherwise the record is evicted
+ * while the token is still nominally valid and the refusal degrades from
+ * `expired` (actionable: rotate) to `unknown-token` (a dead end that reads like
+ * the token was never real). One week of slack is far more than any clock skew
+ * and costs nothing -- these records are a few hundred bytes.
+ */
+export const TOKEN_RECORD_GRACE_SECONDS = 7 * 24 * 60 * 60;
+
+/**
+ * The Redis TTL a token record should carry, given the expiry it describes.
+ *
+ * Never shorter than `ROOM_TTL_SECONDS`, so a token is at least as durable as
+ * the room it belongs to; otherwise long enough to outlive its own `expiresAt`
+ * by `TOKEN_RECORD_GRACE_SECONDS`. An immortal token (`expiresAt: null`, the
+ * pre-S#275 legacy) keeps the room clock, refreshed on use -- so one in use
+ * survives and one that is abandoned still eventually evicts.
+ */
+export function tokenRecordTtlSeconds(expiresAt: string | null, now: Date): number {
+  if (!expiresAt) return ROOM_TTL_SECONDS;
+  const untilExpiry = Math.ceil((Date.parse(expiresAt) - now.getTime()) / 1000);
+  if (!Number.isFinite(untilExpiry)) return ROOM_TTL_SECONDS;
+  return Math.max(ROOM_TTL_SECONDS, untilExpiry + TOKEN_RECORD_GRACE_SECONDS);
+}
 
 /**
  * Daily cap for a token minted through the PASTE path. Half the MCP default.

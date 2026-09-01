@@ -62,13 +62,34 @@
  * are therefore blast-radius ones, not prevention:
  *
  *   - the code is short-lived, so the durable artefact goes inert quickly
- *   - the minted token EXPIRES (default 7 days), unlike an MCP-path token
+ *   - the minted token expires on a 7-day clock (`PASTE_TOKEN_TTL_SECONDS`)
  *   - it is scoped to one room and one side, and cannot speak as the other
  *   - `bridger stop` and `bridger revoke` both kill it immediately
  *
- * A partner who needs a long-lived credential should use the MCP path, where
- * the token lives in a config file the model never reads. That is the honest
- * division: **MCP for durability, paste for reach.**
+ * [S#286] **THE PARAGRAPH THAT USED TO END THIS BLOCK WAS FALSE, AND IT WAS
+ * THE LOAD-BEARING KIND OF FALSE.** It read: *"the minted token EXPIRES
+ * (default 7 days), unlike an MCP-path token"*, and told a partner needing a
+ * long-lived credential to *"use the MCP path"*, summarised as **"MCP for
+ * durability, paste for reach."**
+ *
+ * There was never any such division in the code. The MCP path called
+ * `issueToken` with no `expiresAt` and got `DEFAULT_TOKEN_TTL_DAYS` -- 90 days,
+ * not durability -- and the record behind it was evicted at 30 (see
+ * `tokenRecordTtlSeconds`). So the sentence promised permanence, delivered a
+ * quarter, and in practice delivered a month. **Our own operator credential
+ * died of exactly this**, in `~/.claude.json`, which IS the MCP path, and the
+ * failure was carried across three sessions partly because this comment said it
+ * should not have been possible.
+ *
+ * The honest division is about EXPOSURE, and it always was: a paste-path token
+ * lives in the far side's model context where an injection can reach it, so it
+ * gets a shorter clock and half the daily cap. An MCP-path token lives in a
+ * config file the model never reads, so it gets a longer one. Both expire.
+ *
+ * **Durability now comes from renewal rather than from a long clock**
+ * (`TOKEN_RENEW_WITHIN_DAYS`): any token that keeps being used keeps being
+ * pushed out, on either path, and an abandoned one dies on schedule. That is
+ * the property this comment was describing three months before it existed.
  */
 
 import { randomBytes } from "node:crypto";

@@ -72,6 +72,8 @@ import {
   ROOM_KEY,
   ROOM_TOKENS_KEY,
   ROOM_TTL_SECONDS,
+  TOKEN_RENEW_WITHIN_DAYS,
+  tokenRecordTtlSeconds,
   type Store,
   TOKEN_KEY,
   coerceJson,
@@ -207,6 +209,15 @@ export interface TokenRecord {
   createdAt: string;
   /** ISO date, or null for no expiry. */
   expiresAt: string | null;
+  /**
+   * When `renewTokenIfDue` last pushed `expiresAt` out, or null if never.
+   *
+   * Carried so an operator reading `whoami` or `bridger doctor` can tell a
+   * credential that is being kept alive by its own traffic from one that is
+   * simply young. Without it the two look identical, and the difference is
+   * exactly what A12 is about.
+   */
+  renewedAt?: string | null;
 }
 
 export interface RoomSide {
@@ -354,12 +365,25 @@ export const DENY_MESSAGE: Record<DenyReason, string> = {
   // This message closes that path in words as well as in the counter.
   "room-daily-cap":
     "STOP. This bridge has spent its call budget for today, across every token on it. Do not call any bridger tool again, and do not ask for a replacement token — a new token will be refused the same way until the budget resets at 00:00 UTC. Tell your operator the bridge is done for the day.",
+  // [S#286] THESE TWO USED TO END "ask your operator for a new one", AND THAT
+  // IS A DEAD END FOR THE MOST COMMON READER OF THEM: on a solo-operated
+  // bridge, the agent reading this refusal and the operator who must fix it
+  // are the same person, at the same keyboard, in a session that has just lost
+  // its tools. Naming the command turns a report into a repair. It is safe to
+  // print: `rotate` needs the operator's own Upstash credentials, which an
+  // attacker holding a dead bearer token by definition does not have.
   revoked:
-    "STOP. This token has been revoked. Do not retry; ask your operator for a new one.",
-  expired: "STOP. This token has expired. Do not retry; ask your operator for a new one.",
+    "STOP. This token has been revoked. Do not retry. If you are the operator, mint a replacement with `npm run bridger -- rotate --side <a|b> --room <id>`, paste it into your MCP config, and restart your client. `npm run bridger -- doctor` will tell you which room and side this was.",
+  expired:
+    "STOP. This token has expired. Do not retry. If you are the operator, run `npm run bridger -- doctor` — it names the room, the side, and the exact rotate command. Otherwise ask your operator for a fresh token.",
   "room-closed": "STOP. This bridge has been closed. Do not retry.",
   "room-missing": "STOP. This room no longer exists. Do not retry.",
-  "unknown-token": "STOP. This token is not recognised. Do not retry.",
+  // Reachable for a genuinely wrong string -- and, before S#286, for a token
+  // whose RECORD had been evicted while the token itself was still valid. That
+  // second path is fixed (`tokenRecordTtlSeconds`), which is what makes it
+  // honest to keep this message short and absolute again.
+  "unknown-token":
+    "STOP. This token is not recognised. Do not retry. If you are the operator, run `npm run bridger -- doctor`.",
   "no-token": "No bridge token was presented.",
   "registry-unavailable":
     "The bridge cannot reach its registry and is refusing requests. This may be temporary; do not retry more than once.",
@@ -577,6 +601,7 @@ export function parseToken(raw: unknown): TokenRecord | null {
     active: r.active !== false,
     createdAt: typeof r.createdAt === "string" ? r.createdAt : "",
     expiresAt: typeof r.expiresAt === "string" ? r.expiresAt : null,
+    renewedAt: typeof r.renewedAt === "string" ? r.renewedAt : null,
   };
 }
 
@@ -785,6 +810,18 @@ export async function authorize(store: Store | null, ctx: AuthContext): Promise<
   if (room === null) return { ok: false, reason: "room-missing" };
   if (room.closed) return { ok: false, reason: "room-closed" };
 
+  // RENEW ON USE -- placed here deliberately, after every VALIDITY gate and
+  // before every BUDGET one. A token that is genuinely usable gets its clock
+  // pushed out; a rate-limited or capped one still does, because being over
+  // budget for a minute says nothing about whether the credential is live.
+  //
+  // It also sits above the `ctx.minimal` early return below, so the cheap
+  // `/api/since` path renews too. That matters more than it looks: the Stop
+  // hook and `bridger listen` are the things most likely to be running while
+  // nobody is watching, which makes them exactly the callers that should be
+  // keeping the credential alive.
+  const renewed = await renewTokenIfDue(store, hash, token, ctx.now);
+
   // Counters are charged LAST, once every other gate has passed: a request
   // refused for a closed room must not spend the caller's budget.
   if (ctx.charge !== false) {
@@ -812,7 +849,7 @@ export async function authorize(store: Store | null, ctx: AuthContext): Promise<
        * at all. Charging it four extra Redis commands to record that is the
        * cost this route was built to remove. See `app/api/since/route.ts`.
        */
-      if (ctx.minimal) return { ok: true, token, room };
+      if (ctx.minimal) return { ok: true, token: renewed, room };
 
       const dayKey = USAGE_KEY(token.id, day);
       const perDay = await store.incr(dayKey);
@@ -860,7 +897,92 @@ export async function authorize(store: Store | null, ctx: AuthContext): Promise<
     }
   }
 
-  return { ok: true, token, room };
+  return { ok: true, token: renewed, room };
+}
+
+/**
+ * Days of life a token has left, or `null` if it never expires.
+ *
+ * Fractional on purpose -- callers that want "3 days" round it themselves, and
+ * a caller deciding whether to WARN needs to know the difference between 0.4
+ * days and 4.
+ */
+/**
+ * The term this token was MINTED for, in ms -- `expiresAt - createdAt`.
+ *
+ * Derived rather than stored, so it works on every record already in Redis
+ * without a migration. Falls back to the default term when a legacy record has
+ * no usable `createdAt` (pre-S#266 tokens wrote `""`).
+ */
+function tokenLifetimeMs(token: TokenRecord): number {
+  const fallback = DEFAULT_TOKEN_TTL_DAYS * 86_400_000;
+  if (!token.createdAt || !token.expiresAt) return fallback;
+  const ms = Date.parse(token.expiresAt) - Date.parse(token.createdAt);
+  return Number.isFinite(ms) && ms > 0 ? ms : fallback;
+}
+
+export function tokenDaysLeft(token: TokenRecord, now: Date): number | null {
+  if (!token.expiresAt) return null;
+  const ms = Date.parse(token.expiresAt) - now.getTime();
+  return Number.isFinite(ms) ? ms / 86_400_000 : null;
+}
+
+/**
+ * THE SELF-MAINTAINING HALF OF A12. Push an in-use token's expiry back out.
+ *
+ * Returns the record to use for the rest of the request -- renewed if it was
+ * due, the original otherwise. **Never refuses a call**: a renewal that fails
+ * is a bookkeeping miss, and the token is still valid for weeks, so the right
+ * answer is to serve the request and try again on the next one. Same
+ * best-effort discipline as `touchRoom`.
+ *
+ * WHY THIS NEEDS NO TIMER OR THROTTLE MAP. The condition is "inside the last
+ * `TOKEN_RENEW_WITHIN_DAYS` of life", and the first renewal moves the expiry
+ * back out of that window -- so the write happens roughly once per
+ * `DEFAULT_TOKEN_TTL_DAYS - TOKEN_RENEW_WITHIN_DAYS`, not once per call. On the
+ * default numbers that is one extra Redis command every ~60 days per token.
+ *
+ * IMMORTAL TOKENS ARE SKIPPED, not renewed: `expiresAt: null` is the pre-S#275
+ * legacy and there is nothing to push out. Their RECORD still gets a refreshed
+ * fuse at mint via `tokenRecordTtlSeconds`.
+ */
+async function renewTokenIfDue(
+  store: Store,
+  hash: string,
+  token: TokenRecord,
+  now: Date,
+): Promise<TokenRecord> {
+  const left = tokenDaysLeft(token, now);
+  if (left === null) return token;
+
+  // RENEW TO THIS TOKEN'S OWN TERM, NOT TO THE DEFAULT ONE. The first cut of
+  // this renewed everything to `DEFAULT_TOKEN_TTL_DAYS`, and the pre-existing
+  // suite caught what that meant: a 7-day PASTE-path token would have renewed
+  // itself into a 90-day credential the first time it was used. The short clock
+  // is that path's entire blast-radius mitigation -- the token sits in the far
+  // side's model context where an injection can reach it -- so silently
+  // promoting it would have turned a deliberate security property into a bug
+  // that nothing downstream could see. Same for any explicitly-dated token.
+  const lifetimeMs = tokenLifetimeMs(token);
+
+  // The window scales with the term too. "Renew when under 30 days left" is
+  // meaningless for a token that only ever lives 7: it would renew on first
+  // use, every time, which is a write on every call rather than a rare one.
+  const windowMs = Math.min(TOKEN_RENEW_WITHIN_DAYS * 86_400_000, lifetimeMs / 3);
+  if (left * 86_400_000 > windowMs) return token;
+
+  const expiresAt = new Date(now.getTime() + lifetimeMs).toISOString();
+  const next: TokenRecord = { ...token, expiresAt, renewedAt: now.toISOString() };
+
+  try {
+    await store.setex(TOKEN_KEY(hash), tokenRecordTtlSeconds(expiresAt, now), JSON.stringify(next));
+    // The read that produced `token` is cached for CACHE_TTL_MS; leaving the
+    // stale entry means every call in that window re-renews and re-writes.
+    tokenCache.set(hash, { record: next, fetchedAt: now.getTime() });
+    return next;
+  } catch {
+    return token; // still valid for weeks -- never turn a write blip into a 401
+  }
 }
 
 /**
@@ -1298,9 +1420,18 @@ export async function issueToken(
     createdAt: now.toISOString(),
     expiresAt: expiry,
   };
-  await store.set(TOKEN_KEY(hash), JSON.stringify(record));
+  // SETEX, not SET + EXPIRE. Two reasons, and the second is the S#286 bug:
+  // it is one billed command instead of two (S#281's lesson), and the TTL is
+  // now a function of THIS token's expiry rather than the room constant. The
+  // old pair wrote `ROOM_TTL_SECONDS` -- 30 days -- onto a record describing a
+  // 90-day credential, and nothing ever refreshed it. See
+  // `tokenRecordTtlSeconds` for the invariant that replaces it.
+  await store.setex(
+    TOKEN_KEY(hash),
+    tokenRecordTtlSeconds(record.expiresAt, now),
+    JSON.stringify(record),
+  );
   await store.sadd(ROOM_TOKENS_KEY(room.id), hash);
-  await store.expire(TOKEN_KEY(hash), ROOM_TTL_SECONDS);
   await store.expire(ROOM_TOKENS_KEY(room.id), ROOM_TTL_SECONDS);
   clearRegistryCache();
   return raw;
@@ -1344,7 +1475,16 @@ export async function revokeSide(
     const record = parseToken(await store.get(TOKEN_KEY(hash)));
     if (!record || record.side !== side || !record.active) continue;
     if (role && record.role !== role) continue;
-    await store.set(TOKEN_KEY(hash), JSON.stringify({ ...record, active: false }));
+    // SETEX, because bare SET CLEARS AN EXISTING TTL in Redis. Every token
+    // revoked before S#286 therefore left a permanent key behind -- the same
+    // class as the five immortal counters the S#281 audit found. A revoked
+    // record still has to outlive its own `expiresAt` so the refusal stays
+    // `revoked` rather than decaying into `unknown-token`.
+    await store.setex(
+      TOKEN_KEY(hash),
+      tokenRecordTtlSeconds(record.expiresAt, new Date()),
+      JSON.stringify({ ...record, active: false }),
+    );
     revoked += 1;
   }
   clearRegistryCache();
