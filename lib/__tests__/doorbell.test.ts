@@ -228,6 +228,16 @@ describe("[!!] our own reply must not ring our own doorbell", () => {
   });
   const userSaid = (text: string) => ({ message: { role: "user", content: [{ type: "text", text }] } });
 
+  // [S#286] THE FIXTURE THAT WAS MISSING, AND ITS ABSENCE IS WHY THE BUG SHIPPED.
+  // Claude Code writes a tool RESULT back as `role: "user"`, verified against a
+  // live transcript. Every test above modelled a turn as user-then-assistant with
+  // no result records in between, so the suite described a transcript shape that
+  // does not occur -- and the own-write guard passed its tests while being unable
+  // to fire even once in production.
+  const toolResultFor = (name: string) => ({
+    message: { role: "user", content: [{ type: "tool_result", tool_use_id: `tu_${name}` }] },
+  });
+
   it("sees a write tool used in this turn", () => {
     const f = transcript([userSaid("go"), assistantUsing("mcp__bridger__bridger_answer")]);
     assert.equal(turnWroteToBridge(f), true);
@@ -245,6 +255,60 @@ describe("[!!] our own reply must not ring our own doorbell", () => {
       userSaid("earlier"),
       assistantUsing("mcp__bridger__bridger_answer"),
       userSaid("now"),
+      assistantUsing("Read"),
+    ]);
+    assert.equal(turnWroteToBridge(f), false);
+  });
+
+  it("[!!] REGRESSION: a tool RESULT is not the end of the turn", () => {
+    // The exact shape of a real turn: the operator speaks, the model calls a
+    // bridge tool, and the harness answers with a tool_result carrying
+    // role:"user". Before S#286 the scan stopped at that result and never saw
+    // the tool_use one record earlier, so the doorbell woke the author to
+    // announce the author's own write. Seven times in one session.
+    const f = transcript([
+      userSaid("post the review"),
+      assistantUsing("mcp__bridger__bridger_post"),
+      toolResultFor("mcp__bridger__bridger_post"),
+    ]);
+    assert.equal(turnWroteToBridge(f), true, "own write must be seen THROUGH its own tool_result");
+  });
+
+  it("[!!] REGRESSION: several tool results in one turn are still one turn", () => {
+    // A planning burst is ten writes and ten results before the turn ends.
+    const f = transcript([
+      userSaid("plan it"),
+      assistantUsing("mcp__bridger__bridger_plan"),
+      toolResultFor("mcp__bridger__bridger_plan"),
+      assistantUsing("Read"),
+      toolResultFor("Read"),
+      assistantUsing("Bash"),
+      toolResultFor("Bash"),
+    ]);
+    assert.equal(turnWroteToBridge(f), true);
+  });
+
+  it("NEGATIVE CONTROL: tool results do NOT let the walk reach a previous turn", () => {
+    // The fix must not overshoot. A write an hour ago, then a real operator
+    // message, then a read-only turn full of results -- the earlier write is
+    // out of scope and a genuinely new peer message must still nudge.
+    const f = transcript([
+      userSaid("earlier"),
+      assistantUsing("mcp__bridger__bridger_answer"),
+      toolResultFor("mcp__bridger__bridger_answer"),
+      userSaid("now"),
+      assistantUsing("Read"),
+      toolResultFor("Read"),
+    ]);
+    assert.equal(turnWroteToBridge(f), false, "a real user message still ends the walk");
+  });
+
+  it("a string-content user message also ends the walk", () => {
+    // Some records carry content as a plain string rather than blocks.
+    const f = transcript([
+      { message: { role: "user", content: "earlier" } },
+      assistantUsing("mcp__bridger__bridger_answer"),
+      { message: { role: "user", content: "now" } },
       assistantUsing("Read"),
     ]);
     assert.equal(turnWroteToBridge(f), false);

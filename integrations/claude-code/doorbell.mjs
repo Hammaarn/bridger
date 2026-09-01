@@ -364,8 +364,7 @@ export function turnWroteToBridge(transcriptPath, tailBytes = 262_144) {
     if (!line) continue;
     let rec;
     try { rec = JSON.parse(line); } catch { continue; }
-    const role = rec.role ?? rec.message?.role;
-    if (role === "user" && seenAny) break;
+    if (seenAny && isHumanTurn(rec)) break;
     seenAny = true;
     const content = (rec.message ?? rec).content;
     if (!Array.isArray(content)) continue;
@@ -374,6 +373,41 @@ export function turnWroteToBridge(transcriptPath, tailBytes = 262_144) {
     }
   }
   return false;
+}
+
+/**
+ * Is this record the OPERATOR speaking, rather than a tool answering?
+ *
+ * [S#286] THE BUG THIS FIXES, and an ablation gave a sharper answer than the
+ * reasoning did. The backward scan stopped at the first record with
+ * `role === "user"` -- but **Claude Code records TOOL RESULTS as `role: "user"`**,
+ * verified against a live transcript (`user -> ['tool_result']`).
+ *
+ * The precise failure is NOT "a tool result ends the walk". It is that the
+ * SECOND one does. `seenAny` is still false when the scan meets the last record,
+ * so a turn containing exactly ONE tool call walked past its own result and found
+ * its `tool_use` correctly. A turn with two or more tool calls hit an earlier
+ * result with `seenAny` already true and broke there -- before reaching the write.
+ *
+ * That is why it looked intermittent rather than broken, and why it survived a
+ * suite that tested the one-call shape. Real turns make several calls, so in
+ * practice the guard almost never fired: seven false wake-ups in one session,
+ * each announcing the author's own write back to the author. A doorbell that
+ * rings too often reads as a busy bridge rather than as a broken guard.
+ *
+ * I had written "the scan stops at the first tool_result" in the commit message
+ * before running the ablation. The ablation disagreed, and it was right.
+ *
+ * A human turn carries something that is not a tool_result: a text block, or a
+ * plain string. A record whose content is ONLY tool_result blocks is the harness
+ * answering the model, and the current turn continues straight through it.
+ */
+function isHumanTurn(rec) {
+  if ((rec.role ?? rec.message?.role) !== "user") return false;
+  const content = (rec.message ?? rec).content;
+  if (typeof content === "string") return content.trim().length > 0;
+  if (!Array.isArray(content)) return false;
+  return content.some((block) => block?.type !== "tool_result");
 }
 
 function readStdin() {
