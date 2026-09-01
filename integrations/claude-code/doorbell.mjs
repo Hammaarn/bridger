@@ -136,7 +136,19 @@ export function shouldCheck({ stopHookActive, killed, now, state, debounceMs = D
  */
 export function resolve({ probe, state, now, weWrote = false }) {
   const prev = { seq: 0, lastCheckAt: 0, fires: 0, ...(state ?? {}) };
-  const stamped = { ...prev, lastCheckAt: now };
+  // HAVE WE EVER ADOPTED A HEAD? That is NOT the same question as "have we ever
+  // run", and fusing both onto `lastCheckAt` is what let a doorbell announce a
+  // room's entire history as news: a failed probe stamps the clock (deliberately
+  // -- the debounce needs it) while leaving `seq` at 0, which SPENDS the
+  // bootstrap guard without ever taking a head. The next successful probe then
+  // reports `0 -> latest`. Found on this hook's first real firing, S#286: a
+  // revoked token 401'd, and the recovery nudge claimed 15 new entries in a room
+  // where nothing had happened.
+  //
+  // State written before this flag existed proves itself by its cursor: `seq > 0`
+  // is only reachable through a path that adopted one.
+  const booted = prev.bootstrapped ?? prev.seq > 0;
+  const stamped = { ...prev, bootstrapped: booted, lastCheckAt: now };
 
   if (!probe || probe.error) {
     return { action: "silent", why: "probe-failed", nextState: stamped };
@@ -149,8 +161,12 @@ export function resolve({ probe, state, now, weWrote = false }) {
   // the cursor is 0 and the room may hold hundreds of entries; without this
   // the very first Stop would report the entire history as news. `cmdListen`
   // does the same thing for the same reason: start from now, do not replay.
-  if (!prev.lastCheckAt) {
-    return { action: "silent", why: "bootstrap", nextState: { ...stamped, seq: latest } };
+  if (!booted) {
+    return {
+      action: "silent",
+      why: "bootstrap",
+      nextState: { ...stamped, seq: latest, bootstrapped: true },
+    };
   }
   if (probe.status !== 200 || latest <= prev.seq) {
     return { action: "silent", why: "nothing-new", nextState: { ...stamped, seq: latest } };

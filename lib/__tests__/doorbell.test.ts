@@ -121,6 +121,30 @@ describe("what a probe result turns into", () => {
     assert.equal(next.count, 1);
   });
 
+  it("[!!] a FAILED first probe must not spend the bootstrap guard", () => {
+    // S#286, found on the hook's first real firing. A revoked token 401'd, so
+    // the first probe failed and stamped `lastCheckAt` (which the debounce
+    // needs) while leaving the cursor at 0. The old guard asked "have we ever
+    // run"; the failure answered yes, and the next good probe announced the
+    // room's whole history. The guard must ask "have we ever taken a head".
+    const failed = resolve({ probe: { error: "401" }, state: null, now: 1 });
+    assert.equal(failed.action, "silent");
+    assert.equal(failed.nextState.lastCheckAt, 1, "the debounce still needs its stamp");
+
+    const recovered = resolve({ probe: { status: 200, latestSeq: 15 }, state: failed.nextState, now: 2 });
+    assert.equal(recovered.action, "silent", "a room with 15 old entries is not 15 news items");
+    assert.equal(recovered.why, "bootstrap");
+    assert.equal(recovered.nextState.seq, 15, "and it still takes the head");
+  });
+
+  it("NEGATIVE CONTROL: state predating the flag is NOT re-bootstrapped", () => {
+    // An existing healthy doorbell has no `bootstrapped` field. Re-bootstrapping
+    // it would silently swallow one real batch. seq > 0 is the proof it booted.
+    const out = resolve({ probe: { status: 200, latestSeq: 13 }, state: { seq: 10, lastCheckAt: 1, fires: 0 }, now: 7 });
+    assert.equal(out.action, "block", "a legacy cursor at 10 has plainly adopted a head before");
+    assert.equal(out.count, 3);
+  });
+
   it("a cursor AHEAD of the head is corrected, not treated as news", () => {
     // Happens after a purge, or when a token is repointed at a fresh room.
     // Announcing history as news is the failure this prevents.
