@@ -3441,12 +3441,28 @@ function RoomView({
                           // can overflow six lines at any width, so there is no
                           // point mounting an observer. `Clampable` measures.
                           const LONG = 240;
-                          if (!e.body) return <p className="title">{e.title}</p>;
+                          /* [S#286] R1b. `title` is capped at 200 chars and a
+                             partner passed the OPENING OF THE BODY into it, so
+                             entries carried titles cut mid-word. This branch
+                             already avoided printing that twice -- but it then
+                             rendered the ENTIRE body at `.title`'s 600 weight,
+                             which is what actually made the room unreadable: not
+                             a long heading, a whole answer styled as one.
+                             `startsWith` only matches the stuffed case, so the
+                             content here IS body text and gets body styling.
+                             A title-only entry is clamped for the same reason. */
+                          if (!e.body) {
+                            return e.title.length > LONG ? (
+                              <Clampable text={e.title} className="body" mine={turn.mine} />
+                            ) : (
+                              <p className="title">{e.title}</p>
+                            );
+                          }
                           if (e.body.startsWith(e.title)) {
                             return e.body.length > LONG ? (
-                              <Clampable text={e.body} className="title" mine={turn.mine} />
+                              <Clampable text={e.body} className="body" mine={turn.mine} />
                             ) : (
-                              <p className="title">{e.body}</p>
+                              <p className="body">{e.body}</p>
                             );
                           }
                           return (

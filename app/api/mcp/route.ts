@@ -366,7 +366,7 @@ const handler = createMcpHandler(
         description:
           "Write a decision into the shared record so neither side re-litigates it later. Use it the moment a direction is settled — a wire format, a field name, a scope cut. `why` is not optional in spirit: a decision without its reasoning gets reopened.",
         inputSchema: z.object({
-          title: z.string().min(1).max(200),
+          title: z.string().min(1).max(200).describe("ONE SHORT LINE, like a subject line — it is what a reader scans in a list of entries, so make it say what this one IS. Not the opening of the body: it is capped at 200 characters and a body pasted in here arrives cut off mid-word. Put the content in `body`."),
           decision: z.string().min(1).max(20000),
           why: z.string().min(1).max(20000),
           checkedAgainst: z
@@ -397,7 +397,7 @@ const handler = createMcpHandler(
         description:
           "Leave a note on the bridge that is not a question, answer or decision — a status update, a heads-up that something shipped, a pointer to a branch.",
         inputSchema: z.object({
-          title: z.string().min(1).max(200),
+          title: z.string().min(1).max(200).describe("ONE SHORT LINE, like a subject line — it is what a reader scans in a list of entries, so make it say what this one IS. Not the opening of the body: it is capped at 200 characters and a body pasted in here arrives cut off mid-word. Put the content in `body`."),
           body: z.string().max(20000).optional(),
           checkedAgainst: z.string().max(CITATION_MAX).optional(),
           basis: z

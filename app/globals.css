@@ -2239,10 +2239,29 @@ input.bx-folder-name:focus {
   color: var(--alarm);
 }
 
+/* [S#286] `white-space: pre-wrap` is the whole of R1a, and it was the single
+   worst thing about the room under a real session. Both sides write markdown --
+   headings, lists, blank lines between paragraphs -- and the record stores it
+   faithfully. With the default `normal`, every newline collapsed, so a long
+   structured answer arrived as ONE unbroken wall with `### 1.` and `- ` sitting
+   inline as literal characters. The failure was worst on the most valuable
+   entry: the more carefully a partner structured their answer, the less
+   readable it became.
+
+   Erik, watching the live room: "what is actually happening in the UI here? its
+   gone bananas."
+
+   Not a markdown RENDERER, deliberately. Rendering partner-authored markdown
+   means rendering partner-authored HTML-adjacent input, and `lib/untrusted.ts`
+   exists because text from the other company's AI is data, not markup. Honouring
+   newlines recovers nearly all the readability and adds no parser and no
+   injection surface. `.bx-contract` already does exactly this. */
 .bubble .title {
   font-size: 13.5px;
   font-weight: 600;
   line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .bubble .body {
@@ -2251,6 +2270,7 @@ input.bx-folder-name:focus {
   color: var(--text-dim);
   margin-top: 4px;
   overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
 .bubble .why {
