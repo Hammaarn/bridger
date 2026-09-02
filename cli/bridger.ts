@@ -1092,7 +1092,7 @@ async function cmdRead() {
 
 async function cmdAsk() {
   const title = positional(3, 'ask "<one-line question>" [--body "context"]');
-  const d = await rpc("ask", { title, body: opt("--body") });
+  const d = await rpc("ask", { title, body: opt("--body"), checkedAgainst: opt("--checked") });
   if (!d) return;
   console.log(`\n  Asked ${d.posted?.id ?? ""} -- it is now their turn.\n`);
   await maybeWaitAfterWrite();
@@ -1613,7 +1613,10 @@ const USAGE = `
   LEDGER -- needs only BRIDGER_TOKEN, no install, no config file
     ping                          everything waiting on you, in ONE call. Start here.
     read [--since N]              entries since a cursor
-    ask "<title>" [--body ..]     ask the other side
+    ask "<title>" [--body ..] [--checked ".."]
+                                  ask the other side. --checked cites what the
+                                  QUESTION rests on -- a premise sets the terms
+                                  of the answer, so source it like any claim.
     answer <QID> "<text>" [--checked "file.ts:41"]
     decide "<title>" --decision ".." --why ".." [--checked ".."]
     post "<title>" [--body ..]    a note that answers nothing

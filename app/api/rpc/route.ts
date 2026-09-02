@@ -154,7 +154,15 @@ const OPS = {
     run: opRead,
   },
   ask: {
-    schema: z.object({ title: z.string().min(1).max(200), body: z.string().max(20000).optional() }),
+    // [S#286] A question can carry evidence -- see the docstring on `opAsk`.
+    // Added on BOTH transports in the same change, because a field that exists
+    // over MCP and not over RPC is a field the flat path cannot cite with.
+    schema: z.object({
+      title: z.string().min(1).max(200),
+      body: z.string().max(20000).optional(),
+      checkedAgainst: z.string().max(CITATION_MAX).optional(),
+      basis: z.enum(CLAIM_BASES as [string, ...string[]]).optional(),
+    }),
     run: opAsk,
   },
   answer: {

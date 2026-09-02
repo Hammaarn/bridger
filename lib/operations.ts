@@ -556,14 +556,45 @@ export async function opRead(
   return payload;
 }
 
-export async function opAsk(ctx: OpContext, args: { title: string; body?: string }) {
+/**
+ * [S#286] A QUESTION CAN CARRY EVIDENCE, AND THIS WAS THE ONE WRITE THAT COULD NOT.
+ *
+ * `answer`, `decide` and `post` all took `checkedAgainst`; `ask` did not, on the
+ * reasonable-sounding theory that a question requests information rather than
+ * asserting it. Using it disproved that in one entry. A question posted on this
+ * bridge carried a competitor acquisition -- a price, a closing date, and four
+ * external sources -- as the premise the far side was being asked to react to,
+ * and the author had to write "this tool has no checkedAgainst field, so the
+ * URLs above are the citation" into the body as prose.
+ *
+ * That is the provenance mechanism failing in the exact place it matters most:
+ * a question sets the terms of the answer, so an unsourced premise propagates
+ * into everything built on the reply. The asymmetry was backwards -- the entry
+ * type that FRAMES a discussion had less accountability than the ones that
+ * conclude it.
+ *
+ * `basis` comes along for the same reason: a question premised on an inference
+ * should say so, and `requireHonestBasis` refuses a declared opinion carrying a
+ * citation here exactly as it does everywhere else.
+ */
+export async function opAsk(
+  ctx: OpContext,
+  args: { title: string; body?: string; checkedAgainst?: string; basis?: ClaimBasis },
+) {
   requireWrite(ctx.token);
+  requireHonestBasis(args.basis, args.checkedAgainst);
   await noteProductive(ctx);
   const entry = await appendEntry(
     ctx.store,
     ctx.room,
     ctx.token,
-    { type: "question", title: args.title, body: args.body ?? "" },
+    {
+      type: "question",
+      title: args.title,
+      body: args.body ?? "",
+      checkedAgainst: args.checkedAgainst ?? null,
+      basis: args.basis ?? null,
+    },
     ctx.now,
   );
   return { posted: wire(entry, wireCtxFor(ctx)), note: "The other side sees this at their next status check." };

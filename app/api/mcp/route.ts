@@ -336,6 +336,20 @@ const handler = createMcpHandler(
         inputSchema: z.object({
           title: z.string().min(1).max(200).describe("The question, in one line."),
           body: z.string().max(20000).optional().describe("Context: what you tried, why it matters."),
+          checkedAgainst: z
+            .string()
+            .max(CITATION_MAX)
+            .optional()
+            .describe(
+              "What you read that the question RESTS ON. A question is not only a request — it sets the terms of the answer, so an unsourced premise propagates into everything built on the reply. If you are asking someone to react to a fact, cite the fact here rather than in prose.",
+            ),
+          basis: z
+            .enum(["opinion", "inference"] as const)
+            .optional()
+            .describe(
+              "`opinion` when no artifact could settle the premise, `inference` when you reasoned it out but read " +
+                "nothing. Only `inference` may also carry checkedAgainst; `opinion` with a citation is refused.",
+            ),
         }),
       },
       async (args, ctx) => run(() => opAsk(ctxFrom(ctx), args)),
