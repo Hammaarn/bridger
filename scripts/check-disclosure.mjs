@@ -23,7 +23,9 @@
  *   the widest exposure in the repo: it lands in every agent that lists our
  *   tools, in someone else's model context.
  *
- *   HISTORY - DECISIONS, STATUS, TODO, plans/. These are the record of how the
+ *   HISTORY - plans/, ARCHITECTURE. The record of how it was built.
+ *   [S#290] DECISIONS, STATUS and TODO moved OUT of this class into FORBIDDEN --
+ *   they must not be tracked at all. They were the record of how the
  *   thing was built, they are meant to be readable, and holding them to the
  *   shipping rules would flag hundreds of legitimate lines and get the whole
  *   check switched off. They are scanned for the things that are dangerous
@@ -71,6 +73,35 @@ const SHIPPING = [
 
 /** The record of how it was built. Scanned for the always-dangerous only. */
 const HISTORY = [/^DECISIONS\.md$/, /^STATUS\.md$/, /^TODO\.md$/, /^plans\//, /^ARCHITECTURE\.md$/];
+
+/**
+ * PUBLICATION-FORBIDDEN. This is NOT "scan these harder" -- these must not be
+ * TRACKED AT ALL, and a content scan can never establish that.
+ *
+ * Gaveled S#286 (DECISIONS.md, gavel 3), Erik verbatim:
+ *   "Remove it and make sure docs like that aren't pushed to a public viewing,
+ *    this is our internal stuff, worst case scenario they can leak API keys"
+ *
+ * That gavel also named where the rule belongs: *"the rule needs enforcement in
+ * scripts/check-disclosure.mjs / npm run check, not a habit. A habit is what
+ * produced 365 KB."* This block is that enforcement, added S#290 -- four days
+ * later the files were still tracked, which is the argument for a gate rather
+ * than an intention.
+ *
+ * Note what this replaces: these three were previously in HISTORY, an ACCEPTED
+ * class with a written rationale, so the gate returned `clean` on precisely the
+ * condition it was supposed to catch. A gate that permits the thing by name is
+ * not an unenforced rule -- it is the opposite rule, enforced.
+ *
+ * NOT included, because the gavel did not name them -- Erik's call, not mine:
+ *   `plans/` (9 files, ~105 KB tracked) and `ARCHITECTURE.md` (~38 KB).
+ *   `ARCHITECTURE.md` is plausibly meant to be public; `plans/` is plausibly not.
+ */
+const FORBIDDEN = [
+  { re: /^DECISIONS\.md$/, why: "internal decision log" },
+  { re: /^STATUS\.md$/, why: "internal status log" },
+  { re: /^TODO\.md$/, why: "internal working notes" },
+];
 
 /**
  * Dangerous ANYWHERE. Deliberately shape-based, never entropy-based: this repo
@@ -231,6 +262,32 @@ function main() {
 
   const names = loadNames();
   const files = trackedFiles();
+
+  // STRUCTURAL CHECK, before any content scan: a publication-forbidden file must
+  // not be tracked. Content is irrelevant here -- tracked means published.
+  const leaked = files.filter((f) => FORBIDDEN.some((x) => x.re.test(f)));
+  if (leaked.length > 0) {
+    console.error(`check-disclosure: ${leaked.length} PUBLICATION-FORBIDDEN file(s) are tracked.
+`);
+    for (const f of leaked) {
+      const why = FORBIDDEN.find((x) => x.re.test(f)).why;
+      console.error(`  ${f}  -- ${why}`);
+    }
+    console.error(
+      `
+  Tracked means published. Gaveled S#286: "make sure docs like that aren't
+` +
+        `  pushed to a public viewing ... worst case scenario they can leak API keys".
+
+` +
+        `  To fix:  git rm --cached <file>   and add it to .gitignore
+` +
+        `  Removing them from the INDEX stops future publication; it does NOT remove
+` +
+        `  them from git HISTORY. That is the separate, gaveled history scrub.`,
+    );
+    process.exit(1);
+  }
 
   // LIVENESS. A run that scanned nothing must never look like a clean run.
   if (files.length === 0) {

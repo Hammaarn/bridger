@@ -59,3 +59,11 @@ next-env.d.ts
 # permissions and belongs to this machine, not to the repo.
 .disclosure-names.local.json
 .claude/settings.local.json
+
+# Internal working docs -- NOT for public view (gaveled S#286, enforced S#290).
+# "Remove it and make sure docs like that aren't pushed to a public viewing,
+#  this is our internal stuff, worst case scenario they can leak API keys."
+# scripts/check-disclosure.mjs FAILS if any of these become tracked again.
+/DECISIONS.md
+/STATUS.md
+/TODO.md
