@@ -68,3 +68,6 @@ next-env.d.ts
 /STATUS.md
 /TODO.md
 /plans/
+
+# The internal-docs repo (S#290). Its own history, no remote, never pushed.
+/.git-internal/

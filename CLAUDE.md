@@ -32,9 +32,31 @@ was nearly done in `TODO.md` while documenting that very leak.)
 (~38 KB) remain tracked. The S#286 gavel named only the three files above. Do not widen or
 narrow the rule on your own judgement.
 
-**Untracking is not erasure.** All three remain in git HISTORY. Removing them from there is
-a separate gaveled scrub that rewrites history and needs Erik's explicit go at the moment
-of running, because forks must re-fork.
+**The scrub is DONE (S#290).** History was rewritten with `git filter-repo` and force-pushed:
+197 → 140 commits, `master` now `fd9b4d1`. The four paths, the partner's name and five room
+ids are gone from every branch, verified on a fresh clone from GitHub. **It is still not
+finished** — `refs/pull/1/head` and `refs/pull/2/head` keep pre-rewrite commits reachable and
+only GitHub Support can purge them, and the fork `Baltsar/bridger` must be **deleted**, not
+re-cloned. Both are tracked in `TODO.md` items 0a/0b.
+
+**These docs have their own git history, in a repo with no remote.** `.git-internal/` is a
+separate gitdir over this same work-tree, tracking only `DECISIONS.md`, `STATUS.md`,
+`TODO.md` and `plans/`. Use it:
+
+```
+git --git-dir=.git-internal --work-tree=. status
+git --git-dir=.git-internal --work-tree=. add -f TODO.md && \
+git --git-dir=.git-internal --work-tree=. commit -m "..."
+```
+
+`add -f` is required because this work-tree's own `.gitignore` outranks the internal repo's
+`info/exclude` — that is expected, not a misconfiguration. **It has NO remote on purpose:**
+the protection is not "remember not to push", it is that there is nowhere to push to. Do not
+add one. `.git-internal/` is itself gitignored by the public repo.
+
+Why it exists: removing these from the public repo left the project's entire decision log
+and status with no version control at all — a single unversioned copy on one disk, which is
+a worse failure mode than the exposure it fixed, only quieter.
 
 ## 2. Never claim state you have not read
 
