@@ -32,8 +32,13 @@ const at = (mins: number) => new Date(Date.now() - mins * 60_000);
 
 async function main() {
   const { room, ownerToken, peerToken } = await createRoom(store!, {
-    topic: "JudgeMySite × Northwind — live review API",
-    ownerLabel: "JudgeMySite",
+    // Generic on purpose (S#290). This named a real partner company, in a tracked
+    // file, in a public repo — which is the exact thing this repo's own disclosure
+    // rule forbids: "Naming a partner company that never agreed to it ... is a
+    // disclosure that is not ours to make." The seed only needs two DISTINCT sides
+    // to exercise the two-vendor UI; whose names they are is irrelevant to it.
+    topic: "Acme Corp × Northwind — live review API",
+    ownerLabel: "Acme Corp",
     peerLabel: "Northwind",
     now: at(600),
   });

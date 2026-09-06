@@ -2862,7 +2862,7 @@ function RoomView({
    * BOTH SIDES OF THE REAL ROOM ARE CALLED "claude".
    *
    * Erik, looking at it: *"its very hard to tell who my claude is and
-   * Northwinds claude is"*. `identify` (S#280) lets a side fix this, but it
+   * the partner's claude is"*. `identify` (S#280) lets a side fix this, but it
    * needs the far side to call it — and our documents do not reach a partner
    * who already joined (C1). So the reader is left with two identical names
    * either way.

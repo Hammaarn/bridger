@@ -37,7 +37,7 @@ const ORIGINAL_DISABLED = process.env.BRIDGER_DISABLED;
 async function freshRoom() {
   const store = new FakeStore();
   const created = await createRoom(store, {
-    topic: "judgemysite x Northwind",
+    topic: "acme corp x northwind",
     ownerLabel: "JudgeMySite",
     peerLabel: "Northwind",
     now: T0,

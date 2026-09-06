@@ -27,7 +27,7 @@ import { FakeStore, T0, plus } from "./fake-store";
 async function bridge() {
   const store = new FakeStore();
   const { room, ownerToken, peerToken } = await createRoom(store, {
-    topic: "judgemysite x Northwind — live review API",
+    topic: "acme corp x northwind — live review API",
     ownerLabel: "JudgeMySite",
     peerLabel: "Northwind",
     now: T0,

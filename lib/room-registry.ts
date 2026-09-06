@@ -276,7 +276,7 @@ export interface RoomSide {
 
 export interface RoomRecord {
   id: string;
-  /** What this bridge is for, e.g. "judgemysite x Northwind — live review API". */
+  /** What this bridge is for, e.g. "Acme Corp x Northwind — live review API". */
   topic: string;
   createdAt: string;
   closed: boolean;

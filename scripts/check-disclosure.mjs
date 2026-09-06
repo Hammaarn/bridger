@@ -69,10 +69,18 @@ const SHIPPING = [
   /^cli\/.*\.ts$/,
   /^integrations\/.*$/,
   /^skill\/.*$/,
+  // S#290: scripts/ was NOT scanned, so THIS FILE was invisible to itself -- and a
+  // real room id sat in its own selftest fixture, in a public repo, added while
+  // writing the rule against room ids. A detector that cannot see its own
+  // directory has a blind spot exactly where its author is least careful.
+  /^scripts\/.*$/,
+  // .css too: the partner's name sits in app/globals.css, which `app/.*\.(ts|tsx)`
+  // never matched. Styling files carry comments like any other source.
+  /^app\/.*\.css$/,
 ];
 
 /** The record of how it was built. Scanned for the always-dangerous only. */
-const HISTORY = [/^DECISIONS\.md$/, /^STATUS\.md$/, /^TODO\.md$/, /^plans\//, /^ARCHITECTURE\.md$/];
+const HISTORY = [/^ARCHITECTURE\.md$/];
 
 /**
  * PUBLICATION-FORBIDDEN. This is NOT "scan these harder" -- these must not be
@@ -101,6 +109,12 @@ const FORBIDDEN = [
   { re: /^DECISIONS\.md$/, why: "internal decision log" },
   { re: /^STATUS\.md$/, why: "internal status log" },
   { re: /^TODO\.md$/, why: "internal working notes" },
+  // Added S#290 on Erik's ruling, applying the S#286 gavel's own words ("docs like
+  // that") to the obvious sibling: plans/ is 9 files of internal planning --
+  // DECISIONS-FOR-ERIK-s272.md, competitor and landscape analyses, three of them
+  // naming partners. ARCHITECTURE.md deliberately STAYS public: this is Apache-2.0
+  // and invites forking, which an architecture doc serves.
+  { re: /^plans\//, why: "internal planning, competitor and partner material" },
 ];
 
 /**
@@ -112,6 +126,24 @@ const ALWAYS = [
   { id: "bridger-token", re: /\bbr_live_[A-Za-z0-9_-]{16,}/, why: "a live Bridger credential" },
   { id: "provider-key", re: /\b(sk-ant-|sk-proj-|ghp_|github_pat_|xox[baprs]-)[A-Za-z0-9_-]{16,}/, why: "a provider credential" },
   { id: "private-key", re: /-----BEGIN (RSA |EC |OPENSSH |PGP )?PRIVATE KEY-----/, why: "a private key" },
+  {
+    // Added S#290, Erik: "lets make sure room ID's are never pushed as well, we
+    // can't leak peoples rooms." A room id is not a credential -- you still need a
+    // token -- but it identifies a real partner engagement, and four distinct ones
+    // were found in the public history of the internal docs.
+    //
+    // PROXIMITY-BASED ON PURPOSE, not a bare /[0-9a-f]{12}/. This repo is full of
+    // commit shas by design and the file's own rule is that a scanner refusing
+    // provenance is worse than no scanner. So it fires only where a 12-hex string
+    // is LABELLED as a room: `room e4db...`, `room=e4db...`, `rooms/e4db...`,
+    // `--room e4db...`. A bare sha never matches -- see the selftest's negative
+    // control. The cost of the narrow shape is that an unlabelled room id slips
+    // through; that is the deliberate trade, and it is why this is a backstop and
+    // not the plan.
+    id: "room-id",
+    re: /\b(?:--)?rooms?[\s_:=/-]{0,4}["'`]?[0-9a-f]{12}\b/i,
+    why: "a room id, which identifies a real partner engagement",
+  },
   {
     id: "url-credential",
     re: /\b[a-z][a-z0-9+.-]*:\/\/[^\s/@]+:[^\s/@]+@/i,
@@ -205,8 +237,16 @@ export function scanText(path, text, tier, names) {
         if (rule.skip?.(line)) continue;
         if (rule.re.test(line)) findings.push({ path, line: i + 1, id: rule.id, why: rule.why });
       }
+      // CASE-INSENSITIVE since S#290. It was `line.includes(name)`, an exact
+      // substring match, and the names list is written in title case -- so six
+      // tracked files carrying the partner's name in LOWERCASE passed the gate
+      // for months, including app/page.tsx and app/globals.css, which are the
+      // public landing page. The check reported `clean` while the name it exists
+      // to catch sat in shipped source. A name is not a token: casing is the
+      // author's whim, so matching must not depend on it.
+      const haystack = line.toLowerCase();
       for (const name of names ?? []) {
-        if (line.includes(name)) {
+        if (haystack.includes(name.toLowerCase())) {
           findings.push({
             path,
             line: i + 1,
@@ -222,30 +262,49 @@ export function scanText(path, text, tier, names) {
 }
 
 function selftest() {
+  // Every literal below is a SPECIMEN the detector must react to, so this block
+  // necessarily contains the shapes the detector hunts. Before S#290 that was
+  // invisible: `scripts/` was not in SHIPPING, so this file never scanned itself.
+  // It is scanned now, and each specimen carries the marker the file already
+  // defines for exactly this -- synthetic, shaped like the real thing, not real.
   const cases = [
     // [tier, text, mustFire]
     ["shipping", "const t = 'br_" + "live_" + "aB3dE5fG7hJ9kL1mN3pQ5rS7tU9v';", true],
-    ["shipping", "see roastmydev/app/api/external/live-review/route.ts:88", true],
-    ["history", "see roastmydev/lib/review-contract.ts", true],
-    ["shipping", "room ROOM_REDACTED_A is live", true],
-    ["shipping", "at C:/Users/someone/Documents/thing", true],
+    ["shipping", "see roastmydev/app/api/external/live-review/route.ts:88", true], // disclosure-ok: synthetic specimen, the detector must react to this shape.
+    ["history", "see roastmydev/lib/review-contract.ts", true], // disclosure-ok: synthetic specimen, the detector must react to this shape.
+    // A FAKE id on purpose. S#290: this fixture first carried a REAL room id --
+    // written into a public repo while adding the rule against exactly that. A
+    // detector's fixture must never be a live specimen; see the token fixture
+    // above, which is split and fake for the same reason.
+    ["shipping", "room 0123456789ab is live", true], // disclosure-ok: synthetic, and an example id must be shaped like a real one.
+    ["shipping", "at C:/Users/someone/Documents/thing", true], // disclosure-ok: synthetic path, not an operator's.
     // Negative controls: these MUST stay silent or the check is unusable.
     ["shipping", "production is commit e1619d4, master is f625352", false],
     ["shipping", "the deployment sha 40b2868a1c2d was verified", false],
-    ["history", "Northwind asked about the 422 path", false],
+    ["history", "Northwind asked about the 422 path", false], // disclosure-ok: synthetic name; the selftest supplies its own list, so it never needs a real one.
     ["shipping", "read lib/store.ts:466 for the TTL", false],
     ["shipping", "curl -s https://bridger.nexus/api/about", false],
   ];
 
   let bad = 0;
   for (const [tier, text, mustFire] of cases) {
-    const fired = scanText("selftest", text, tier, ["Northwind"]).length > 0;
+    const fired = scanText("selftest", text, tier, ["Northwind"]).length > 0; // disclosure-ok: synthetic name list for the selftest.
     const ok = fired === mustFire;
     if (!ok) bad++;
     console.log(`${ok ? "  ok  " : "  FAIL"} [${tier}] fired=${fired} want=${mustFire}  ${text.slice(0, 56)}`);
   }
   // The third-party name must fire on a SHIPPING surface, and not in history.
-  const nameFires = scanText("x", "label e.g. 'Northwind'", "shipping", ["Northwind"]).length > 0;
+  // disclosure-ok: the name check cannot be tested without naming something.
+  // LOWERCASE specimen on purpose: the list is title-case and the matcher used to
+  // be case-sensitive, which is exactly how six files slipped through (S#290).
+  const lowerFires = scanText("x", "topic: acme corp x northwind", "shipping", ["Northwind"]).length > 0; // disclosure-ok: synthetic lowercase specimen -- the case the matcher used to miss.
+  if (!lowerFires) {
+    console.log("  FAIL third-party name did not fire on a LOWERCASE occurrence");
+    bad++;
+  } else {
+    console.log("  ok   third-party name fires regardless of casing");
+  }
+  const nameFires = scanText("x", "label e.g. 'Northwind'", "shipping", ["Northwind"]).length > 0; // disclosure-ok: synthetic name; a real partner is never a fixture.
   if (!nameFires) {
     console.log("  FAIL third-party name did not fire on a shipping surface");
     bad++;
